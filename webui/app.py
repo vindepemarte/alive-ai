@@ -834,9 +834,24 @@ async def get_new_aliveness():
     try:
         from brain.narrative import get_narrative_engine
         ne = get_narrative_engine()
-        # Get owner's narrative
         from core.settings import get as settings_get
         owner_id = str(settings_get("TELEGRAM_OWNER_ID", ""))
+
+        # Fallback: when owner_id is empty (terminal mode), find the most active user
+        if not owner_id:
+            try:
+                users_path = data_dir() / "users"
+                if users_path.exists():
+                    candidates = [d.name for d in users_path.iterdir() if d.is_dir()]
+                    if candidates:
+                        # Pick the user with the most recent narrative file
+                        def _narr_mtime(uid):
+                            p = data_dir() / "users" / uid / "narrative.json"
+                            return p.stat().st_mtime if p.exists() else 0
+                        owner_id = max(candidates, key=_narr_mtime)
+            except Exception:
+                pass
+
         if owner_id:
             data = ne._get_data(owner_id)
             msg_count = data.get("message_count", 0)
@@ -895,6 +910,21 @@ async def get_new_aliveness():
         from brain.curiosity import get_curiosity_drive
         from core.settings import get as settings_get
         owner_id = str(settings_get("TELEGRAM_OWNER_ID", ""))
+
+        # Fallback: when owner_id is empty (terminal mode), find the most active user
+        if not owner_id:
+            try:
+                users_path = data_dir() / "users"
+                if users_path.exists():
+                    candidates = [d.name for d in users_path.iterdir() if d.is_dir()]
+                    if candidates:
+                        def _cur_mtime(uid):
+                            p = data_dir() / "users" / uid / "curiosity.json"
+                            return p.stat().st_mtime if p.exists() else 0
+                        owner_id = max(candidates, key=_cur_mtime)
+            except Exception:
+                pass
+
         if owner_id:
             cd = get_curiosity_drive(owner_id)
             topics = {t: round(v, 2) for t, v in cd.knowledge.items()} if hasattr(cd, 'knowledge') else {}

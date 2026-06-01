@@ -33,9 +33,13 @@ The emotional layer now has real runtime consequences:
 | Internal body state | Energy, arousal, certainty, social satiety, cognitive load, connection craving, body sensations, and somatic memories. | The body state is persisted and feeds prompt tone, sleep/rest behavior, and whether she feels steady, overloaded, touchy, open, or withdrawn. |
 | Circadian rhythm | Phase, sleep pressure, sleep debt, forced-awake windows, sleep cycle ID, wake time, and sleepiness. | She becomes sleepy, slows down, falls asleep, stops outward proactive behavior while asleep, can be woken by a message, recovers sleep debt, and wakes with lower or higher energy depending on rest. |
 | Dreams | One normalized dream per sleep cycle, generated from memory fragments and emotion tags. | Dreams are saved, can appear in morning context, and are exposed in the dashboard and static Pages demo. |
+| Narrative | Relationship phase (first_meeting → bonded) tracked per user. Key moments are detected from message content. | Phase and moment count are injected into the LLM prompt each turn. The dashboard shows the current phase and total key moments. |
+| Curiosity | Per-user knowledge map across topics detected in messages. Topics range from 0 (unknown) to 1 (well-understood). | When knowledge on a topic is below 0.3 she asks a direct question. At 40% probability otherwise she surfaces curiosity as a prompt hint. Dashboard shows topics sorted by curiosity level. |
+| Internal conflicts | Five persistent desire-vs-fear tensions (closeness/independence, passion/comfort, stability/growth, etc.) with a swinging balance that is saved between sessions. | Every message triggers conflicts whose keywords match the topic. Balance swings over time. Conflicts with tension > 0 surface in the prompt and are visible on the dashboard with a tension bar. |
 | Persistence | Emotion, attachment, soul, somatic, unconscious, conflict, subconscious, circadian, and dream state under `data/`. | Restarting the runtime preserves the inner state instead of visually resetting it. |
 
 The public Pages site is a static explanation and dashboard export. The local WebUI is the live version: it streams the actual state from the running Python backend.
+
 
 ## Quick Start
 

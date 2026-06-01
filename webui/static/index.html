@@ -1809,17 +1809,20 @@
                     const name = c.name || c.id || 'Unknown';
                     const desire = c.desire || c.side_a || '';
                     const fear = c.fear || c.side_b || '';
-                    const tension = Math.round((c.tension_level || c.intensity || 0) * 100);
+                    // Support both 'tension' (inconsistency API) and 'tension_level' (soul API)
+                    const rawTension = c.tension_level !== undefined ? c.tension_level : (c.tension !== undefined ? c.tension : c.intensity || 0);
+                    const tension = Math.round(rawTension * 100);
 
                     return `
                     <div class="conflict-item">
                         <div class="conflict-name">${escapeHtml(name.replace(/_/g, ' '))}</div>
                         <div class="conflict-detail">${escapeHtml(desire)} <span style="color:var(--text-muted)">vs</span> ${escapeHtml(fear)}</div>
                         <div class="conflict-tension" style="margin-top:4px;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">
-                            <div style="width:${tension}%;height:100%;background:linear-gradient(90deg,#e74c3c,#ff9800);border-radius:2px;"></div>
+                            <div style="width:${tension}%;height:100%;background:linear-gradient(90deg,#e74c3c,#ff9800);border-radius:2px;transition:width 0.6s ease;"></div>
                         </div>
                     </div>
                 `}).join('');
+
             } else if (conflictsEl) {
                 conflictsEl.innerHTML = '<div class="conflict-empty">No active internal conflicts</div>';
             }
