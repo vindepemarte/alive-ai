@@ -471,10 +471,18 @@ async function setupProject(args) {
   console.log("Run `npx . chat` for terminal chat, `npx . demo` for the dashboard preview, or `npx . start` for Telegram/runtime mode.");
 }
 
+function commandResponds(command, versionArgSets = [["--version"], ["-version"]]) {
+  for (const args of versionArgSets) {
+    const result = spawnSync(command, args, { stdio: "ignore" });
+    if (result.status === 0) return true;
+    if (result.error && result.error.code === "ENOENT") return false;
+  }
+  return false;
+}
+
 function findCommand(candidates) {
   for (const command of candidates) {
-    const result = spawnSync(command, ["--version"], { stdio: "ignore" });
-    if (result.status === 0) return command;
+    if (commandResponds(command)) return command;
   }
   return null;
 }
@@ -492,7 +500,7 @@ function pythonVersion(command) {
 }
 
 function hasCommand(command) {
-  return spawnSync(command, ["--version"], { stdio: "ignore" }).status === 0;
+  return commandResponds(command);
 }
 
 function commandLine(command) {
