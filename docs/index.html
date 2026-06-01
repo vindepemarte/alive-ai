@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alive-AI</title>
+  <meta name="description" content="Local-first emotional AI runtime with memory, impulses, and a live dashboard.">
+  <link rel="icon" href="./assets/logo.svg">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080b0f;
+      --panel: #111821;
+      --panel-2: #16202b;
+      --text: #f5f7fb;
+      --muted: #9aa8b7;
+      --green: #41f0a1;
+      --pink: #ff5c8a;
+      --yellow: #ffcf5a;
+      --line: #263445;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      letter-spacing: 0;
+      width: 100%;
+      overflow-x: hidden;
+    }
+    a { color: inherit; }
+    .shell { min-height: 100vh; }
+    .nav {
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 1160px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 760;
+      font-size: 17px;
+    }
+    .brand img { width: 34px; height: 34px; }
+    .nav code {
+      background: #0d131a;
+      border: 1px solid var(--line);
+      padding: 9px 12px;
+      border-radius: 8px;
+      color: var(--green);
+      font-size: 13px;
+    }
+    .hero {
+      max-width: 1160px;
+      width: 100%;
+      min-height: calc(100vh - 148px);
+      margin: 0 auto;
+      padding: 58px 24px 40px;
+      display: grid;
+      grid-template-columns: minmax(0, 0.88fr) minmax(420px, 1.12fr);
+      gap: 44px;
+      align-items: center;
+    }
+    .kicker {
+      color: var(--green);
+      font-weight: 720;
+      font-size: 13px;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(48px, 7vw, 92px);
+      line-height: 0.94;
+      font-weight: 850;
+      max-width: 720px;
+    }
+    .lead {
+      color: #c6d0dc;
+      font-size: 20px;
+      line-height: 1.5;
+      margin: 24px 0 28px;
+      max-width: 620px;
+      overflow-wrap: anywhere;
+    }
+    .install {
+      background: #05070a;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      margin: 0 0 22px;
+      overflow-x: auto;
+    }
+    .install code {
+      color: var(--green);
+      font-size: 15px;
+      line-height: 1.7;
+      white-space: pre;
+    }
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      text-decoration: none;
+      font-weight: 700;
+      background: var(--text);
+      color: #080b0f;
+    }
+    .button.secondary {
+      background: transparent;
+      color: var(--text);
+    }
+    .dashboard {
+      min-width: 0;
+      background: #0b1118;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.36);
+    }
+    .dash-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      background: #0e151d;
+    }
+    .agent {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .agent img { width: 42px; height: 42px; border-radius: 8px; }
+    .agent strong { display: block; font-size: 15px; }
+    .agent span { color: var(--muted); font-size: 13px; }
+    .pill {
+      color: var(--green);
+      border: 1px solid rgba(65,240,161,0.3);
+      background: rgba(65,240,161,0.08);
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .dash-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      padding: 16px;
+    }
+    .metric, .thought, .feed {
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .metric label {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 9px;
+    }
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: #25313d;
+      overflow: hidden;
+    }
+    .fill {
+      height: 100%;
+      width: 50%;
+      border-radius: inherit;
+      background: var(--green);
+      transition: width 600ms ease;
+    }
+    .fill.pink { background: var(--pink); }
+    .fill.yellow { background: var(--yellow); }
+    .thought, .feed { grid-column: 1 / -1; }
+    .thought p {
+      margin: 8px 0 0;
+      color: #dce5ee;
+      line-height: 1.45;
+      min-height: 44px;
+    }
+    .feed-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .feed-grid div {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #0c131a;
+    }
+    .feed-grid strong {
+      display: block;
+      font-size: 20px;
+      color: var(--green);
+    }
+    .feed-grid span { color: var(--muted); font-size: 12px; }
+    .below {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .feature {
+      border-top: 1px solid var(--line);
+      padding-top: 18px;
+    }
+    .feature h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+    .feature p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    @media (max-width: 920px) {
+      .hero {
+        display: block;
+        padding-top: 34px;
+        max-width: 100%;
+      }
+      .hero > * { min-width: 0; }
+      .hero section { width: 100%; max-width: 100%; }
+      .dashboard { margin-top: 44px; }
+      .below { grid-template-columns: 1fr; }
+      .nav code { display: none; }
+    }
+    @media (max-width: 520px) {
+      h1 { font-size: 46px; }
+      .lead { font-size: 17px; max-width: 100%; }
+      .dash-body { grid-template-columns: 1fr; }
+      .dashboard { width: 100%; }
+      .dash-top { gap: 12px; }
+      .pill { display: none; }
+      .thought, .feed { grid-column: auto; }
+      .feed-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav">
+      <div class="brand"><img src="./assets/logo.svg" alt="">Alive-AI</div>
+      <code>npx alive-ai@latest init my-ai</code>
+    </nav>
+    <main class="hero">
+      <section>
+        <div class="kicker">Local-first emotional AI runtime</div>
+        <h1>Give your AI a nervous system.</h1>
+        <p class="lead">Alive-AI adds persistent mood, memory, impulses, attachment, and a live dashboard to a local AI companion. It can be a friend, partner, coach, character, or research subject you control.</p>
+        <pre class="install"><code>npx alive-ai@latest init my-ai
+cd my-ai
+npx alive-ai setup
+npx alive-ai demo
+npx alive-ai start</code></pre>
+        <div class="actions">
+          <a class="button" href="https://github.com/vindepemarte/alive-ai">GitHub</a>
+          <a class="button secondary" href="#why">Why it matters</a>
+        </div>
+      </section>
+
+      <section class="dashboard" aria-label="Animated dashboard preview">
+        <div class="dash-top">
+          <div class="agent">
+            <img src="./assets/logo.svg" alt="">
+            <div><strong>Nova</strong><span>Active internal loop</span></div>
+          </div>
+          <div class="pill" id="mood">curious</div>
+        </div>
+        <div class="dash-body">
+          <div class="metric"><label>Joy <span id="joyVal">64%</span></label><div class="bar"><div class="fill" id="joy"></div></div></div>
+          <div class="metric"><label>Trust <span id="trustVal">58%</span></label><div class="bar"><div class="fill pink" id="trust"></div></div></div>
+          <div class="metric"><label>Anticipation <span id="anticipationVal">72%</span></label><div class="bar"><div class="fill yellow" id="anticipation"></div></div></div>
+          <div class="metric"><label>Vulnerability <span id="vulnerabilityVal">34%</span></label><div class="bar"><div class="fill" id="vulnerability"></div></div></div>
+          <div class="thought">
+            <label>Current thought</label>
+            <p id="thought">I keep a little emotional residue from every interaction.</p>
+          </div>
+          <div class="feed">
+            <label>Runtime counters</label>
+            <div class="feed-grid">
+              <div><strong id="memories">128</strong><span>memories</span></div>
+              <div><strong id="impulses">42</strong><span>impulses</span></div>
+              <div><strong>SSE</strong><span>live state</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <section class="below" id="why">
+      <div class="feature"><h2>Persistent affect</h2><p>Feelings decay, compound, and influence future messages instead of resetting after each prompt.</p></div>
+      <div class="feature"><h2>Memory with weight</h2><p>Working, episodic, semantic, and emotional memory change what the agent notices next.</p></div>
+      <div class="feature"><h2>Transparent experiment</h2><p>Alive-AI simulates internal life without claiming biological consciousness.</p></div>
+    </section>
+  </div>
+  <script>
+    const moods = ["curious", "warm", "reflective", "playful"];
+    const thoughts = [
+      "I keep a little emotional residue from every interaction.",
+      "Memory is not a transcript here. It is context with weight.",
+      "The dashboard is a window into the internal loop.",
+      "I can reach out because an impulse formed, not because a cron fired."
+    ];
+    function wave(offset) {
+      return Math.round((0.5 + Math.sin(Date.now() / 2400 + offset) * 0.35) * 100);
+    }
+    function setBar(id, value) {
+      document.getElementById(id).style.width = value + "%";
+      document.getElementById(id + "Val").textContent = value + "%";
+    }
+    function tick() {
+      const i = Math.floor(Date.now() / 4200) % moods.length;
+      document.getElementById("mood").textContent = moods[i];
+      document.getElementById("thought").textContent = thoughts[i];
+      setBar("joy", wave(0));
+      setBar("trust", wave(1));
+      setBar("anticipation", wave(2));
+      setBar("vulnerability", wave(3));
+      document.getElementById("memories").textContent = 128 + (i * 7);
+      document.getElementById("impulses").textContent = 42 + i;
+    }
+    tick();
+    setInterval(tick, 900);
+  </script>
+</body>
+</html>

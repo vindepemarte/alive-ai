@@ -1,0 +1,21 @@
+aiohttp>=3.9.0
+python-telegram-bot>=20.0
+SpeechRecognition>=3.10.0
+
+# Embedding model
+sentence-transformers>=2.2.0
+torch>=2.0.0
+
+# Redis with vector search
+redis>=5.0.0
+watchdog
+fastapi>=0.100.0
+uvicorn>=0.23.0
+sse-starlette>=1.6.0
+
+# TTS
+gtts>=2.3.0
+pydub>=0.25.0
+
+# Memory monitoring
+psutil>=5.9.0

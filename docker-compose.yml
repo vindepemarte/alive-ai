@@ -1,0 +1,28 @@
+services:
+  alive-ai:
+    build: .
+    container_name: alive-ai
+    command: python main.py
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - alive_ai_cache:/app/.cache
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis/redis-stack-server:latest
+    container_name: alive-ai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - alive_ai_redis:/data
+    restart: unless-stopped
+
+volumes:
+  alive_ai_cache:
+  alive_ai_redis:

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alive-AI Demo Dashboard</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080b0f;
+      --panel: #111821;
+      --line: #263445;
+      --text: #f5f7fb;
+      --muted: #9aa8b7;
+      --green: #41f0a1;
+      --pink: #ff5c8a;
+      --yellow: #ffcf5a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+    .app {
+      width: min(980px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand img { width: 42px; height: 42px; border-radius: 8px; }
+    h1 { margin: 0; font-size: 22px; }
+    .status {
+      border: 1px solid rgba(65,240,161,0.3);
+      color: var(--green);
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 750;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 16px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 15px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .metric { margin-bottom: 14px; }
+    .metric label { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+    .bar { height: 11px; border-radius: 999px; overflow: hidden; background: #25313d; }
+    .fill { height: 100%; width: 50%; border-radius: inherit; background: var(--green); transition: width 500ms ease; }
+    .fill.pink { background: var(--pink); }
+    .fill.yellow { background: var(--yellow); }
+    .thought {
+      min-height: 132px;
+      display: flex;
+      align-items: center;
+      font-size: 22px;
+      line-height: 1.35;
+    }
+    .counters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .counter { border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #0c131a; }
+    .counter strong { display: block; font-size: 28px; color: var(--green); }
+    .counter span { color: var(--muted); font-size: 13px; }
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr; }
+      .counters { grid-template-columns: 1fr; }
+      header { align-items: flex-start; gap: 12px; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand"><img src="/assets/logo.svg" alt=""><div><h1>Alive-AI Demo</h1><div id="mood">curious</div></div></div>
+      <div class="status">local dashboard preview</div>
+    </header>
+    <section class="grid">
+      <div class="panel">
+        <h2>Emotional State</h2>
+        <div class="metric"><label>Joy <span id="joyVal">64%</span></label><div class="bar"><div class="fill" id="joy"></div></div></div>
+        <div class="metric"><label>Trust <span id="trustVal">58%</span></label><div class="bar"><div class="fill pink" id="trust"></div></div></div>
+        <div class="metric"><label>Anticipation <span id="anticipationVal">72%</span></label><div class="bar"><div class="fill yellow" id="anticipation"></div></div></div>
+        <div class="metric"><label>Vulnerability <span id="vulnerabilityVal">34%</span></label><div class="bar"><div class="fill" id="vulnerability"></div></div></div>
+      </div>
+      <div class="panel">
+        <h2>Current Thought</h2>
+        <div class="thought" id="thought">I keep a little emotional residue from every interaction.</div>
+      </div>
+      <div class="panel">
+        <h2>Runtime Counters</h2>
+        <div class="counters">
+          <div class="counter"><strong id="memories">128</strong><span>memories</span></div>
+          <div class="counter"><strong id="impulses">42</strong><span>impulses</span></div>
+          <div class="counter"><strong>SSE</strong><span>live state</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Install</h2>
+        <pre><code>npx alive-ai setup
+npx alive-ai start</code></pre>
+      </div>
+    </section>
+  </main>
+  <script>
+    async function tick() {
+      const res = await fetch("/state");
+      const data = await res.json();
+      document.getElementById("mood").textContent = data.mood;
+      document.getElementById("thought").textContent = data.thought;
+      for (const key of Object.keys(data.emotions)) {
+        const value = data.emotions[key];
+        const bar = document.getElementById(key);
+        const label = document.getElementById(key + "Val");
+        if (bar) bar.style.width = value + "%";
+        if (label) label.textContent = value + "%";
+      }
+      document.getElementById("memories").textContent = data.counters.memories;
+      document.getElementById("impulses").textContent = data.counters.impulses;
+    }
+    tick();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+# Local config and secrets
+.env
+*.env
+config/settings.json
+config/self.json
+config/directives.json
+config/instructions.md
+config/secrets.env
+
+# Runtime state
+data/
+.alive-ai/
+mypics/*
+myvids/*
+!mypics/.gitkeep
+!myvids/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS and logs
+.DS_Store
+*.log
+*.mp3
+*.wav

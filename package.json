@@ -1,0 +1,58 @@
+{
+  "name": "alive-ai",
+  "version": "0.1.0",
+  "description": "Local-first emotional AI runtime with memory, impulses, and a live dashboard.",
+  "license": "MIT",
+  "homepage": "https://vindepemarte.github.io/alive-ai/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vindepemarte/alive-ai.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vindepemarte/alive-ai/issues"
+  },
+  "bin": {
+    "alive-ai": "cli/index.js"
+  },
+  "files": [
+    "alive_ai",
+    "brain",
+    "cli",
+    "config/*.example.json",
+    "config/*.example.md",
+    "core",
+    "demo",
+    "docs",
+    "heart",
+    "input",
+    "main.py",
+    "manifest.md",
+    "mypics/.gitkeep",
+    "myvids/.gitkeep",
+    "output",
+    "requirements.txt",
+    "skills",
+    "webui",
+    "Dockerfile",
+    "docker-compose.yml",
+    "LICENSE",
+    "README.md",
+    "pyproject.toml"
+  ],
+  "keywords": [
+    "ai",
+    "agent",
+    "companion",
+    "emotional-ai",
+    "local-first",
+    "memory",
+    "telegram",
+    "dashboard"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "smoke": "node cli/index.js --help && python3 -m compileall -q alive_ai brain core heart input output skills webui"
+  }
+}
