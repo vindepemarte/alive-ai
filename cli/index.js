@@ -48,6 +48,7 @@ Usage:
   alive-ai demo [--port 8080]     Run the animated dashboard demo
   alive-ai update [--yes]         Update this project from the latest package
   alive-ai start [--skip-install] Install Python deps if needed and start runtime
+  alive-ai stop                   Stop the running project runtime
   alive-ai chat [--skip-install]  Start split-pane terminal chat and logs
   alive-ai chat --plain           Start raw terminal chat without the TUI
   alive-ai doctor [--fix]         Check local prerequisites and optionally install missing tools
@@ -61,6 +62,7 @@ Quick start:
   npx . chat
   npx . demo
   npx . start
+  npx . stop
   npx . uninstall`);
 }
 
@@ -934,6 +936,116 @@ function ensurePythonEnv(skipInstall) {
   return pythonBin;
 }
 
+function isChildRunning(child) {
+  return child && child.exitCode === null && child.signalCode === null;
+}
+
+function signalExitCode(signal) {
+  if (signal === "SIGINT") return 130;
+  if (signal === "SIGTERM") return 143;
+  if (signal === "SIGHUP") return 129;
+  if (signal === "SIGKILL") return 137;
+  return 1;
+}
+
+function runtimeInfoPath() {
+  return path.join(process.cwd(), ".alive-ai", "runtime.json");
+}
+
+function legacyRuntimePidPath() {
+  return path.join(process.cwd(), ".alive-ai", "runtime.pid");
+}
+
+function readRuntimeInfo() {
+  try {
+    const info = readJson(runtimeInfoPath());
+    const pid = Number(info.pid);
+    return Number.isInteger(pid) && pid > 0 ? { ...info, pid } : null;
+  } catch {}
+
+  try {
+    const pid = Number(fs.readFileSync(legacyRuntimePidPath(), "utf8").trim());
+    return Number.isInteger(pid) && pid > 0 ? { pid } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeRuntimeInfo(pid, details = {}) {
+  if (!Number.isInteger(pid) || pid <= 0) return;
+  writeJson(runtimeInfoPath(), {
+    pid,
+    cwd: process.cwd(),
+    startedAt: new Date().toISOString(),
+    ...details,
+  });
+}
+
+function clearRuntimeInfo(pid) {
+  const info = readRuntimeInfo();
+  if (info && pid && info.pid !== pid) return;
+  for (const filePath of [runtimeInfoPath(), legacyRuntimePidPath()]) {
+    try {
+      fs.rmSync(filePath, { force: true });
+    } catch {}
+  }
+}
+
+function processIsAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error && error.code === "EPERM";
+  }
+}
+
+function waitForProcessExit(pid, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  return new Promise((resolve) => {
+    const tick = () => {
+      if (!processIsAlive(pid)) return resolve(true);
+      if (Date.now() >= deadline) return resolve(false);
+      setTimeout(tick, 150);
+    };
+    tick();
+  });
+}
+
+async function stopProjectRuntime() {
+  const info = readRuntimeInfo();
+  if (!info || !info.pid) {
+    console.log("No Alive-AI runtime pid found for this project.");
+    return;
+  }
+
+  if (!processIsAlive(info.pid)) {
+    clearRuntimeInfo(info.pid);
+    console.log("Removed stale Alive-AI runtime pid file.");
+    return;
+  }
+
+  console.log(`Stopping Alive-AI runtime pid ${info.pid}...`);
+  try {
+    process.kill(info.pid, "SIGTERM");
+  } catch (error) {
+    console.error(`Could not stop pid ${info.pid}: ${error.message}`);
+    process.exit(1);
+  }
+
+  if (!(await waitForProcessExit(info.pid, 5000))) {
+    console.error("Alive-AI did not stop cleanly; forcing shutdown.");
+    try {
+      process.kill(info.pid, "SIGKILL");
+    } catch {}
+    await waitForProcessExit(info.pid, 2000);
+  }
+
+  clearRuntimeInfo(info.pid);
+  console.log("Alive-AI stopped.");
+}
+
 async function startRuntime(args, options = {}) {
   if (!fs.existsSync(path.join(process.cwd(), "config", "settings.json"))) {
     console.log("Missing config/settings.json. Starting onboarding first.");
@@ -969,25 +1081,105 @@ async function startRuntime(args, options = {}) {
   };
   if (options.tui) env.ALIVE_AI_TUI = "1";
 
+  const existingRuntime = readRuntimeInfo();
+  if (existingRuntime && processIsAlive(existingRuntime.pid)) {
+    console.error(`Alive-AI already appears to be running for this project (pid ${existingRuntime.pid}).`);
+    console.error("Run `npx . stop` before starting a new session.");
+    process.exit(1);
+  }
+  if (existingRuntime) clearRuntimeInfo(existingRuntime.pid);
+
   const child = spawn(pythonBin, ["main.py", ...extraArgs], {
     stdio: options.tui ? ["pipe", "pipe", "pipe"] : "inherit",
     cwd: process.cwd(),
     env,
   });
+  writeRuntimeInfo(child.pid, { inputChannel: effectiveInputChannel });
 
   if (options.tui) {
     const code = await runRuntimeTui(child, {
       dashboard: `http://127.0.0.1:${readProjectSettings().WEBUI_PORT || DEFAULT_PORT}`,
     });
+    clearRuntimeInfo(child.pid);
     process.exitCode = code;
     return;
   }
 
   await new Promise((resolve) => {
-    child.on("exit", (code) => {
-      process.exitCode = code || 0;
+    let stopRequested = false;
+    let stopSignal = null;
+    let finished = false;
+    const timers = [];
+
+    function cleanup() {
+      for (const timer of timers) clearTimeout(timer);
+      process.off("SIGINT", onSignal);
+      process.off("SIGTERM", onSignal);
+      process.off("SIGHUP", onSignal);
+      clearRuntimeInfo(child.pid);
+    }
+
+    function requestStop(signal) {
+      stopSignal = stopSignal || signal;
+      if (stopRequested) {
+        if (isChildRunning(child)) {
+          console.error("\nAlive-AI is still stopping; forcing shutdown.");
+          child.kill("SIGKILL");
+        }
+        return;
+      }
+
+      stopRequested = true;
+      process.exitCode = signalExitCode(signal);
+      console.log(`\nStopping Alive-AI (${signal})...`);
+
+      try {
+        child.kill(signal === "SIGHUP" ? "SIGTERM" : signal);
+      } catch {}
+
+      timers.push(setTimeout(() => {
+        if (isChildRunning(child)) child.kill("SIGTERM");
+      }, 1500));
+
+      timers.push(setTimeout(() => {
+        if (isChildRunning(child)) {
+          console.error("Alive-AI did not stop cleanly; forcing shutdown.");
+          child.kill("SIGKILL");
+        }
+      }, 5000));
+
+      for (const timer of timers) timer.unref();
+    }
+
+    function onSignal(signal) {
+      requestStop(signal);
+    }
+
+    child.on("error", (error) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      console.error(`Alive-AI failed to start: ${error.message}`);
+      process.exitCode = 1;
       resolve();
     });
+    child.on("close", (code, signal) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      if (stopRequested) {
+        process.exitCode = code && code !== 0 ? code : signalExitCode(signal || stopSignal);
+      } else if (typeof code === "number") {
+        process.exitCode = code;
+      } else {
+        process.exitCode = signalExitCode(signal || stopSignal);
+      }
+      resolve();
+    });
+
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
+    process.on("SIGHUP", onSignal);
   });
 }
 
@@ -1082,6 +1274,7 @@ async function main() {
   if (command === "update") return updateProject(args);
   if (command === "demo") return startDemo(args);
   if (command === "start") return startRuntime(args);
+  if (command === "stop") return stopProjectRuntime(args);
   if (command === "chat") return startTerminalChat(args);
   if (command === "doctor") return doctor(args);
   if (command === "uninstall") return uninstallProject(args);

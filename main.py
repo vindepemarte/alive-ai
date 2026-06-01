@@ -12,6 +12,7 @@ import argparse
 import contextlib
 import json
 import os
+import signal
 import sys
 import traceback
 from pathlib import Path
@@ -91,6 +92,28 @@ async def main() -> None:
 
     ai = Self(ROOT)
     webui_task = None
+    runtime_task = None
+    stop_task = None
+    stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+
+    def request_stop(signame: str) -> None:
+        if stop_event.is_set():
+            return
+        print(f"\n[Alive-AI] Stopping ({signame})...")
+        stop_event.set()
+
+    signal_handlers = []
+    for signame in ("SIGINT", "SIGTERM"):
+        signum = getattr(signal, signame, None)
+        if signum is None:
+            continue
+        try:
+            loop.add_signal_handler(signum, request_stop, signame)
+            signal_handlers.append(signum)
+        except (NotImplementedError, RuntimeError, ValueError):
+            pass
+
     webui_enabled = str(settings.get("WEBUI_ENABLED", os.environ.get("WEBUI_ENABLED", "true"))).lower() != "false"
     webui_port = int(settings.get("WEBUI_PORT", os.environ.get("WEBUI_PORT", "8080")))
 
@@ -108,7 +131,25 @@ async def main() -> None:
                 print(f"[Alive-AI] WebUI unavailable: {exc}")
 
         input_channel = args.input or os.environ.get("ALIVE_AI_INPUT_CHANNEL") or settings.get("INPUT_CHANNEL", "telegram")
-        await ai.start(input_channel=input_channel)
+        runtime_task = asyncio.create_task(ai.start(input_channel=input_channel))
+        stop_task = asyncio.create_task(stop_event.wait())
+        done, _pending = await asyncio.wait(
+            {runtime_task, stop_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        if stop_task in done:
+            if runtime_task and not runtime_task.done():
+                runtime_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await runtime_task
+            return
+
+        if stop_task and not stop_task.done():
+            stop_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await stop_task
+        await runtime_task
     except KeyboardInterrupt:
         print("\n[Alive-AI] Stopping...")
     except Exception as exc:
@@ -120,6 +161,17 @@ async def main() -> None:
                 print("[Alive-AI] Telegram could not start. Check the bot token/network, or run `npx . chat` for terminal mode.")
         sys.exit(1)
     finally:
+        for signum in signal_handlers:
+            with contextlib.suppress(Exception):
+                loop.remove_signal_handler(signum)
+        if stop_task and not stop_task.done():
+            stop_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await stop_task
+        if runtime_task and not runtime_task.done():
+            runtime_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await runtime_task
         with contextlib.suppress(Exception):
             await ai.stop()
         if webui_task:

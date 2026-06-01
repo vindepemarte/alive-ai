@@ -4,6 +4,7 @@ Listen for Telegram messages and send reactions, voice, images
 """
 
 import asyncio
+import contextlib
 import os
 from pathlib import Path
 from telegram import Update, InputFile, ReactionTypeEmoji
@@ -30,6 +31,8 @@ class TelegramListener:
         self.chat_id = None
         self.user_id = None
         self.last_message_id = None
+        self._stop_event = None
+        self._stopping = False
 
         # Command handler (initialized later with dependencies)
         self.commands = None
@@ -63,6 +66,8 @@ class TelegramListener:
 
     async def start(self):
         """Start listening - blocks forever"""
+        self._stop_event = asyncio.Event()
+
         # First check environment variable (from secrets.env), then settings
         token = os.environ.get("TELEGRAM_TOKEN") or self.config.settings.get("telegram_token")
 
@@ -178,20 +183,34 @@ class TelegramListener:
             ) from None
 
         # Block forever - keep the bot alive
-        await asyncio.Event().wait()
+        try:
+            await self._stop_event.wait()
+        except asyncio.CancelledError:
+            await self.stop()
+            raise
+        finally:
+            await self.stop()
 
     async def stop(self):
         """Stop Telegram cleanly if it was started."""
-        if not self.app:
+        if self._stop_event and not self._stop_event.is_set():
+            self._stop_event.set()
+        if self._stopping or not self.app:
             return
+        self._stopping = True
+        app = self.app
+        self.app = None
         try:
-            if self.app.updater and self.app.updater.running:
-                await self.app.updater.stop()
-            if self.app.running:
-                await self.app.stop()
-            await self.app.shutdown()
+            if app.updater and app.updater.running:
+                with contextlib.suppress(Exception):
+                    await app.updater.stop()
+            if app.running:
+                with contextlib.suppress(Exception):
+                    await app.stop()
+            with contextlib.suppress(Exception):
+                await app.shutdown()
         finally:
-            self.app = None
+            self._stopping = False
 
     async def _on_message(self, update: Update, context):
         """Handle incoming message"""

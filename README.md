@@ -61,10 +61,11 @@ alive-ai init my-ai
 | `npx . demo` | Run a keyless animated dashboard demo. |
 | `npx . start` | Start the runtime using the configured input channel, usually Telegram. |
 | `npx . start --skip-install` | Start again without reinstalling Python dependencies. |
+| `npx . stop` | Stop the running Alive-AI process for this project. |
 | `npx . update` | Refresh runtime files from the latest npm package while preserving config/data/media. |
 | `npx . uninstall` | Remove Alive-AI runtime files, config, venv, cache, data, and media from the project. |
 
-`start` and `chat` check npm for a newer Alive-AI version. You can update, skip once, or skip that specific version. Stop terminal chat with `/exit` or `Ctrl+C`.
+`start` and `chat` check npm for a newer Alive-AI version. You can update, skip once, or skip that specific version. Stop terminal chat with `/exit` or `Ctrl+C`. Stop foreground Telegram/runtime mode with `Ctrl+C`; if a stale process is still alive, run `npx . stop` from the project root.
 
 `doctor --fix` is conservative: it prints the exact install command before running anything and asks separately for each missing tool. On macOS it uses Homebrew, on Windows it uses winget, and on Linux it supports apt, dnf, and pacman where possible. Redis is optional; doctor only checks or fixes it when `REDIS_VECTOR_MEMORY_ENABLED` is true.
 
@@ -292,7 +293,7 @@ Implemented:
 - [x] Local WebUI dashboard with live state streaming
 - [x] Optional hybrid OpenMind cloud/local semantic memory
 - [x] Optional Redis Stack vector cache with setup and doctor checks
-- [x] npm/npx CLI scaffold, setup, doctor, demo, chat, and start commands
+- [x] npm/npx CLI scaffold, setup, doctor, demo, chat, start, stop, and uninstall commands
 - [x] Update prompt and project uninstall command
 - [x] `doctor --fix` guided system dependency installer
 - [x] Clean public repo with private personas, media, runtime data, and multi-AI orchestration removed

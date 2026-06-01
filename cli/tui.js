@@ -65,6 +65,10 @@ function runRuntimeTui(child, options = {}) {
   let resolved = false;
   const isTty = process.stdin.isTTY && process.stdout.isTTY;
 
+  function childRunning() {
+    return child.exitCode === null && child.signalCode === null;
+  }
+
   function addChat(role, text) {
     state.chat.push({ role, text: String(text || "") });
     if (state.chat.length > 200) state.chat = state.chat.slice(-200);
@@ -173,10 +177,10 @@ function runRuntimeTui(child, options = {}) {
       if (child.stdin.writable) child.stdin.end();
     } catch {}
     setTimeout(() => {
-      if (!child.killed && child.exitCode === null) child.kill("SIGTERM");
+      if (childRunning()) child.kill("SIGTERM");
     }, 1200).unref();
     setTimeout(() => {
-      if (!child.killed && child.exitCode === null) child.kill("SIGKILL");
+      if (childRunning()) child.kill("SIGKILL");
     }, 3500).unref();
   }
 
