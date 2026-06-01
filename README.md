@@ -277,6 +277,8 @@ The real WebUI streams local runtime state over Server-Sent Events and shows:
 - attachment, circadian rhythm, sleepiness, body memory, dreams, curiosity, and conflicts,
 - runtime health through local endpoints.
 
+The WebUI script is intentionally shipped as a single static file because the npm package has to run locally without a frontend build step. `npm run smoke` compiles the Python modules and checks the CLI; release validation also parses the embedded dashboard script so tab navigation, chat, settings, and thought rendering cannot be broken by a syntax error.
+
 GitHub Pages cannot run the Python/FastAPI backend, so the public page includes a static export of the actual WebUI with mocked state:
 
 ```text

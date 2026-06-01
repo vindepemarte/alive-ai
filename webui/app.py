@@ -348,6 +348,13 @@ async def dashboard():
     return HTMLResponse(content=html_path.read_text())
 
 
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve the dashboard icon for browsers that still request /favicon.ico."""
+    icon_path = Path(__file__).parent / "static" / "icon.svg"
+    return FileResponse(icon_path, media_type="image/svg+xml")
+
+
 @app.get("/events")
 async def sse_events(request: Request):
     """SSE endpoint for real-time updates"""

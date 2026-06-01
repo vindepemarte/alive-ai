@@ -1,6 +1,6 @@
 {
   "name": "alive-ai",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Local-first emotional AI runtime with memory, impulses, and a live dashboard.",
   "license": "MIT",
   "homepage": "https://vindepemarte.github.io/alive-ai/",
@@ -57,6 +57,6 @@
     "node": ">=18"
   },
   "scripts": {
-    "smoke": "node cli/index.js --help && python3 -m compileall -q alive_ai brain core heart input output skills webui"
+    "smoke": "node cli/index.js --help && node cli/check_webui_static.js && python3 -m compileall -q alive_ai brain core heart input output skills webui"
   }
 }
