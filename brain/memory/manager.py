@@ -39,7 +39,7 @@ class Memory:
         self.vector_store = None
         self.openmind = None
         self.bot_id = bot_id.lower()
-        if embedding_service:
+        if embedding_service and VectorMemoryStore.enabled():
             self.vector_store = VectorMemoryStore(embedding_service, user_id=user_id, bot_id=bot_id)
             if self.vector_store.connect():
                 print(f"[Memory] Vector store ready for user {user_id} on bot {bot_id}! {self.vector_store.count()} memories")

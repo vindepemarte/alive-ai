@@ -70,6 +70,7 @@ class TerminalListener:
                 "text": text,
                 "chat_id": self.chat_id,
                 "user_id": self.user_id,
+                "source": "terminal",
                 "message_id": "terminal"
             })
 

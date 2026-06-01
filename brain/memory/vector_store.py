@@ -4,15 +4,41 @@ Redis-based vector storage for semantic memory search
 """
 
 import json
+import os
 import redis
+import time
 from datetime import datetime
 from typing import List, Dict, Optional, Any
 from pathlib import Path
 import numpy as np
 
-# Redis connection settings
-REDIS_HOST = "redis"
-REDIS_PORT = 6379
+from core.settings import get as settings_get
+
+
+def _truthy(value) -> bool:
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def redis_vector_memory_enabled() -> bool:
+    return _truthy(settings_get("REDIS_VECTOR_MEMORY_ENABLED", os.environ.get("REDIS_VECTOR_MEMORY_ENABLED", "false")))
+
+
+def redis_host() -> str:
+    return str(settings_get("REDIS_HOST", os.environ.get("REDIS_HOST", "127.0.0.1")) or "127.0.0.1")
+
+
+def redis_port() -> int:
+    try:
+        return int(settings_get("REDIS_PORT", os.environ.get("REDIS_PORT", "6379")) or 6379)
+    except (TypeError, ValueError):
+        return 6379
+
+
+def redis_retry_seconds() -> float:
+    try:
+        return float(settings_get("REDIS_RETRY_SECONDS", os.environ.get("REDIS_RETRY_SECONDS", "60")) or 60)
+    except (TypeError, ValueError):
+        return 60.0
 
 # Memory archive path - detect Docker vs local development
 _docker_archive = Path("/data/memory_archive")
@@ -40,8 +66,17 @@ class VectorMemoryStore:
         self.dimension = dimension
         self.user_id = user_id
         self.bot_id = bot_id.lower()
+        self.host = redis_host()
+        self.port = redis_port()
+        self.retry_seconds = redis_retry_seconds()
         self.redis = None
         self._connected = False
+        self._last_connect_attempt = 0.0
+        self._failure_logged = False
+
+    @staticmethod
+    def enabled() -> bool:
+        return redis_vector_memory_enabled()
 
     @staticmethod
     def _decode(val):
@@ -50,21 +85,33 @@ class VectorMemoryStore:
 
     def connect(self) -> bool:
         """Connect to Redis and create index if needed"""
+        if not self.enabled():
+            self._connected = False
+            return False
+
+        now = time.monotonic()
+        if self._last_connect_attempt and now - self._last_connect_attempt < self.retry_seconds:
+            return False
+        self._last_connect_attempt = now
+
         try:
             self.redis = redis.Redis(
-                host=REDIS_HOST,
-                port=REDIS_PORT,
+                host=self.host,
+                port=self.port,
                 decode_responses=False  # binary-safe for embeddings
             )
             self.redis.ping()
             self._connected = True
-            print(f"[VectorStore] Connected to Redis")
+            self._failure_logged = False
+            print(f"[VectorStore] Connected to Redis at {self.host}:{self.port}")
 
             # Create vector index if not exists
             self._create_index()
             return True
         except Exception as e:
-            print(f"[VectorStore] Redis connection failed: {e}")
+            if not self._failure_logged:
+                print(f"[VectorStore] Redis unavailable at {self.host}:{self.port}; vector cache disabled for now ({e})")
+                self._failure_logged = True
             self._connected = False
             return False
 

@@ -3,6 +3,7 @@
 
 const fs = require("fs");
 const http = require("http");
+const net = require("net");
 const os = require("os");
 const path = require("path");
 const readline = require("readline");
@@ -294,6 +295,45 @@ function copyUpdateRecursive(src, dest, baseDest = dest) {
   fs.copyFileSync(src, dest);
 }
 
+function mergeMissingConfig(target, defaults) {
+  let changed = false;
+  for (const [key, value] of Object.entries(defaults)) {
+    if (key.startsWith("_")) continue;
+    if (!(key in target)) {
+      target[key] = value;
+      changed = true;
+      continue;
+    }
+    if (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      target[key] &&
+      typeof target[key] === "object" &&
+      !Array.isArray(target[key])
+    ) {
+      changed = mergeMissingConfig(target[key], value) || changed;
+    }
+  }
+  return changed;
+}
+
+function mergeProjectSettingsDefaults() {
+  const settingsPath = path.join(process.cwd(), "config", "settings.json");
+  const examplePath = path.join(process.cwd(), "config", "settings.example.json");
+  if (!fs.existsSync(settingsPath) || !fs.existsSync(examplePath)) return false;
+  try {
+    const settings = readJson(settingsPath);
+    const defaults = readJson(examplePath);
+    if (!mergeMissingConfig(settings, defaults)) return false;
+    writeJson(settingsPath, settings);
+    return true;
+  } catch (error) {
+    console.log(`Could not merge new config defaults: ${error.message}`);
+    return false;
+  }
+}
+
 async function updateProject(args) {
   const assumeYes = hasFlag(args, "--yes") || hasFlag(args, "-y") || !process.stdin.isTTY;
   if (!fs.existsSync(path.join(process.cwd(), "config")) || !fs.existsSync(path.join(process.cwd(), "main.py"))) {
@@ -309,8 +349,10 @@ async function updateProject(args) {
     if (!fs.existsSync(src)) continue;
     copyUpdateRecursive(src, path.join(process.cwd(), entry), process.cwd());
   }
+  const mergedSettings = mergeProjectSettingsDefaults();
   console.log(`Alive-AI project updated to ${packageVersion()}.`);
   console.log("Preserved config/, data/, mypics/, myvids/, .alive-ai/, and .cache/.");
+  if (mergedSettings) console.log("Merged new config defaults into config/settings.json without overwriting your values.");
 }
 
 async function uninstallProject(args) {
@@ -428,6 +470,18 @@ async function setupProject(args) {
   const openmindKey = openmindEnabled
     ? emptyIfSkipped(await ask("OpenMind API key (om_..., optional for unauthenticated local dev)", "", assumeYes))
     : "";
+  const redisChoice = normalizeChoice(
+    await ask("Use optional Redis Stack vector cache? yes or no", "no", assumeYes),
+    "no"
+  );
+  const redisEnabled = ["yes", "y", "true", "1", "on"].includes(redisChoice);
+  const redisHost = redisEnabled
+    ? emptyIfSkipped(await ask("Redis host", "127.0.0.1", assumeYes)) || "127.0.0.1"
+    : "127.0.0.1";
+  const redisPortAnswer = redisEnabled
+    ? emptyIfSkipped(await ask("Redis port", "6379", assumeYes)) || "6379"
+    : "6379";
+  const redisPort = Number.parseInt(redisPortAnswer, 10) || 6379;
 
   const settings = readJson(settingsExample);
   settings.AGENT_NAME = displayName;
@@ -451,6 +505,9 @@ async function setupProject(args) {
   settings.OPENMIND_MODE = openmindEnabled ? "hybrid" : "built-in";
   settings.OPENMIND_BASE_URL = openmindBaseUrl || "https://theopenmind.pro";
   settings.OPENMIND_API_KEY = openmindKey;
+  settings.REDIS_VECTOR_MEMORY_ENABLED = redisEnabled;
+  settings.REDIS_HOST = redisHost;
+  settings.REDIS_PORT = redisPort;
 
   const self = readJson(selfExample);
   self.who_i_am.name = displayName;
@@ -525,6 +582,13 @@ function packageManager() {
 }
 
 function installPlan(tool) {
+  if (tool === "redis") {
+    if (hasCommand("docker") && fs.existsSync(path.join(process.cwd(), "docker-compose.yml"))) {
+      return ["docker", "compose", "up", "-d", "redis"];
+    }
+    return null;
+  }
+
   const manager = packageManager();
   if (process.platform === "darwin") {
     if (manager !== "brew") return null;
@@ -584,6 +648,9 @@ function installPlan(tool) {
 }
 
 function manualInstallHint(tool) {
+  if (tool === "redis") {
+    return "Redis Stack is optional. Either disable REDIS_VECTOR_MEMORY_ENABLED in config/settings.json, or install Docker and run `docker compose up -d redis`.";
+  }
   if (process.platform === "darwin" && !hasCommand("brew")) {
     return "Install Homebrew from https://brew.sh, then rerun `npx . doctor --fix`.";
   }
@@ -643,6 +710,38 @@ function wantsOllama(settings) {
   return provider === "ollama" || order.includes("ollama");
 }
 
+function truthy(value) {
+  return ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
+}
+
+function wantsRedis(settings) {
+  return truthy(settings.REDIS_VECTOR_MEMORY_ENABLED || process.env.REDIS_VECTOR_MEMORY_ENABLED);
+}
+
+function redisEndpoint(settings) {
+  const host = String(settings.REDIS_HOST || process.env.REDIS_HOST || "127.0.0.1").trim() || "127.0.0.1";
+  const port = Number.parseInt(settings.REDIS_PORT || process.env.REDIS_PORT || "6379", 10) || 6379;
+  return { host, port };
+}
+
+function checkTcp(host, port, timeoutMs = 1000) {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => finish(true));
+    socket.once("error", () => finish(false));
+    socket.once("timeout", () => finish(false));
+    socket.connect(port, host);
+  });
+}
+
 async function doctor(args = []) {
   const shouldFix = hasFlag(args, "--fix");
   const assumeYes = hasFlag(args, "--yes") || hasFlag(args, "-y");
@@ -654,6 +753,9 @@ async function doctor(args = []) {
   const node = process.version;
   const nodeMajor = majorVersion(process.versions.node);
   const settings = readProjectSettings();
+  const redisEnabled = wantsRedis(settings);
+  const redis = redisEndpoint(settings);
+  const redisReachable = redisEnabled ? await checkTcp(redis.host, redis.port, 1200) : false;
   const venvPython = process.platform === "win32"
     ? path.join(process.cwd(), ".alive-ai", "venv", "Scripts", "python.exe")
     : path.join(process.cwd(), ".alive-ai", "venv", "bin", "python");
@@ -667,7 +769,8 @@ async function doctor(args = []) {
   }
   console.log(`  uv:     ${uv || "missing, will use venv + pip"}`);
   console.log(`  ffmpeg: ${ffmpeg || "missing, voice conversion may be limited"}`);
-  console.log(`  docker: ${docker || "missing, Redis can still be external"}`);
+  console.log(`  docker: ${docker || (redisEnabled ? "missing, needed for local Redis Stack helper" : "missing, optional")}`);
+  console.log(`  redis:  ${redisEnabled ? `${redisReachable ? "reachable" : "unreachable"} (${redis.host}:${redis.port})` : "disabled"}`);
   if (wantsOllama(settings)) {
     console.log(`  ollama: ${ollama || "missing, local LLM unavailable until installed"}`);
   }
@@ -678,7 +781,8 @@ async function doctor(args = []) {
   if (!python) missing.push({ id: "python", name: "Python 3.11+" });
   if (!uv) missing.push({ id: "uv", name: "uv" });
   if (!ffmpeg) missing.push({ id: "ffmpeg", name: "ffmpeg" });
-  if (!docker) missing.push({ id: "docker", name: "Docker" });
+  if (redisEnabled && !redisReachable && !docker) missing.push({ id: "docker", name: "Docker" });
+  if (redisEnabled && !redisReachable) missing.push({ id: "redis", name: "Redis Stack vector cache" });
   if (wantsOllama(settings) && !ollama) missing.push({ id: "ollama", name: "Ollama" });
 
   if (!python) {

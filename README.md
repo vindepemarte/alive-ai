@@ -54,7 +54,7 @@ alive-ai init my-ai
 | --- | --- |
 | `npx alive-ai@latest init my-ai` | Scaffold a clean local Alive-AI project. |
 | `npx . setup` | Guided onboarding for local config, providers, Telegram, voice, images, and memory. |
-| `npx . doctor` | Check OS, Node, Python, uv, ffmpeg, Docker, and OpenMind reachability. |
+| `npx . doctor` | Check OS, Node, Python, uv, ffmpeg, OpenMind, and Redis only when Redis is enabled. |
 | `npx . doctor --fix` | Ask `y/N` for each missing installable tool and run the platform installer if approved. |
 | `npx . chat` | Start the real runtime with split-pane terminal chat and logs. |
 | `npx . chat --plain` | Start raw terminal chat without the TUI. |
@@ -66,7 +66,7 @@ alive-ai init my-ai
 
 `start` and `chat` check npm for a newer Alive-AI version. You can update, skip once, or skip that specific version. Stop terminal chat with `/exit` or `Ctrl+C`.
 
-`doctor --fix` is conservative: it prints the exact install command before running anything and asks separately for each missing tool. On macOS it uses Homebrew, on Windows it uses winget, and on Linux it supports apt, dnf, and pacman where possible.
+`doctor --fix` is conservative: it prints the exact install command before running anything and asks separately for each missing tool. On macOS it uses Homebrew, on Windows it uses winget, and on Linux it supports apt, dnf, and pacman where possible. Redis is optional; doctor only checks or fixes it when `REDIS_VECTOR_MEMORY_ENABLED` is true.
 
 If you use Docker:
 
@@ -96,7 +96,7 @@ myvids/
 
 The setup accepts `skip` for optional keys and `local` for Ollama.
 
-Startup config is loaded from multiple places in this order:
+Startup config is loaded from:
 
 ```text
 .env
@@ -104,7 +104,7 @@ config/secrets.env
 config/settings.json
 ```
 
-Shell environment variables win over `.env`/`config/secrets.env`. Runtime settings come from `config/settings.json`. Telegram uses `TELEGRAM_TOKEN` when present, otherwise `telegram_token` from `config/settings.json`.
+`config/settings.json` is the runtime source of truth created by setup. `.env` and `config/secrets.env` are read first for compatibility, then simple values from `config/settings.json` are exported into the process environment.
 
 | Setup item | Options |
 | --- | --- |
@@ -113,6 +113,7 @@ Shell environment variables win over `.env`/`config/secrets.env`. Runtime settin
 | Voice | `gtts` local/free default, Google TTS, VibeVoice, or `skip`. |
 | Images | Fal.ai API key or `skip`. Local media folders still work without image generation. |
 | Memory | Built-in local memory, OpenMind cloud, or OpenMind local. |
+| Redis vector cache | Optional. Leave it off when using OpenMind unless you specifically want a local Redis Stack vector index. |
 
 Minimum useful paths:
 
@@ -185,6 +186,8 @@ Modes:
 
 OpenMind does not replace Alive-AI's emotional state. It adds durable semantic recall across tools and machines.
 
+Redis is not required when OpenMind is enabled. Alive-AI always keeps file-backed working, episodic, semantic, and emotional memory in the project `data/` folder. Redis Stack is an optional local vector cache for users who want it.
+
 Cloud setup:
 
 ```text
@@ -222,9 +225,9 @@ Comfortable local setup:
 | RAM | 16 GB for 3B-4B local models |
 | RAM for bigger models | 32 GB for 7B+ local models, Redis, voice, and long sessions |
 | Disk | 10 GB+, more if you keep local models/media |
-| Optional tools | `uv`, `ffmpeg`, Docker, Ollama |
+| Optional tools | `uv`, `ffmpeg`, Docker, Ollama, Redis Stack |
 
-`npx . start` creates `.alive-ai/venv` and installs Python dependencies. System-level packages such as Node, Python, Ollama, Docker, and ffmpeg must already exist on the machine.
+`npx . start` creates `.alive-ai/venv` and installs Python dependencies. System-level packages such as Node, Python, Ollama, Docker, and ffmpeg can be checked with `npx . doctor`. Use `npx . doctor --fix` when you want guided installers.
 
 The CLI prefers Python 3.12, 3.11, then 3.13 before falling back to the system `python3`. When `uv` is installed, Alive-AI now passes the selected Python explicitly so `uv` does not silently choose a newer interpreter.
 
@@ -262,7 +265,8 @@ https://vindepemarte.github.io/alive-ai/
 Docker is optional. It is useful when you want Redis Stack for vector search:
 
 ```bash
-docker compose up -d redis
+# In config/settings.json, set REDIS_VECTOR_MEMORY_ENABLED to true.
+npx . doctor --fix
 npx . start
 ```
 
@@ -287,6 +291,7 @@ Implemented:
 - [x] Split-pane terminal chat with logs
 - [x] Local WebUI dashboard with live state streaming
 - [x] Optional hybrid OpenMind cloud/local semantic memory
+- [x] Optional Redis Stack vector cache with setup and doctor checks
 - [x] npm/npx CLI scaffold, setup, doctor, demo, chat, and start commands
 - [x] Update prompt and project uninstall command
 - [x] `doctor --fix` guided system dependency installer

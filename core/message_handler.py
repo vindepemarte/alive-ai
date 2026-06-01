@@ -1,5 +1,5 @@
 """Core: Message Handler — incoming messages, thinking, responses"""
-import asyncio, random
+import asyncio, os, random
 from pathlib import Path
 from datetime import datetime
 from .thinking import build_mood_instruction, fallback_response
@@ -171,7 +171,7 @@ _MAX_USER_MEMORIES = 50  # Maximum cached user memories
 _message_queue = {}      # user_id -> list of messages
 _batch_timers = {}       # user_id -> timer task
 _processing_locks = {}   # user_id -> lock to prevent overlapping processing
-_BATCH_DELAY = 3.5       # Wait 3.5 seconds for more messages (increased)
+_BATCH_DELAY = 3.5       # Default debounce for message batching
 
 # Per-user pending media (prevents race condition when multiple users message simultaneously)
 _pending_media = {}      # user_id -> {"photo": ..., "video": ...}
@@ -189,6 +189,21 @@ def _feed_learning(sub, text: str):
         sub.goals.record_progress("connect", 0.02)
     except Exception as e:
         print(f"[Learning] feedback error (non-fatal): {e}")
+
+
+def _settings_float(key: str, default: float) -> float:
+    try:
+        from core.settings import get
+        value = get(key, os.environ.get(key, default))
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _batch_delay_for(data: dict) -> float:
+    if data.get("source") == "terminal":
+        return max(0.5, _settings_float("TERMINAL_MESSAGE_BATCH_DELAY_SECONDS", 5.0))
+    return max(0.5, _settings_float("MESSAGE_BATCH_DELAY_SECONDS", _BATCH_DELAY))
 
 
 def _is_owner(user_id: str) -> bool:
@@ -354,21 +369,22 @@ async def handle_message(self, data: dict):
 
     # Start new timer
     queue_size = len(_message_queue[user_id])
+    batch_delay = _batch_delay_for(data)
     if queue_size == 1:
-        print(f"[Batch] First message from {user_id}, waiting {_BATCH_DELAY}s...")
+        print(f"[Batch] First message from {user_id}, waiting {batch_delay:.1f}s...")
     else:
         print(f"[Batch] Message #{queue_size} from {user_id}, resetting timer...")
 
     # Create timer task
     _batch_timers[user_id] = asyncio.create_task(
-        _process_batch_after_delay(self, user_id, data)
+        _process_batch_after_delay(self, user_id, data, batch_delay)
     )
 
 
-async def _process_batch_after_delay(self, user_id: str, original_data: dict):
+async def _process_batch_after_delay(self, user_id: str, original_data: dict, batch_delay: float):
     """Wait for batch delay, then process all queued messages together"""
     try:
-        await asyncio.sleep(_BATCH_DELAY)
+        await asyncio.sleep(batch_delay)
     except asyncio.CancelledError:
         # Timer was cancelled - new message came in
         return
@@ -398,6 +414,7 @@ async def _process_batch_after_delay(self, user_id: str, original_data: dict):
         "user_id": user_id,
         "text": combined_text,
         "chat_id": chat_id,
+        "source": original_data.get("source"),
         "message_count": len(messages)
     }
 
@@ -1437,4 +1454,3 @@ def get_aliveness_module_status() -> dict:
     }
     modules["modules_active"] = sum(v for v in modules.values() if isinstance(v, bool))
     return modules
-
