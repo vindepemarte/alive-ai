@@ -1,6 +1,6 @@
 {
   "name": "alive-ai",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Local-first emotional AI runtime with memory, impulses, and a live dashboard.",
   "license": "MIT",
   "homepage": "https://vindepemarte.github.io/alive-ai/",

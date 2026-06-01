@@ -15,7 +15,8 @@ class OpenMindMemoryBridge:
     def __init__(self, nervous, user_id: str, bot_id: str):
         self.nervous = nervous
         self.user_id = str(user_id or "default")
-        self.bot_id = str(bot_id or "alive_ai").lower()
+        self.agent_name = str(bot_id or "Alive-AI")
+        self.bot_id = self.agent_name.lower()
         nervous.on("memory_save", self._on_memory_save)
 
     @staticmethod
@@ -60,11 +61,11 @@ class OpenMindMemoryBridge:
         mood = emotion.get("mood", "unknown")
         content = "\n".join(
             part for part in [
-                f"Alive-AI agent: {self.bot_id}",
+                f"{self.agent_name} agent id: {self.bot_id}",
                 f"User id: {self.user_id}",
                 f"Mood: {mood}",
                 f"User: {user_msg}" if user_msg else "",
-                f"Alive-AI: {ai_msg}" if ai_msg else "",
+                f"{self.agent_name}: {ai_msg}" if ai_msg else "",
             ] if part
         )
         tags = ["alive-ai", self.bot_id, f"user-{self.user_id}", f"mood-{mood}"]

@@ -34,8 +34,9 @@ class Memory:
         self.working = WorkingMemory()
         self.episodic = EpisodicMemory(self.data_path, user_id=user_id)
         self.semantic = SemanticMemory(self.data_path, user_id=user_id)
-        self.fact_extractor = FactExtractor(self.data_path / "facts.json")
-        self.summarizer = ConversationSummarizer(self.data_path)
+        self.agent_name = str(bot_id or "AI")
+        self.fact_extractor = FactExtractor(self.data_path / "facts.json", agent_name=self.agent_name)
+        self.summarizer = ConversationSummarizer(self.data_path, agent_name=self.agent_name)
         self.vector_store = None
         self.openmind = None
         self.bot_id = bot_id.lower()

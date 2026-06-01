@@ -3,22 +3,25 @@ import json
 import re
 from pathlib import Path
 
-EXTRACT_PROMPT = """You are analyzing a conversation between Alive-AI (AI) and a HUMAN USER.
-Extract facts about THE HUMAN USER ONLY - nothing about Alive-AI.
+def build_extract_prompt(agent_name: str) -> str:
+    agent = agent_name or "the AI"
+    return f"""You are analyzing a conversation between {agent} (AI) and a HUMAN USER.
+Extract facts about THE HUMAN USER ONLY - nothing about {agent}.
 
-Look at what the HUMAN says about THEMSELF and their relationship with Alive-AI. Extract:
+Look at what the HUMAN says about THEMSELF and their relationship with {agent}. Extract:
 - name, nickname, age, gender, job, location
 - hobbies, interests, favorite things
 - personality traits, communication style
-- relationship to Alive-AI (creator, boyfriend, etc.)
+- relationship to {agent} (creator, boyfriend, etc.)
 - pet names they use (daddy, baby, etc.)
 - intimacy preferences, preferences mentioned
-- what they like about Alive-AI
+- what they like about {agent}
 - important people in their life
 
 Return ONLY valid JSON with keys where you found NEW info about the HUMAN.
 Use these keys: name, nickname, gender, age, location, job, hobbies, interests, personality, relationship_status, pet_names_used, likes_about_me, intimacy_preferences
-Return empty {} if nothing new was shared about the human.
+When storing facts about what the human likes about the AI, use the configured name "{agent}", not the product name "Alive-AI", unless the human literally used "Alive-AI" as the name.
+Return empty {{}} if nothing new was shared about the human.
 NO markdown, ONLY raw JSON. Do NOT use ... or etc."""
 
 
@@ -75,8 +78,9 @@ def _repair_json(text: str) -> dict:
 class FactExtractor:
     """Extracts user facts from conversation using LLM"""
 
-    def __init__(self, facts_path: Path):
+    def __init__(self, facts_path: Path, agent_name: str = "AI"):
         self.facts_path = facts_path
+        self.agent_name = str(agent_name or "AI")
         self._llm = None
         self._turn_buffer = []
         self._extract_every = 5
@@ -102,12 +106,12 @@ class FactExtractor:
         lines = []
         for turn in self._turn_buffer[-self._extract_every:]:
             lines.append(f"User: {turn['user']}")
-            lines.append(f"Alive-AI: {turn['ai']}")
+            lines.append(f"{self.agent_name}: {turn['ai']}")
         conversation = "\n".join(lines)
 
         try:
             messages = [
-                {"role": "system", "content": EXTRACT_PROMPT},
+                {"role": "system", "content": build_extract_prompt(self.agent_name)},
                 {"role": "user", "content": conversation}
             ]
             response = await self._llm.chat(messages, max_tokens=500, temperature=0.1)

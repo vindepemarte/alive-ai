@@ -334,6 +334,71 @@ function mergeProjectSettingsDefaults() {
   }
 }
 
+function projectAgentName() {
+  try {
+    const selfPath = path.join(process.cwd(), "config", "self.json");
+    if (fs.existsSync(selfPath)) {
+      const self = readJson(selfPath);
+      const name = self?.who_i_am?.name;
+      if (name) return String(name);
+    }
+  } catch {}
+  try {
+    const settings = readProjectSettings();
+    if (settings.AGENT_NAME) return String(settings.AGENT_NAME);
+  } catch {}
+  return "";
+}
+
+function replaceAgentNameInJson(value, agentName) {
+  if (typeof value === "string") return value.replace(/\bAlive-AI\b/g, agentName);
+  if (Array.isArray(value)) return value.map((item) => replaceAgentNameInJson(item, agentName));
+  if (value && typeof value === "object") {
+    let changed = false;
+    const next = {};
+    for (const [key, child] of Object.entries(value)) {
+      const replaced = replaceAgentNameInJson(child, agentName);
+      next[key] = replaced;
+      if (replaced !== child) changed = true;
+    }
+    return changed ? next : value;
+  }
+  return value;
+}
+
+function repairAgentNameInData() {
+  const agentName = projectAgentName();
+  if (!agentName || agentName === "Alive-AI") return 0;
+  const dataDir = path.join(process.cwd(), "data");
+  if (!fs.existsSync(dataDir)) return 0;
+
+  let repaired = 0;
+  const visit = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+      try {
+        const original = fs.readFileSync(fullPath, "utf8");
+        if (!original.includes("Alive-AI")) continue;
+        const parsed = JSON.parse(original);
+        const replaced = replaceAgentNameInJson(parsed, agentName);
+        const next = `${JSON.stringify(replaced, null, 2)}\n`;
+        if (next !== original) {
+          fs.writeFileSync(fullPath, next);
+          repaired += 1;
+        }
+      } catch {}
+    }
+  };
+
+  visit(dataDir);
+  return repaired;
+}
+
 async function updateProject(args) {
   const assumeYes = hasFlag(args, "--yes") || hasFlag(args, "-y") || !process.stdin.isTTY;
   if (!fs.existsSync(path.join(process.cwd(), "config")) || !fs.existsSync(path.join(process.cwd(), "main.py"))) {
@@ -350,9 +415,11 @@ async function updateProject(args) {
     copyUpdateRecursive(src, path.join(process.cwd(), entry), process.cwd());
   }
   const mergedSettings = mergeProjectSettingsDefaults();
+  const repairedDataFiles = repairAgentNameInData();
   console.log(`Alive-AI project updated to ${packageVersion()}.`);
   console.log("Preserved config/, data/, mypics/, myvids/, .alive-ai/, and .cache/.");
   if (mergedSettings) console.log("Merged new config defaults into config/settings.json without overwriting your values.");
+  if (repairedDataFiles) console.log(`Repaired ${repairedDataFiles} local memory file(s) to use the configured agent name.`);
 }
 
 async function uninstallProject(args) {

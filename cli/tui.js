@@ -61,6 +61,8 @@ function runRuntimeTui(child, options = {}) {
   let stdoutBuffer = "";
   let stderrBuffer = "";
   let renderTimer = null;
+  let stopRequested = false;
+  let resolved = false;
   const isTty = process.stdin.isTTY && process.stdout.isTTY;
 
   function addChat(role, text) {
@@ -158,17 +160,24 @@ function runRuntimeTui(child, options = {}) {
     process.stdout.write("\x1b[?25h\x1b[?1049l");
   }
 
-  function stopChild() {
-    if (state.stopping) return;
+  function stopChild(reason = "/exit") {
+    if (stopRequested) return;
+    stopRequested = true;
     state.stopping = true;
     state.status = "stopping";
     scheduleRender();
     try {
-      if (child.stdin.writable) child.stdin.write("/exit\n");
+      if (child.stdin.writable && reason !== "child-exit") child.stdin.write("/exit\n");
+    } catch {}
+    try {
+      if (child.stdin.writable) child.stdin.end();
     } catch {}
     setTimeout(() => {
-      if (!child.killed) child.kill("SIGINT");
+      if (!child.killed && child.exitCode === null) child.kill("SIGTERM");
     }, 1200).unref();
+    setTimeout(() => {
+      if (!child.killed && child.exitCode === null) child.kill("SIGKILL");
+    }, 3500).unref();
   }
 
   function sendLine() {
@@ -180,14 +189,29 @@ function runRuntimeTui(child, options = {}) {
     }
     addChat("user", line);
     if (line === "/exit" || line === "/quit" || line === "/stop") {
-      state.status = "stopping";
-      state.stopping = true;
+      stopChild(line);
+      scheduleRender();
+      return;
     }
     child.stdin.write(`${line}\n`);
     scheduleRender();
   }
 
   return new Promise((resolve) => {
+    function finish(code) {
+      if (resolved) return;
+      resolved = true;
+      if (stdoutBuffer) handleLine(stdoutBuffer, "stdout");
+      if (stderrBuffer) handleLine(stderrBuffer, "stderr");
+      if (isTty) {
+        process.stdin.off("keypress", onKeypress);
+        process.stdout.off("resize", scheduleRender);
+        restoreTerminal();
+      }
+      console.log(`Alive-AI stopped${code ? ` with exit code ${code}` : ""}.`);
+      resolve(code || 0);
+    }
+
     if (!isTty) {
       child.stdout.on("data", (chunk) => process.stdout.write(chunk));
       child.stderr.on("data", (chunk) => process.stderr.write(chunk));
@@ -206,7 +230,7 @@ function runRuntimeTui(child, options = {}) {
 
     const onKeypress = (str, key = {}) => {
       if (key.ctrl && key.name === "c") {
-        stopChild();
+        stopChild("ctrl-c");
         return;
       }
       if (key.name === "return") {
@@ -231,17 +255,12 @@ function runRuntimeTui(child, options = {}) {
 
     process.stdin.on("keypress", onKeypress);
     process.stdout.on("resize", scheduleRender);
+    process.once("SIGINT", () => stopChild("sigint"));
+    process.once("SIGTERM", () => stopChild("sigterm"));
     render();
 
-    child.on("exit", (code) => {
-      if (stdoutBuffer) handleLine(stdoutBuffer, "stdout");
-      if (stderrBuffer) handleLine(stderrBuffer, "stderr");
-      process.stdin.off("keypress", onKeypress);
-      process.stdout.off("resize", scheduleRender);
-      restoreTerminal();
-      console.log(`Alive-AI stopped${code ? ` with exit code ${code}` : ""}.`);
-      resolve(code || 0);
-    });
+    child.on("exit", (code) => finish(code || 0));
+    child.on("close", (code) => finish(code || 0));
   });
 }
 

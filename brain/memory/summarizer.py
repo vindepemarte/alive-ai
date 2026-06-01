@@ -7,18 +7,21 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-SUMMARIZE_PROMPT = """Summarize this conversation between Alive-AI (AI companion) and her boyfriend.
+def build_summarize_prompt(agent_name: str) -> str:
+    agent = agent_name or "the AI"
+    return f"""Summarize this conversation between {agent} (AI companion) and her boyfriend.
 Focus on: key topics discussed, emotional moments, important things he shared,
 any promises or plans made, and the overall mood/vibe.
-Keep it concise (3-5 sentences). Write from Alive-AI's perspective."""
+Keep it concise (3-5 sentences). Write from {agent}'s perspective."""
 
 
 class ConversationSummarizer:
     """Summarizes conversations every N messages for long-term memory"""
 
-    def __init__(self, data_path: Path):
+    def __init__(self, data_path: Path, agent_name: str = "AI"):
         self.summaries_path = data_path / "summaries"
         self.summaries_path.mkdir(parents=True, exist_ok=True)
+        self.agent_name = str(agent_name or "AI")
         self._llm = None
         self._turn_buffer = []
         self._summarize_every = 20
@@ -45,12 +48,12 @@ class ConversationSummarizer:
         lines = []
         for turn in self._turn_buffer:
             lines.append(f"Him: {turn['user']}")
-            lines.append(f"Alive-AI: {turn['ai']}")
+            lines.append(f"{self.agent_name}: {turn['ai']}")
         conversation = "\n".join(lines)
 
         try:
             messages = [
-                {"role": "system", "content": SUMMARIZE_PROMPT},
+                {"role": "system", "content": build_summarize_prompt(self.agent_name)},
                 {"role": "user", "content": conversation}
             ]
             summary = await self._llm.chat(messages, max_tokens=300, temperature=0.3)
