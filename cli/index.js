@@ -49,7 +49,7 @@ Usage:
   alive-ai start [--skip-install] Install Python deps if needed and start runtime
   alive-ai chat [--skip-install]  Start split-pane terminal chat and logs
   alive-ai chat --plain           Start raw terminal chat without the TUI
-  alive-ai doctor                 Check local prerequisites
+  alive-ai doctor [--fix]         Check local prerequisites and optionally install missing tools
   alive-ai uninstall              Remove Alive-AI runtime files from this project
 
 Quick start:
@@ -479,12 +479,140 @@ function findCommand(candidates) {
   return null;
 }
 
+function majorVersion(version) {
+  return Number.parseInt(String(version || "0").split(".")[0], 10) || 0;
+}
+
 function pythonVersion(command) {
   const result = spawnSync(command, ["-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"], {
     encoding: "utf8",
   });
   if (result.status !== 0) return "";
   return result.stdout.trim();
+}
+
+function hasCommand(command) {
+  return spawnSync(command, ["--version"], { stdio: "ignore" }).status === 0;
+}
+
+function commandLine(command) {
+  if (!command) return "";
+  return command.map((part) => /[\s"']/.test(part) ? JSON.stringify(part) : part).join(" ");
+}
+
+function runInstallCommand(command) {
+  const [bin, ...args] = command;
+  return spawnSync(bin, args, { stdio: "inherit", shell: false });
+}
+
+function packageManager() {
+  if (process.platform === "darwin" && hasCommand("brew")) return "brew";
+  if (process.platform === "win32" && hasCommand("winget")) return "winget";
+  if (process.platform === "linux") {
+    if (hasCommand("apt-get")) return "apt";
+    if (hasCommand("dnf")) return "dnf";
+    if (hasCommand("pacman")) return "pacman";
+  }
+  return null;
+}
+
+function installPlan(tool) {
+  const manager = packageManager();
+  if (process.platform === "darwin") {
+    if (manager !== "brew") return null;
+    return {
+      node: ["brew", "install", "node"],
+      python: ["brew", "install", "python@3.12"],
+      uv: ["brew", "install", "uv"],
+      ffmpeg: ["brew", "install", "ffmpeg"],
+      docker: ["brew", "install", "--cask", "docker"],
+      ollama: ["brew", "install", "ollama"],
+    }[tool] || null;
+  }
+
+  if (process.platform === "win32") {
+    if (manager !== "winget") return null;
+    return {
+      node: ["winget", "install", "-e", "--id", "OpenJS.NodeJS.LTS"],
+      python: ["winget", "install", "-e", "--id", "Python.Python.3.12"],
+      uv: ["winget", "install", "-e", "--id", "astral-sh.uv"],
+      ffmpeg: ["winget", "install", "-e", "--id", "Gyan.FFmpeg"],
+      docker: ["winget", "install", "-e", "--id", "Docker.DockerDesktop"],
+      ollama: ["winget", "install", "-e", "--id", "Ollama.Ollama"],
+    }[tool] || null;
+  }
+
+  if (process.platform === "linux") {
+    const plans = {
+      apt: {
+        node: ["sudo", "apt-get", "install", "-y", "nodejs", "npm"],
+        python: ["sudo", "apt-get", "install", "-y", "python3", "python3-venv"],
+        uv: ["sh", "-c", "curl -LsSf https://astral.sh/uv/install.sh | sh"],
+        ffmpeg: ["sudo", "apt-get", "install", "-y", "ffmpeg"],
+        docker: ["sudo", "apt-get", "install", "-y", "docker.io"],
+        ollama: ["sh", "-c", "curl -fsSL https://ollama.com/install.sh | sh"],
+      },
+      dnf: {
+        node: ["sudo", "dnf", "install", "-y", "nodejs", "npm"],
+        python: ["sudo", "dnf", "install", "-y", "python3"],
+        uv: ["sh", "-c", "curl -LsSf https://astral.sh/uv/install.sh | sh"],
+        ffmpeg: ["sudo", "dnf", "install", "-y", "ffmpeg"],
+        docker: ["sudo", "dnf", "install", "-y", "docker"],
+        ollama: ["sh", "-c", "curl -fsSL https://ollama.com/install.sh | sh"],
+      },
+      pacman: {
+        node: ["sudo", "pacman", "-S", "--needed", "nodejs", "npm"],
+        python: ["sudo", "pacman", "-S", "--needed", "python"],
+        uv: ["sudo", "pacman", "-S", "--needed", "uv"],
+        ffmpeg: ["sudo", "pacman", "-S", "--needed", "ffmpeg"],
+        docker: ["sudo", "pacman", "-S", "--needed", "docker"],
+        ollama: ["sudo", "pacman", "-S", "--needed", "ollama"],
+      },
+    };
+    return plans[manager]?.[tool] || null;
+  }
+
+  return null;
+}
+
+function manualInstallHint(tool) {
+  if (process.platform === "darwin" && !hasCommand("brew")) {
+    return "Install Homebrew from https://brew.sh, then rerun `npx . doctor --fix`.";
+  }
+  if (process.platform === "win32" && !hasCommand("winget")) {
+    return "Install Windows App Installer/winget, then rerun `npx . doctor --fix`.";
+  }
+  if (process.platform === "linux" && !packageManager()) {
+    return `No supported Linux package manager detected for ${tool}. Install it manually with your distro package manager.`;
+  }
+  return `No automatic installer is configured for ${tool} on this system.`;
+}
+
+async function maybeInstallTool(item, assumeYes = false) {
+  const command = installPlan(item.id);
+  if (!command) {
+    console.log(`  ${item.name}: ${manualInstallHint(item.id)}`);
+    return false;
+  }
+
+  console.log("");
+  console.log(`${item.name} is missing.`);
+  console.log(`Command: ${commandLine(command)}`);
+  const answer = assumeYes
+    ? "y"
+    : normalizeChoice(await ask(`Install ${item.name}? y/N`, "n", false), "n");
+  if (!["y", "yes"].includes(answer)) {
+    console.log(`Skipped ${item.name}.`);
+    return false;
+  }
+
+  const result = runInstallCommand(command);
+  if (result.status === 0) {
+    console.log(`${item.name} install command completed.`);
+    return true;
+  }
+  console.log(`${item.name} install command failed with exit code ${result.status || 1}.`);
+  return false;
 }
 
 function findPython() {
@@ -499,12 +627,24 @@ function findPython() {
   return null;
 }
 
-async function doctor() {
+function wantsOllama(settings) {
+  const provider = String(settings.LLM_PROVIDER || "").toLowerCase();
+  const order = Array.isArray(settings.LLM_FALLBACK?.ORDER)
+    ? settings.LLM_FALLBACK.ORDER.map((item) => String(item).toLowerCase())
+    : [];
+  return provider === "ollama" || order.includes("ollama");
+}
+
+async function doctor(args = []) {
+  const shouldFix = hasFlag(args, "--fix");
+  const assumeYes = hasFlag(args, "--yes") || hasFlag(args, "-y");
   const python = findPython();
   const uv = findCommand(["uv"]);
   const ffmpeg = findCommand(["ffmpeg"]);
   const docker = findCommand(["docker"]);
+  const ollama = findCommand(["ollama"]);
   const node = process.version;
+  const nodeMajor = majorVersion(process.versions.node);
   const settings = readProjectSettings();
   const venvPython = process.platform === "win32"
     ? path.join(process.cwd(), ".alive-ai", "venv", "Scripts", "python.exe")
@@ -512,7 +652,7 @@ async function doctor() {
 
   console.log("Alive-AI doctor");
   console.log(`  system: ${os.platform()} ${os.arch()}`);
-  console.log(`  node:   ${node}`);
+  console.log(`  node:   ${nodeMajor >= 18 ? node : `${node} (Node 18+ required)`}`);
   console.log(`  python: ${python ? `${python.command} ${python.version}` : "missing"}`);
   if (fs.existsSync(venvPython)) {
     console.log(`  venv:   ${pythonVersion(venvPython) || "unknown"} (${path.relative(process.cwd(), venvPython)})`);
@@ -520,7 +660,18 @@ async function doctor() {
   console.log(`  uv:     ${uv || "missing, will use venv + pip"}`);
   console.log(`  ffmpeg: ${ffmpeg || "missing, voice conversion may be limited"}`);
   console.log(`  docker: ${docker || "missing, Redis can still be external"}`);
+  if (wantsOllama(settings)) {
+    console.log(`  ollama: ${ollama || "missing, local LLM unavailable until installed"}`);
+  }
   console.log(`  input:  ${settings.INPUT_CHANNEL || "telegram"}`);
+
+  const missing = [];
+  if (nodeMajor < 18) missing.push({ id: "node", name: "Node.js 18+" });
+  if (!python) missing.push({ id: "python", name: "Python 3.11+" });
+  if (!uv) missing.push({ id: "uv", name: "uv" });
+  if (!ffmpeg) missing.push({ id: "ffmpeg", name: "ffmpeg" });
+  if (!docker) missing.push({ id: "docker", name: "Docker" });
+  if (wantsOllama(settings) && !ollama) missing.push({ id: "ollama", name: "Ollama" });
 
   if (!python) {
     console.log("");
@@ -547,7 +698,25 @@ async function doctor() {
     console.log("  OpenMind: disabled");
   }
 
-  if (!python) process.exitCode = 1;
+  if (shouldFix) {
+    if (!missing.length) {
+      console.log("");
+      console.log("Nothing missing. No fixes needed.");
+    } else {
+      console.log("");
+      console.log("Doctor fix mode: each installer is optional and will ask before running.");
+      for (const item of missing) {
+        await maybeInstallTool(item, assumeYes);
+      }
+      console.log("");
+      console.log("Run `npx . doctor` again to verify the final state.");
+    }
+  } else if (missing.length) {
+    console.log("");
+    console.log("Run `npx . doctor --fix` to install missing tools one by one.");
+  }
+
+  if (!python || nodeMajor < 18) process.exitCode = 1;
 }
 
 function ensurePythonEnv(skipInstall) {
@@ -735,7 +904,7 @@ async function main() {
   if (command === "demo") return startDemo(args);
   if (command === "start") return startRuntime(args);
   if (command === "chat") return startTerminalChat(args);
-  if (command === "doctor") return doctor();
+  if (command === "doctor") return doctor(args);
   if (command === "uninstall") return uninstallProject(args);
   console.error(`Unknown command: ${command}`);
   usage();

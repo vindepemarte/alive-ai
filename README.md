@@ -55,6 +55,7 @@ alive-ai init my-ai
 | `npx alive-ai@latest init my-ai` | Scaffold a clean local Alive-AI project. |
 | `npx . setup` | Guided onboarding for local config, providers, Telegram, voice, images, and memory. |
 | `npx . doctor` | Check OS, Node, Python, uv, ffmpeg, Docker, and OpenMind reachability. |
+| `npx . doctor --fix` | Ask `y/N` for each missing installable tool and run the platform installer if approved. |
 | `npx . chat` | Start the real runtime with split-pane terminal chat and logs. |
 | `npx . chat --plain` | Start raw terminal chat without the TUI. |
 | `npx . demo` | Run a keyless animated dashboard demo. |
@@ -64,6 +65,8 @@ alive-ai init my-ai
 | `npx . uninstall` | Remove Alive-AI runtime files, config, venv, cache, data, and media from the project. |
 
 `start` and `chat` check npm for a newer Alive-AI version. You can update, skip once, or skip that specific version. Stop terminal chat with `/exit` or `Ctrl+C`.
+
+`doctor --fix` is conservative: it prints the exact install command before running anything and asks separately for each missing tool. On macOS it uses Homebrew, on Windows it uses winget, and on Linux it supports apt, dnf, and pacman where possible.
 
 If you use Docker:
 
@@ -286,6 +289,7 @@ Implemented:
 - [x] Optional hybrid OpenMind cloud/local semantic memory
 - [x] npm/npx CLI scaffold, setup, doctor, demo, chat, and start commands
 - [x] Update prompt and project uninstall command
+- [x] `doctor --fix` guided system dependency installer
 - [x] Clean public repo with private personas, media, runtime data, and multi-AI orchestration removed
 - [x] GitHub Pages site and full static WebUI export
 

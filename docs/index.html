@@ -292,6 +292,7 @@ npx . chat</code></pre>
     <div class="steps">
       <div class="step"><strong>Start local terminal chat</strong><span>`npx . chat` starts the same runtime with chat on the left, logs on the right, and the WebUI at `http://127.0.0.1:8080`.</span></div>
       <div class="step"><strong>Start Telegram/runtime mode</strong><span>`npx . start` starts the configured input channel and validates Telegram before polling. Stop foreground runs with `Ctrl+C`.</span></div>
+      <div class="step"><strong>Install missing tools</strong><span>`npx . doctor --fix` asks `y/N` for each missing tool, then uses Homebrew, winget, apt, dnf, or pacman where available.</span></div>
       <div class="step"><strong>Keep it updated</strong><span>`start` and `chat` check npm for newer versions. Use `npx . update` manually or `npx . uninstall` to remove local runtime files.</span></div>
       <div class="step"><strong>Use OpenMind</strong><span>Choose `openmind-cloud` for `https://theopenmind.pro` or `openmind-local` for `http://127.0.0.1:3333`.</span></div>
       <div class="step"><strong>Preview the dashboard</strong><span>`npx . demo` is keyless. The real runtime dashboard streams local state over SSE.</span></div>
