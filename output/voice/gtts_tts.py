@@ -8,6 +8,7 @@ import asyncio
 import re
 import tempfile
 import subprocess
+import warnings
 from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
@@ -113,17 +114,29 @@ class GTTS:
             tts.write_to_fp(mp3_buffer)
             mp3_buffer.seek(0)
 
-            # Convert MP3 to OGG for Telegram
-            # If pydub is available, convert to OGG
+            # Convert MP3 to OGG Opus for Telegram voice notes.
+            # pydub's default OGG codec can resolve to Vorbis, which Telegram
+            # does not want for voice notes and some ffmpeg builds do not ship.
             try:
+                warnings.filterwarnings("ignore", category=SyntaxWarning, module=r"pydub\..*")
                 from pydub import AudioSegment
                 audio = AudioSegment.from_mp3(mp3_buffer)
                 ogg_buffer = io.BytesIO()
-                audio.export(ogg_buffer, format="ogg")
+                audio.export(
+                    ogg_buffer,
+                    format="ogg",
+                    codec="libopus",
+                    bitrate="32k",
+                    parameters=["-application", "voip"],
+                )
                 ogg_buffer.seek(0)
                 return ogg_buffer.read()
             except ImportError:
-                # No pydub - return MP3, Telegram accepts it too
+                # No pydub - return MP3 and let the sender use send_audio.
+                mp3_buffer.seek(0)
+                return mp3_buffer.read()
+            except Exception as exc:
+                print(f"[GTTS] OGG Opus conversion failed, falling back to MP3: {exc}")
                 mp3_buffer.seek(0)
                 return mp3_buffer.read()
 

@@ -359,12 +359,13 @@ class TelegramListener:
             print(f"[Telegram] Send text error: {e}")
 
     async def _send_voice_file(self, data: dict):
-        """Send voice file (OGG format for Telegram)"""
+        """Send voice file, falling back to audio/text if Telegram rejects it."""
         if not self.app:
             return
 
         chat_id = data.get("chat_id", self.chat_id)
         file_path = data.get("file_path", "")
+        fallback_text = data.get("fallback_text", "")
 
         if not chat_id or not file_path:
             return
@@ -372,18 +373,32 @@ class TelegramListener:
         path = Path(file_path)
         if not path.exists():
             print(f"[Telegram] Voice file not found: {file_path}")
+            if fallback_text:
+                await self._send_text({"chat_id": chat_id, "text": fallback_text})
             return
 
         try:
-            with open(path, "rb") as voice_file:
-                await self.app.bot.send_voice(
+            if path.suffix.lower() == ".ogg":
+                with open(path, "rb") as voice_file:
+                    await self.app.bot.send_voice(
+                        chat_id=chat_id,
+                        voice=voice_file,
+                        caption=data.get("caption", "")
+                    )
+                print(f"[Telegram] Sent voice: {file_path}")
+                return
+
+            with open(path, "rb") as audio_file:
+                await self.app.bot.send_audio(
                     chat_id=chat_id,
-                    voice=voice_file,
+                    audio=audio_file,
                     caption=data.get("caption", "")
                 )
-            print(f"[Telegram] Sent voice: {file_path}")
+            print(f"[Telegram] Sent audio fallback: {file_path}")
         except Exception as e:
-            print(f"[Telegram] Send voice error: {e}")
+            print(f"[Telegram] Send voice/audio error: {e}")
+            if fallback_text:
+                await self._send_text({"chat_id": chat_id, "text": fallback_text})
 
     async def _send_image(self, data: dict):
         """Send image file"""

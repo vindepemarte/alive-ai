@@ -1102,7 +1102,12 @@ async def _send_response(self, response, emotion, chat_id, text, user_id="defaul
         await self.nervous.emit("chat_action_voice", {})
         vp = await self._voice.generate(response, mood=mood)
         if vp:
-            await self.nervous.emit("send_voice_file", {"file_path": vp, "chat_id": chat_id})
+            await self.nervous.emit("send_voice_file", {
+                "file_path": vp,
+                "chat_id": chat_id,
+                "fallback_text": response,
+                "mood": mood,
+            })
             return
     await self.nervous.emit("send_text", {"text": response, "mood": mood, "chat_id": chat_id})
 
