@@ -48,9 +48,10 @@ Usage:
   alive-ai doctor                 Check local prerequisites
 
 Quick start:
-  npx github:vindepemarte/alive-ai init my-ai
+  npx alive-ai@latest init my-ai
   cd my-ai
   npx . setup
+  npx . doctor
   npx . demo
   npx . start`);
 }
@@ -114,6 +115,7 @@ function initProject(args) {
   console.log("Next:");
   console.log(`  cd ${target}`);
   console.log("  npx . setup");
+  console.log("  npx . doctor");
   console.log("  npx . demo");
 }
 
@@ -220,11 +222,20 @@ function doctor() {
   const node = process.version;
 
   console.log("Alive-AI doctor");
+  console.log(`  system: ${os.platform()} ${os.arch()}`);
   console.log(`  node:   ${node}`);
   console.log(`  python: ${python || "missing"}`);
   console.log(`  uv:     ${uv || "missing, will use venv + pip"}`);
   console.log(`  ffmpeg: ${ffmpeg || "missing, voice conversion may be limited"}`);
   console.log(`  docker: ${docker || "missing, Redis can still be external"}`);
+
+  if (!python) {
+    console.log("");
+    console.log("Install Python 3.11+ first:");
+    if (process.platform === "darwin") console.log("  brew install python@3.11");
+    else if (process.platform === "win32") console.log("  winget install Python.Python.3.11");
+    else console.log("  sudo apt install python3.11 python3.11-venv");
+  }
 
   if (!python) process.exitCode = 1;
 }
@@ -267,8 +278,10 @@ function ensurePythonEnv(skipInstall) {
 
 function startRuntime(args) {
   if (!fs.existsSync(path.join(process.cwd(), "config", "settings.json"))) {
-    console.error("Missing config/settings.json. Run `npx . setup` first.");
-    process.exit(1);
+    console.log("Missing config/settings.json. Starting onboarding first.");
+    const setupArgs = process.stdin.isTTY ? [] : ["--yes"];
+    setupProject(setupArgs).then(() => startRuntime(args));
+    return;
   }
   const pythonBin = ensurePythonEnv(hasFlag(args, "--skip-install"));
   const child = spawn(pythonBin, ["main.py"], { stdio: "inherit", cwd: process.cwd() });

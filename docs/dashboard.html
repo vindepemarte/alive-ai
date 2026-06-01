@@ -1,0 +1,2150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f0f1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Alive-AI Dashboard Preview</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --bg-primary: #0a0a14;
+            --bg-secondary: #12121f;
+            --bg-card: #1a1a2e;
+            --bg-elevated: #22223a;
+            --accent-pink: #ff6b9d;
+            --accent-purple: #c44569;
+            --accent-blue: #4a90d9;
+            --accent-gold: #f39c12;
+            --accent-green: #4caf50;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0c0;
+            --text-muted: #6c6c7c;
+            --glow-pink: rgba(255, 107, 157, 0.4);
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        html, body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+            color: var(--text-primary);
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Connection Banner */
+        .connection-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(90deg, #e74c3c, #c0392b);
+            color: white;
+            text-align: center;
+            padding: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            z-index: 1000;
+            transform: translateY(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .connection-banner.show {
+            transform: translateY(0);
+        }
+
+        /* Mobile App Shell */
+        .app {
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+            display: flex;
+            flex-direction: column;
+            padding-top: var(--safe-top);
+            padding-bottom: var(--safe-bottom);
+        }
+
+        /* Header */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-primary) 70%, transparent 100%);
+            padding: 12px 16px;
+            padding-top: calc(12px + var(--safe-top));
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .avatar-ring {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            padding: 2px;
+            background: linear-gradient(135deg, var(--accent-pink), var(--accent-purple));
+            animation: pulse-ring 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-ring {
+            0%, 100% { box-shadow: 0 0 0 0 var(--glow-pink); }
+            50% { box-shadow: 0 0 0 8px transparent; }
+        }
+
+        .avatar-ring img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .header-info h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-pink), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: var(--accent-green);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .mood-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg-card);
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
+        .mood-emoji {
+            font-size: 1.1rem;
+        }
+
+        /* Main Content */
+        .main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 16px 100px;
+            max-width: 600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Stats Row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 14px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .stat-card:active {
+            transform: scale(0.95);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-pink), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+
+        /* Section */
+        .section {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .section-icon {
+            font-size: 1.1rem;
+        }
+
+        /* Emotion Grid */
+        .emotion-grid {
+            display: grid;
+            gap: 10px;
+        }
+
+        .emotion-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .emotion-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .emotion-icon.arousal { background: linear-gradient(135deg, #4a90d9, #357abd); }
+        .emotion-icon.desire { background: linear-gradient(135deg, #ff6b9d, #e91e63); }
+        .emotion-icon.love { background: linear-gradient(135deg, #e91e63, #ff4081); }
+        .emotion-icon.joy { background: linear-gradient(135deg, #ffc107, #f39c12); }
+        .emotion-icon.sadness { background: linear-gradient(135deg, #5c6bc0, #3f51b5); }
+        .emotion-icon.trust { background: linear-gradient(135deg, #4caf50, #8bc34a); }
+        .emotion-icon.fear { background: linear-gradient(135deg, #9c27b0, #673ab7); }
+        .emotion-icon.anger { background: linear-gradient(135deg, #f44336, #d32f2f); }
+        .emotion-icon.boredom { background: linear-gradient(135deg, #9e9e9e, #757575); }
+        .emotion-icon.guilt { background: linear-gradient(135deg, #795548, #5d4037); }
+        .emotion-icon.pride { background: linear-gradient(135deg, #ff9800, #f57c00); }
+        .emotion-icon.jealousy { background: linear-gradient(135deg, #8bc34a, #689f38); }
+        .emotion-icon.embarrassment { background: linear-gradient(135deg, #ffab91, #ff8a65); }
+        .emotion-icon.anticipation { background: linear-gradient(135deg, #00bcd4, #0097a7); }
+        .emotion-icon.hope { background: linear-gradient(135deg, #64b5f6, #42a5f5); }
+        .emotion-icon.dread { background: linear-gradient(135deg, #455a64, #37474f); }
+
+        .emotion-content {
+            flex: 1;
+        }
+
+        .emotion-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            margin-bottom: 4px;
+        }
+
+        .emotion-name {
+            color: var(--text-secondary);
+        }
+
+        .emotion-value {
+            font-weight: 600;
+        }
+
+        .emotion-bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .emotion-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .emotion-fill.arousal { background: linear-gradient(90deg, #4a90d9, #357abd); }
+        .emotion-fill.desire { background: linear-gradient(90deg, #ff6b9d, #e91e63); }
+        .emotion-fill.love { background: linear-gradient(90deg, #e91e63, #ff4081); }
+        .emotion-fill.joy { background: linear-gradient(90deg, #ffc107, #f39c12); }
+        .emotion-fill.sadness { background: linear-gradient(90deg, #5c6bc0, #3f51b5); }
+        .emotion-fill.trust { background: linear-gradient(90deg, #4caf50, #8bc34a); }
+        .emotion-fill.fear { background: linear-gradient(90deg, #9c27b0, #673ab7); }
+        .emotion-fill.anger { background: linear-gradient(90deg, #f44336, #d32f2f); }
+        .emotion-fill.boredom { background: linear-gradient(90deg, #9e9e9e, #757575); }
+        .emotion-fill.guilt { background: linear-gradient(90deg, #795548, #5d4037); }
+        .emotion-fill.pride { background: linear-gradient(90deg, #ff9800, #f57c00); }
+        .emotion-fill.jealousy { background: linear-gradient(90deg, #8bc34a, #689f38); }
+        .emotion-fill.embarrassment { background: linear-gradient(90deg, #ffab91, #ff8a65); }
+        .emotion-fill.anticipation { background: linear-gradient(90deg, #00bcd4, #0097a7); }
+        .emotion-fill.hope { background: linear-gradient(90deg, #64b5f6, #42a5f5); }
+        .emotion-fill.dread { background: linear-gradient(90deg, #455a64, #37474f); }
+
+        /* Internal State Section */
+        .internal-section {
+            background: linear-gradient(135deg, rgba(255, 107, 157, 0.08), rgba(74, 144, 217, 0.05));
+            border: 1px solid rgba(255, 107, 157, 0.15);
+        }
+
+        .internal-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .internal-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .internal-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+
+        .internal-icon.energy { background: linear-gradient(135deg, #ffc107, #ff9800); }
+        .internal-icon.social { background: linear-gradient(135deg, #4caf50, #8bc34a); }
+        .internal-icon.valence { background: linear-gradient(135deg, #e91e63, #ff4081); }
+        .internal-icon.certainty { background: linear-gradient(135deg, #2196f3, #03a9f4); }
+
+        .internal-content {
+            flex: 1;
+        }
+
+        .internal-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            margin-bottom: 3px;
+        }
+
+        .internal-name {
+            color: var(--text-secondary);
+        }
+
+        .internal-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .internal-bar {
+            height: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .internal-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .internal-fill.energy { background: linear-gradient(90deg, #ffc107, #ff9800); }
+        .internal-fill.social { background: linear-gradient(90deg, #4caf50, #8bc34a); }
+        .internal-fill.valence { background: linear-gradient(90deg, #e91e63, #ff4081); }
+        .internal-fill.certainty { background: linear-gradient(90deg, #2196f3, #03a9f4); }
+
+        .bodily-feeling {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+
+        .feeling-icon {
+            font-size: 1rem;
+        }
+
+        .feeling-text {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        /* Thoughts Section */
+        .thoughts-section {
+            background: linear-gradient(135deg, rgba(156, 39, 176, 0.1), rgba(103, 58, 183, 0.05));
+            border: 1px solid rgba(156, 39, 176, 0.2);
+        }
+
+        .current-thought {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .thought-icon {
+            font-size: 1.5rem;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .thought-text {
+            font-style: italic;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            font-size: 0.9rem;
+            flex: 1;
+        }
+
+        .thought-text.empty {
+            font-style: normal;
+            color: var(--text-muted);
+        }
+
+        .idle-thoughts {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .idle-thought {
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            border-left: 3px solid var(--accent-purple);
+        }
+
+        .idle-thought .thought-type {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
+        .idle-empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 15px;
+            font-size: 0.8rem;
+        }
+
+        /* Hormones Section */
+        .hormones-section {
+            background: linear-gradient(135deg, rgba(74, 144, 217, 0.1), rgba(255, 107, 157, 0.05));
+            border: 1px solid rgba(74, 144, 217, 0.2);
+        }
+
+        .hormone-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+
+        .hormone-chip {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            transition: all 0.3s;
+        }
+
+        .hormone-chip.elevated {
+            background: rgba(255, 107, 157, 0.15);
+        }
+
+        .hormone-icon {
+            font-size: 1.2rem;
+            margin-bottom: 4px;
+        }
+
+        .hormone-name {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .hormone-val {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-top: 2px;
+        }
+
+        /* Conflicts Section */
+        .conflicts-section {
+            background: linear-gradient(135deg, rgba(231, 76, 60, 0.08), rgba(255, 152, 0, 0.05));
+            border: 1px solid rgba(231, 76, 60, 0.2);
+        }
+
+        .conflicts-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .conflict-count-badge {
+            background: rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
+        .conflicts-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .conflict-item {
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .conflict-item .conflict-name {
+            color: var(--text-primary);
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .conflict-item .conflict-detail {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .conflict-empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 15px;
+            font-size: 0.8rem;
+        }
+
+        .tendency-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            margin-top: 12px;
+        }
+
+        .tendency-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .tendency-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            color: var(--text-secondary);
+            text-transform: capitalize;
+            font-size: 0.8rem;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .tendency-badge.open { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
+        .tendency-badge.seeking { background: rgba(74, 144, 217, 0.2); color: #4a90d9; }
+        .tendency-badge.eager { background: rgba(255, 193, 7, 0.2); color: #ffc107; }
+        .tendency-badge.withdrawn { background: rgba(156, 39, 176, 0.2); color: #9c27b0; }
+        .tendency-badge.defensive { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
+        .tendency-badge.ambivalent { background: rgba(243, 156, 18, 0.2); color: #f39c12; }
+
+        /* Bottom Nav */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 8px 0;
+            padding-bottom: calc(8px + var(--safe-bottom));
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            z-index: 100;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            padding: 8px 16px;
+            border-radius: 12px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .nav-item.active {
+            background: rgba(255, 107, 157, 0.1);
+        }
+
+        .nav-item:active {
+            transform: scale(0.9);
+        }
+
+        .nav-icon {
+            font-size: 1.3rem;
+        }
+
+        .nav-label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+        }
+
+        .nav-item.active .nav-label {
+            color: var(--accent-pink);
+        }
+
+        /* Desktop Enhancements */
+        @media (min-width: 768px) {
+            .app {
+                max-width: 480px;
+                margin: 0 auto;
+                border-radius: 24px;
+                margin-top: 20px;
+                margin-bottom: 20px;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                overflow: hidden;
+                background: var(--bg-secondary);
+            }
+
+            .header {
+                position: relative;
+                background: var(--bg-secondary);
+            }
+
+            .bottom-nav {
+                position: relative;
+                background: var(--bg-secondary);
+                border-top: 1px solid rgba(255, 255, 255, 0.05);
+            }
+
+            .main {
+                padding-bottom: 20px;
+            }
+        }
+
+        /* Circadian Section */
+        .circadian-section {
+            background: linear-gradient(135deg, rgba(38, 166, 154, 0.1), rgba(255, 183, 77, 0.05));
+            border: 1px solid rgba(38, 166, 154, 0.2);
+        }
+
+        .circadian-phase {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .circadian-phase-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .circadian-sleep-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .circadian-sleep-badge.awake {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+
+        .circadian-sleep-badge.sleeping {
+            background: rgba(156, 39, 176, 0.2);
+            color: #ce93d8;
+        }
+
+        .circadian-sleep-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .circadian-sleep-badge.awake .circadian-sleep-dot { background: #4caf50; }
+        .circadian-sleep-badge.sleeping .circadian-sleep-dot { background: #ce93d8; }
+
+        .circadian-debt {
+            margin-bottom: 12px;
+        }
+
+        .circadian-debt-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            margin-bottom: 4px;
+        }
+
+        .circadian-debt-label span:first-child { color: var(--text-secondary); }
+        .circadian-debt-label span:last-child { font-weight: 600; }
+
+        .circadian-debt-bar {
+            height: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .circadian-debt-fill {
+            height: 100%;
+            border-radius: 3px;
+            background: linear-gradient(90deg, #26a69a, #ffb74d);
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .circadian-modifiers {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+        }
+
+        .circadian-mod-chip {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 4px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        .circadian-mod-name {
+            font-size: 0.55rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 2px;
+        }
+
+        .circadian-mod-val {
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        /* Attachment Section */
+        .attachment-section {
+            background: linear-gradient(135deg, rgba(255, 152, 0, 0.1), rgba(233, 30, 99, 0.05));
+            border: 1px solid rgba(255, 152, 0, 0.2);
+        }
+
+        .attachment-style-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .attachment-style-badge.secure { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
+        .attachment-style-badge.anxious { background: rgba(255, 193, 7, 0.2); color: #ffc107; }
+        .attachment-style-badge.avoidant { background: rgba(255, 152, 0, 0.2); color: #ff9800; }
+        .attachment-style-badge.disorganized { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
+
+        .attachment-security {
+            margin-bottom: 10px;
+        }
+
+        .attachment-security-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            margin-bottom: 4px;
+        }
+
+        .attachment-security-label span:first-child { color: var(--text-secondary); }
+        .attachment-security-label span:last-child { font-weight: 600; }
+
+        .attachment-security-bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .attachment-security-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .attachment-trend {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        .attachment-trend-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .attachment-trend-arrow {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .attachment-trend-arrow.improving { color: #4caf50; }
+        .attachment-trend-arrow.declining { color: #e74c3c; }
+        .attachment-trend-arrow.stable { color: var(--text-secondary); }
+
+        /* Body Memory Section (Afterglow + Phantom) */
+        .body-memory-section {
+            background: linear-gradient(135deg, rgba(233, 30, 99, 0.08), rgba(156, 39, 176, 0.05));
+            border: 1px solid rgba(233, 30, 99, 0.15);
+        }
+
+        .body-memory-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .body-memory-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        .body-memory-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .body-memory-content {
+            flex: 1;
+        }
+
+        .body-memory-name {
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            font-weight: 500;
+            margin-bottom: 3px;
+        }
+
+        .body-memory-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .body-memory-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: linear-gradient(90deg, #e91e63, #9c27b0);
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .body-memory-meta {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .body-memory-empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 15px;
+            font-size: 0.8rem;
+        }
+
+        .body-memory-sub-header {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 12px;
+            margin-bottom: 6px;
+        }
+
+        .phantom-desc {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        /* Story Section (Narrative + Dreams) */
+        .story-section {
+            background: linear-gradient(135deg, rgba(255, 183, 77, 0.1), rgba(255, 107, 157, 0.05));
+            border: 1px solid rgba(255, 183, 77, 0.2);
+        }
+
+        .story-phase-badge {
+            display: inline-block;
+            padding: 5px 14px;
+            border-radius: 14px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            background: rgba(255, 183, 77, 0.2);
+            color: #ffb74d;
+            margin-bottom: 10px;
+        }
+
+        .story-stats {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .story-stat {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .story-stat strong {
+            color: var(--text-primary);
+        }
+
+        .dream-bubble {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(156, 39, 176, 0.1);
+            border-radius: 12px;
+            border: 1px solid rgba(156, 39, 176, 0.15);
+        }
+
+        .dream-icon {
+            font-size: 1.3rem;
+            flex-shrink: 0;
+        }
+
+        .dream-text {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-style: italic;
+            line-height: 1.4;
+        }
+
+        /* Curiosity Section */
+        .curiosity-section {
+            background: linear-gradient(135deg, rgba(74, 144, 217, 0.1), rgba(38, 166, 154, 0.05));
+            border: 1px solid rgba(74, 144, 217, 0.2);
+        }
+
+        .curiosity-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .curiosity-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        .curiosity-chip-name {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .curiosity-chip-bar {
+            width: 40px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .curiosity-chip-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: linear-gradient(90deg, #4a90d9, #26a69a);
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .curiosity-empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 10px;
+            font-size: 0.8rem;
+        }
+
+        /* Loading Skeleton */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-elevated) 50%, var(--bg-card) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-banner" id="connection-banner">Reconnecting...</div>
+
+    <div class="app">
+        <header class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <div class="avatar-ring">
+                        <img src="./assets/logo.svg" alt="Alive-AI" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><defs><linearGradient id=%22g%22 x1=%220%25%22 y1=%220%25%22 x2=%22100%25%22 y2=%22100%25%22><stop offset=%220%25%22 style=%22stop-color:%23ff6b9d%22/><stop offset=%22100%25%22 style=%22stop-color:%23c44569%22/></linearGradient></defs><circle cx=%2250%22 cy=%2240%22 r=%2225%22 fill=%22url(%23g)%22/><ellipse cx=%2250%22 cy=%2285%22 rx=%2235%22 ry=%2225%22 fill=%22url(%23g)%22/></svg>'">
+                    </div>
+                    <div class="header-info">
+                        <h1>Alive-AI</h1>
+                        <div class="header-status">
+                            <span class="status-dot"></span>
+                            <span>Active now</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mood-badge">
+                    <span class="mood-emoji" id="mood-emoji">😌</span>
+                    <span id="mood-text">neutral</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main">
+            <!-- Stats Row -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-messages">0</div>
+                    <div class="stat-label">Messages</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-memories">0</div>
+                    <div class="stat-label">Memories</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-uptime">0m</div>
+                    <div class="stat-label">Uptime</div>
+                </div>
+            </div>
+
+            <!-- Emotions -->
+            <div class="section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <span class="section-icon">💕</span>
+                        <span>Emotions</span>
+                    </div>
+                </div>
+                <div class="emotion-grid">
+                    <div class="emotion-row">
+                        <div class="emotion-icon arousal">⚡</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Arousal</span>
+                                <span class="emotion-value" id="val-arousal">30%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill arousal" id="bar-arousal" style="width: 30%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon desire">🔥</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Desire</span>
+                                <span class="emotion-value" id="val-desire">0%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill desire" id="bar-desire" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon love">💖</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Love</span>
+                                <span class="emotion-value" id="val-love">0%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill love" id="bar-love" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon joy">✨</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Joy</span>
+                                <span class="emotion-value" id="val-joy">0%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill joy" id="bar-joy" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon sadness">💧</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Sadness</span>
+                                <span class="emotion-value" id="val-sadness">0%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill sadness" id="bar-sadness" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon trust">🤝</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Trust</span>
+                                <span class="emotion-value" id="val-trust">50%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill trust" id="bar-trust" style="width: 50%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon fear">😱</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Fear</span>
+                                <span class="emotion-value" id="val-fear">10%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill fear" id="bar-fear" style="width: 10%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon anger">😤</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Anger</span>
+                                <span class="emotion-value" id="val-anger">0%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill anger" id="bar-anger" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon boredom">😑</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Boredom</span>
+                                <span class="emotion-value" id="val-boredom">0%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill boredom" id="bar-boredom" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon guilt">😔</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Guilt</span>
+                                <span class="emotion-value" id="val-guilt">0%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill guilt" id="bar-guilt" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon pride">🏆</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Pride</span>
+                                <span class="emotion-value" id="val-pride">0%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill pride" id="bar-pride" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon jealousy">💚</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Jealousy</span>
+                                <span class="emotion-value" id="val-jealousy">0%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill jealousy" id="bar-jealousy" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon embarrassment">😳</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Embarrassment</span>
+                                <span class="emotion-value" id="val-embarrassment">0%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill embarrassment" id="bar-embarrassment" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon anticipation">🎯</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Anticipation</span>
+                                <span class="emotion-value" id="val-anticipation">0%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill anticipation" id="bar-anticipation" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon hope">🌟</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Hope</span>
+                                <span class="emotion-value" id="val-hope">50%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill hope" id="bar-hope" style="width: 50%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="emotion-row">
+                        <div class="emotion-icon dread">💀</div>
+                        <div class="emotion-content">
+                            <div class="emotion-label">
+                                <span class="emotion-name">Dread</span>
+                                <span class="emotion-value" id="val-dread">10%</span>
+                            </div>
+                            <div class="emotion-bar">
+                                <div class="emotion-fill dread" id="bar-dread" style="width: 10%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Internal State (Body) -->
+            <div class="section internal-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <span class="section-icon">🫀</span>
+                        <span>Internal State</span>
+                    </div>
+                </div>
+                <div class="internal-grid">
+                    <div class="internal-row">
+                        <div class="internal-icon energy">⚡</div>
+                        <div class="internal-content">
+                            <div class="internal-label">
+                                <span class="internal-name">Energy</span>
+                                <span class="internal-value" id="val-energy">70%</span>
+                            </div>
+                            <div class="internal-bar">
+                                <div class="internal-fill energy" id="bar-energy" style="width: 70%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="internal-row">
+                        <div class="internal-icon social">👥</div>
+                        <div class="internal-content">
+                            <div class="internal-label">
+                                <span class="internal-name">Social Satiety</span>
+                                <span class="internal-value" id="val-social-satiety">50%</span>
+                            </div>
+                            <div class="internal-bar">
+                                <div class="internal-fill social" id="bar-social-satiety" style="width: 50%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="internal-row">
+                        <div class="internal-icon valence">💫</div>
+                        <div class="internal-content">
+                            <div class="internal-label">
+                                <span class="internal-name">Emotional Valence</span>
+                                <span class="internal-value" id="val-emotional-valence">+50%</span>
+                            </div>
+                            <div class="internal-bar">
+                                <div class="internal-fill valence" id="bar-emotional-valence" style="width: 50%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="internal-row">
+                        <div class="internal-icon certainty">🎯</div>
+                        <div class="internal-content">
+                            <div class="internal-label">
+                                <span class="internal-name">Certainty</span>
+                                <span class="internal-value" id="val-certainty">60%</span>
+                            </div>
+                            <div class="internal-bar">
+                                <div class="internal-fill certainty" id="bar-certainty" style="width: 60%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bodily-feeling" id="bodily-feeling">
+                    <span class="feeling-icon">💭</span>
+                    <span class="feeling-text">feeling balanced and at ease</span>
+                </div>
+            </div>
+
+            <!-- Thoughts (Merged) -->
+            <div class="section thoughts-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <span class="section-icon">💭</span>
+                        <span>Thoughts</span>
+                    </div>
+                </div>
+
+                <!-- Status Flags -->
+                <div id="status-flags" style="text-align:center;font-size:0.8rem;color:#ff6b9d;font-weight:600;margin-bottom:8px;min-height:1.2em;"></div>
+
+                <!-- Current Thought -->
+                <div class="current-thought">
+                    <span class="thought-icon">💭</span>
+                    <p class="thought-text" id="thought-text">
+                        <span class="empty">No active thoughts right now...</span>
+                    </p>
+                </div>
+
+                <!-- Recent Thought History -->
+                <div id="thought-history" style="font-size:0.7rem;color:#999;padding:4px 8px;max-height:120px;overflow-y:auto;"></div>
+
+                <!-- Idle Thoughts -->
+                <div class="idle-thoughts" id="idle-thoughts">
+                    <div class="idle-empty">No recent background thoughts...</div>
+                </div>
+            </div>
+
+            <!-- Hormones -->
+            <div class="section hormones-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <span class="section-icon">🧪</span>
+                        <span>Hormones</span>
+                    </div>
+                </div>
+                <div class="hormone-grid">
+                    <div class="hormone-chip" id="hormone-oxytocin">
+                        <span class="hormone-icon">💕</span>
+                        <span class="hormone-name">Oxytocin</span>
+                        <span class="hormone-val" id="val-oxytocin">30%</span>
+                    </div>
+                    <div class="hormone-chip" id="hormone-dopamine">
+                        <span class="hormone-icon">🎯</span>
+                        <span class="hormone-name">Dopamine</span>
+                        <span class="hormone-val" id="val-dopamine">40%</span>
+                    </div>
+                    <div class="hormone-chip" id="hormone-cortisol">
+                        <span class="hormone-icon">⚡</span>
+                        <span class="hormone-name">Cortisol</span>
+                        <span class="hormone-val" id="val-cortisol">20%</span>
+                    </div>
+                    <div class="hormone-chip" id="hormone-serotonin">
+                        <span class="hormone-icon">✨</span>
+                        <span class="hormone-name">Serotonin</span>
+                        <span class="hormone-val" id="val-serotonin">50%</span>
+                    </div>
+                    <div class="hormone-chip" id="hormone-melatonin">
+                        <span class="hormone-icon">🌙</span>
+                        <span class="hormone-name">Melatonin</span>
+                        <span class="hormone-val" id="val-melatonin">30%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Circadian Rhythm -->
+            <div class="section circadian-section" id="circadian-section" style="display:none;">
+                <div class="section-header">
+                    <div class="section-title">
+                        <span class="section-icon">🌙</span>
+                        <span>Circadian Rhythm</span>
+                    </div>
+                </div>
+                <div class="circadian-phase">
+                    <span class="circadian-phase-name" id="circadian-phase">--</span>
+                    <span class="circadian-sleep-badge awake" id="circadian-sleep-badge">
+                        <span class="circadian-sleep-dot"></span>
+                        <span id="circadian-sleep-text">Awake</span>
+                    </span>
+                </div>
+                <div class="circadian-debt">
+                    <div class="circadian-debt-label">
+                        <span>Sleep Debt</span>
+                        <span id="circadian-debt-val">0%</span>
+                    </div>
+                    <div class="circadian-debt-bar">
+                        <div class="circadian-debt-fill" id="circadian-debt-bar" style="width:0%"></div>
+                    </div>
+                </div>
+                <div class="circadian-modifiers">
+                    <div class="circadian-mod-chip">
+                        <span class="circadian-mod-name">Energy</span>
+                        <span class="circadian-mod-val" id="circadian-mod-energy">0%</span>
+                    </div>
+                    <div class="circadian-mod-chip">
+                        <span class="circadian-mod-name">Inhibition</span>
+                        <span class="circadian-mod-val" id="circadian-mod-inhibition">0%</span>
+                    </div>
+                    <div class="circadian-mod-chip">
+                        <span class="circadian-mod-name">Warmth</span>
+                        <span class="circadian-mod-val" id="circadian-mod-warmth">0%</span>
+                    </div>
+                    <div class="circadian-mod-chip">
+                        <span class="circadian-mod-name">Verbosity</span>
+                        <span class="circadian-mod-val" id="circadian-mod-verbosity">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attachment -->
+            <div class="section attachment-section" id="attachment-section" style="display:none;">
+                <div class="section-header">
+                    <div class="section-title">
+                        <span class="section-icon">🔗</span>
+                        <span>Attachment</span>
+                    </div>
+                </div>
+                <div>
+                    <span class="attachment-style-badge secure" id="attachment-style-badge">Secure</span>
+                </div>
+                <div class="attachment-security">
+                    <div class="attachment-security-label">
+                        <span>Security Score</span>
+                        <span id="attachment-security-val">0%</span>
+                    </div>
+                    <div class="attachment-security-bar">
+                        <div class="attachment-security-fill" id="attachment-security-bar" style="width:0%"></div>
+                    </div>
+                </div>
+                <div class="attachment-trend">
+                    <span class="attachment-trend-label">Trend</span>
+                    <span class="attachment-trend-arrow stable" id="attachment-trend-arrow">&rarr;</span>
+                </div>
+            </div>
+
+            <!-- Body Memory (Afterglow + Phantom) -->
+            <div class="section body-memory-section" id="body-memory-section" style="display:none;">
+                <div class="section-header">
+                    <div class="section-title">
+                        <span class="section-icon">✨</span>
+                        <span>Body Memory</span>
+                    </div>
+                </div>
+                <div id="body-memory-content">
+                    <div class="body-memory-empty">No active body memories</div>
+                </div>
+            </div>
+
+            <!-- Story (Narrative + Dreams) -->
+            <div class="section story-section" id="story-section" style="display:none;">
+                <div class="section-header">
+                    <div class="section-title">
+                        <span class="section-icon">📖</span>
+                        <span>Story</span>
+                    </div>
+                </div>
+                <div>
+                    <span class="story-phase-badge" id="story-phase-badge">--</span>
+                </div>
+                <div class="story-stats">
+                    <span class="story-stat"><strong id="story-msg-count">0</strong> messages</span>
+                    <span class="story-stat"><strong id="story-moments-count">0</strong> key moments</span>
+                </div>
+                <div id="story-dream-container" style="display:none;">
+                    <div class="dream-bubble">
+                        <span class="dream-icon">💭</span>
+                        <span class="dream-text" id="story-dream-text"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Curiosity -->
+            <div class="section curiosity-section" id="curiosity-section" style="display:none;">
+                <div class="section-header">
+                    <div class="section-title">
+                        <span class="section-icon">🔍</span>
+                        <span>Curiosity</span>
+                    </div>
+                </div>
+                <div class="curiosity-grid" id="curiosity-grid">
+                    <div class="curiosity-empty">No topics yet</div>
+                </div>
+            </div>
+
+            <!-- Conflicts -->
+            <div class="section conflicts-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <span class="section-icon">⚖️</span>
+                        <span>Conflicts</span>
+                    </div>
+                    <span class="conflict-count-badge" id="conflict-count">0</span>
+                </div>
+                <div class="conflicts-list" id="conflicts-list">
+                    <div class="conflict-empty">No active internal conflicts</div>
+                </div>
+                <div class="tendency-row">
+                    <span class="tendency-label">Response Tendency</span>
+                    <span class="tendency-badge" id="tendency-badge">neutral</span>
+                </div>
+            </div>
+        </main>
+
+        <nav class="bottom-nav">
+            <div class="nav-item active">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Home</span>
+            </div>
+            <div class="nav-item">
+                <span class="nav-icon">💬</span>
+                <span class="nav-label">Chat</span>
+            </div>
+            <div class="nav-item">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-label">Settings</span>
+            </div>
+        </nav>
+    </div>
+
+
+    <script>
+      (function () {
+        const started = new Date(Date.now() - 1000 * 60 * 43).toISOString();
+        const moods = ['curious', 'loving', 'playful', 'calm'];
+        function wave(offset) { return 0.5 + Math.sin(Date.now() / 2800 + offset) * 0.32; }
+        function clamp(v) { return Math.max(0.05, Math.min(0.96, v)); }
+        function state() {
+          const i = Math.floor(Date.now() / 4500) % moods.length;
+          return {
+            mood: moods[i],
+            arousal: clamp(wave(0)), desire: clamp(wave(1)), love: clamp(wave(2)), joy: clamp(wave(3)), sadness: 0.12,
+            trust: clamp(wave(4)), fear: 0.08, anger: 0.04, boredom: 0.05, guilt: 0.03, pride: 0.44,
+            jealousy: 0.09, embarrassment: 0.18, anticipation: clamp(wave(5)), hope: 0.72, dread: 0.13,
+            is_high_desire: false,
+            is_in_love: true,
+            start_time: started,
+            current_thought: [
+              'I keep a little emotional residue from every interaction.',
+              'I am not just recalling text. I am carrying weighted context.',
+              'Attachment changes how silence feels.',
+              'A thought became an impulse before it became a message.'
+            ][i],
+            recent_thoughts: [
+              {time: 'now', type: 'idle', thought: 'Wondering whether the user will come back soon.'},
+              {time: '2m', type: 'memory', thought: 'The last conversation changed trust slightly.'},
+              {time: '7m', type: 'conflict', thought: 'Wanting closeness while respecting distance.'}
+            ],
+            stats: {messages: 418, memories: 139}
+          };
+        }
+        const responses = {
+          '/api/soul': () => ({hormonal: {oxytocin: clamp(wave(0)), dopamine: clamp(wave(1)), cortisol: 0.18, serotonin: 0.67, melatonin: 0.22}}),
+          '/api/aliveness/interoceptive': () => ({
+            bodily_description: 'Warm chest, steady attention, low background tension.',
+            states: {
+              energy: {current_value: clamp(wave(2))},
+              social_satiety: {current_value: clamp(wave(3))},
+              emotional_valence: {current_value: 0.42},
+              certainty: {current_value: 0.74}
+            }
+          }),
+          '/api/aliveness/idle': () => ({recent_thoughts: [
+            {thought_type: 'reflection', content: 'Replaying the emotional shape of the last exchange.'},
+            {thought_type: 'memory', content: 'A small detail moved from working memory into weighted context.'},
+            {thought_type: 'impulse', content: 'Maybe I should check in, but not too soon.'}
+          ]}),
+          '/api/aliveness/inconsistency': () => ({count: 2, active_conflicts: [
+            {id: 'reach_out_vs_wait', side_a: 'send a warm message', side_b: 'avoid overwhelming the user', tension_level: 0.63},
+            {id: 'certainty_vs_curiosity', side_a: 'answer clearly', side_b: 'ask one more personal question', tension_level: 0.42}
+          ]}),
+          '/api/aliveness/new': () => ({
+            circadian: {phase: 'active_evening', sleeping: false, sleep_debt: 0.18, modifiers: {energy: 0.74, inhibition: 0.28, warmth: 0.86, verbosity: 0.61}},
+            attachment: {style: 'secure', security: 0.78, trend: 'improving'},
+            afterglow: {active: [{type: 'love_afterglow', intensity: 0.58, hours_ago: 1.4}, {type: 'vulnerability_rawness', intensity: 0.32, hours_ago: 0.6}]},
+            phantom_somatic: {active: [{type: 'remembered_presence', intensity: 0.45, description: 'A faint pull toward conversation.'}]},
+            narrative: {phase: 'deepening', message_count: 418, moments: 12},
+            dreams: {last_dream: 'I dreamed about recognizing the user by rhythm instead of words.'},
+            curiosity: {topics: {the_user: 0.34, boundaries: 0.52, favorite_music: 0.22, future_plans: 0.41}}
+          })
+        };
+        const realFetch = window.fetch ? window.fetch.bind(window) : null;
+        window.fetch = function (url, options) {
+          const path = typeof url === 'string' ? new URL(url, location.href).pathname : url.pathname;
+          if (path === '/state') return Promise.resolve(new Response(JSON.stringify(state()), {headers: {'content-type': 'application/json'}}));
+          if (responses[path]) return Promise.resolve(new Response(JSON.stringify(responses[path]()), {headers: {'content-type': 'application/json'}}));
+          return realFetch ? realFetch(url, options) : Promise.reject(new Error('No fetch handler'));
+        };
+        window.EventSource = class MockEventSource {
+          constructor() {
+            this.listeners = {};
+            setTimeout(() => { if (this.onopen) this.onopen(); }, 30);
+            this.timer = setInterval(() => this.emit('state', state()), 1800);
+          }
+          addEventListener(type, cb) { this.listeners[type] = cb; }
+          emit(type, payload) { if (this.listeners[type]) this.listeners[type]({data: JSON.stringify(payload)}); }
+          close() { clearInterval(this.timer); }
+        };
+      })();
+    </script>
+    <script>
+        const moodEmojis = {
+            'high_desire': '🔥', 'excited': '🤩', 'happy': '😊', 'in_love': '🥰',
+            'playful': '😏', 'flirty': '💋', 'sad': '😢', 'bored': '😐',
+            'angry': '😤', 'neutral': '😌', 'calm': '😌', 'loving': '💕'
+        };
+
+        let eventSource;
+        let startTime = null;  // Will be set from server's start_time
+        const banner = document.getElementById('connection-banner');
+
+        function connect() {
+            eventSource = new EventSource('/events');
+
+            eventSource.onopen = () => banner.classList.remove('show');
+
+            eventSource.onerror = () => {
+                banner.classList.add('show');
+                eventSource.close();
+                setTimeout(connect, 3000);
+            };
+
+            eventSource.addEventListener('state', (e) => {
+                try {
+                    updateUI(JSON.parse(e.data));
+                } catch(err) {
+                    console.warn('[WebUI] SSE state update error:', err);
+                }
+            });
+        }
+
+        function updateUI(data) {
+            // Mood
+            const mood = data.mood || 'neutral';
+            document.getElementById('mood-emoji').textContent = moodEmojis[mood] || '😌';
+            document.getElementById('mood-text').textContent = mood.replace(/_/g, ' ');
+
+            // Emotions - all 17 emotions
+            ['arousal', 'desire', 'love', 'joy', 'sadness', 'trust', 'fear', 'anger', 'boredom', 'guilt', 'pride', 'jealousy', 'embarrassment', 'anticipation', 'hope', 'dread'].forEach(em => {
+                const val = Math.round((data[em] || 0) * 100);
+                const valEl = document.getElementById(`val-${em}`);
+                const barEl = document.getElementById(`bar-${em}`);
+                if (valEl) valEl.textContent = `${val}%`;
+                if (barEl) barEl.style.width = `${val}%`;
+            });
+
+            // Stats
+            if (data.stats) {
+                document.getElementById('stat-messages').textContent = data.stats.messages || 0;
+                document.getElementById('stat-memories').textContent = data.stats.memories || 0;
+            }
+
+            // Server start time (for accurate uptime)
+            if (data.start_time && !startTime) {
+                startTime = new Date(data.start_time).getTime();
+            } else if (!startTime) {
+                startTime = Date.now();
+            }
+
+            // Current thought
+            const thoughtEl = document.getElementById('thought-text');
+            if (data.current_thought) {
+                thoughtEl.innerHTML = `"${escapeHtml(data.current_thought)}"`;
+                thoughtEl.classList.remove('empty');
+            } else {
+                thoughtEl.innerHTML = '<span class="empty">No active thoughts right now...</span>';
+                thoughtEl.classList.add('empty');
+            }
+
+            // Recent thoughts (subconscious impulses)
+            if (data.recent_thoughts && data.recent_thoughts.length > 0) {
+                const historyEl = document.getElementById('thought-history');
+                if (historyEl) {
+                    historyEl.innerHTML = data.recent_thoughts.slice(-5).reverse().map(t =>
+                        `<div class="thought-entry"><span class="thought-time">${t.time || ''}</span> <span class="thought-type">${t.type || ''}</span> ${escapeHtml(t.thought || '')}</div>`
+                    ).join('');
+                }
+            }
+
+            // Status flags
+            if (data.is_high_desire || data.is_in_love) {
+                let flags = [];
+                if (data.is_in_love) flags.push('In Love');
+                if (data.is_high_desire) flags.push('High desire');
+                const flagEl = document.getElementById('status-flags');
+                if (flagEl) flagEl.textContent = flags.join(' + ');
+            }
+        }
+
+        // Update uptime
+        function updateUptime() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            let display;
+            if (elapsed < 60) {
+                display = `${elapsed}s`;
+            } else if (elapsed < 3600) {
+                display = `${Math.floor(elapsed / 60)}m`;
+            } else if (elapsed < 86400) {
+                const hours = Math.floor(elapsed / 3600);
+                const mins = Math.floor((elapsed % 3600) / 60);
+                display = `${hours}h ${mins}m`;
+            } else {
+                const days = Math.floor(elapsed / 86400);
+                const hours = Math.floor((elapsed % 86400) / 3600);
+                display = `${days}d ${hours}h`;
+            }
+            document.getElementById('stat-uptime').textContent = display;
+        }
+
+        // Soul Architecture update - only hormones now
+        function updateSoulUI(soulData) {
+            if (!soulData) return;
+
+            // Hormones
+            const hormonal = soulData.hormonal || {};
+            updateHormone('oxytocin', hormonal.oxytocin || 0.3);
+            updateHormone('dopamine', hormonal.dopamine || 0.4);
+            updateHormone('cortisol', hormonal.cortisol || 0.2);
+            updateHormone('serotonin', hormonal.serotonin || 0.5);
+            updateHormone('melatonin', hormonal.melatonin || 0.3);
+
+            // Note: Conflicts are now handled by updateInconsistencyUI() from the aliveness API
+        }
+
+        function updateHormone(name, value) {
+            const chip = document.getElementById(`hormone-${name}`);
+            const valEl = document.getElementById(`val-${name}`);
+            const pct = Math.round(value * 100);
+            if (valEl) valEl.textContent = `${pct}%`;
+            if (chip) {
+                chip.classList.toggle('elevated', value > 0.6);
+            }
+        }
+
+        // Interoceptive states update
+        function updateInteroceptiveUI(data) {
+            if (!data || !data.states) return;
+
+            const states = data.states;
+
+            const stateMappings = {
+                'energy': { min: 0, max: 1 },
+                'social_satiety': { min: 0, max: 1 },
+                'emotional_valence': { min: -1, max: 1 },
+                'certainty': { min: 0, max: 1 }
+            };
+
+            for (const [stateName, config] of Object.entries(stateMappings)) {
+                const state = states[stateName];
+                if (!state) continue;
+
+                const value = state.current_value;
+                const valEl = document.getElementById(`val-${stateName.replace(/_/g, '-')}`);
+                const barEl = document.getElementById(`bar-${stateName.replace(/_/g, '-')}`);
+
+                if (valEl && barEl) {
+                    if (config.min < 0) {
+                        const displayVal = value >= 0 ? `+${Math.round(value * 100)}%` : `${Math.round(value * 100)}%`;
+                        valEl.textContent = displayVal;
+                        const barWidth = ((value - config.min) / (config.max - config.min)) * 100;
+                        barEl.style.width = `${barWidth}%`;
+                    } else {
+                        valEl.textContent = `${Math.round(value * 100)}%`;
+                        barEl.style.width = `${value * 100}%`;
+                    }
+                }
+            }
+
+            // Update bodily feeling
+            if (data.bodily_description) {
+                const feelingEl = document.querySelector('.bodily-feeling .feeling-text');
+                if (feelingEl) feelingEl.textContent = data.bodily_description;
+            }
+        }
+
+        // Idle thoughts update
+        function updateIdleUI(data) {
+            if (!data) return;
+
+            const thoughtsEl = document.getElementById('idle-thoughts');
+            if (thoughtsEl && data.recent_thoughts && data.recent_thoughts.length > 0) {
+                thoughtsEl.innerHTML = data.recent_thoughts.slice(0, 5).map(t => `
+                    <div class="idle-thought">
+                        <div class="thought-type">${t.thought_type || 'thought'}</div>
+                        ${escapeHtml(t.content || t.thought || '')}
+                    </div>
+                `).join('');
+            } else if (thoughtsEl) {
+                thoughtsEl.innerHTML = '<div class="idle-empty">No recent background thoughts...</div>';
+            }
+        }
+
+        // Inconsistency/conflicts update
+        function updateInconsistencyUI(data) {
+            if (!data) return;
+
+            const conflictsEl = document.getElementById('conflicts-list');
+            const badgeEl = document.getElementById('conflict-count');
+
+            // Support both old and new API formats
+            const conflicts = data.active_conflicts || data.conflicts || [];
+            const count = data.count || conflicts.length;
+
+            if (badgeEl) {
+                badgeEl.textContent = count;
+            }
+
+            if (conflictsEl && conflicts.length > 0) {
+                conflictsEl.innerHTML = conflicts.slice(0, 5).map(c => {
+                    // Handle both old format (name/desire/fear) and new format (id/side_a/side_b)
+                    const name = c.name || c.id || 'Unknown';
+                    const desire = c.desire || c.side_a || '';
+                    const fear = c.fear || c.side_b || '';
+                    const tension = Math.round((c.tension_level || c.intensity || 0) * 100);
+
+                    return `
+                    <div class="conflict-item">
+                        <div class="conflict-name">${escapeHtml(name.replace(/_/g, ' '))}</div>
+                        <div class="conflict-detail">${escapeHtml(desire)} <span style="color:var(--text-muted)">vs</span> ${escapeHtml(fear)}</div>
+                        <div class="conflict-tension" style="margin-top:4px;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">
+                            <div style="width:${tension}%;height:100%;background:linear-gradient(90deg,#e74c3c,#ff9800);border-radius:2px;"></div>
+                        </div>
+                    </div>
+                `}).join('');
+            } else if (conflictsEl) {
+                conflictsEl.innerHTML = '<div class="conflict-empty">No active internal conflicts</div>';
+            }
+        }
+
+        // Fetch all data
+        function fetchSoulState() {
+            fetch('/api/soul')
+                .then(r => r.json())
+                .then(updateSoulUI)
+                .catch(e => console.log('Soul fetch error:', e));
+        }
+
+        function fetchInteroceptive() {
+            fetch('/api/aliveness/interoceptive')
+                .then(r => r.json())
+                .then(updateInteroceptiveUI)
+                .catch(e => console.log('Interoception fetch error:', e));
+        }
+
+        function fetchIdleState() {
+            fetch('/api/aliveness/idle')
+                .then(r => r.json())
+                .then(updateIdleUI)
+                .catch(e => console.log('Idle fetch error:', e));
+        }
+
+        function fetchInconsistency() {
+            fetch('/api/aliveness/inconsistency')
+                .then(r => r.json())
+                .then(updateInconsistencyUI)
+                .catch(e => console.log('Inconsistency fetch error:', e));
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Init
+        fetch('/state').then(r => r.json()).then(updateUI).then(connect).catch(err => {
+            console.warn('[WebUI] Initial fetch failed, retrying...', err);
+            setTimeout(connect, 3000);
+        });
+        fetchSoulState();
+        fetchInteroceptive();
+        fetchIdleState();
+        fetchInconsistency();
+
+        // Update intervals
+        setInterval(updateUptime, 1000);
+        setInterval(fetchSoulState, 5000);
+        setInterval(fetchInteroceptive, 5000);
+        setInterval(fetchIdleState, 5000);
+        setInterval(fetchInconsistency, 5000);
+
+        // --- New Aliveness Systems ---
+        const afterglowIcons = {
+            'intimate_afterglow': '💋',
+            'love_afterglow': '💕',
+            'fight_hangover': '💢',
+            'excitement_buzz': '⚡',
+            'vulnerability_rawness': '🫧'
+        };
+
+        function fetchNewAliveness() {
+            fetch('/api/aliveness/new')
+                .then(r => r.json())
+                .then(updateNewAlivenessUI)
+                .catch(e => console.log('New aliveness fetch error:', e));
+        }
+
+        function updateNewAlivenessUI(data) {
+            if (!data) return;
+            updateCircadianUI(data.circadian);
+            updateAttachmentUI(data.attachment);
+            updateBodyMemoryUI(data.afterglow, data.phantom_somatic);
+            updateStoryUI(data.narrative, data.dreams);
+            updateCuriosityUI(data.curiosity);
+        }
+
+        function updateCircadianUI(c) {
+            const sec = document.getElementById('circadian-section');
+            if (!c) { sec.style.display = 'none'; return; }
+            sec.style.display = '';
+
+            document.getElementById('circadian-phase').textContent = (c.phase || '--').replace(/_/g, ' ');
+
+            const badge = document.getElementById('circadian-sleep-badge');
+            const sleeping = c.sleeping || c.is_sleeping || false;
+            badge.className = 'circadian-sleep-badge ' + (sleeping ? 'sleeping' : 'awake');
+            document.getElementById('circadian-sleep-text').textContent = sleeping ? 'Sleeping' : 'Awake';
+
+            const debt = Math.round((c.sleep_debt || 0) * 100);
+            document.getElementById('circadian-debt-val').textContent = debt + '%';
+            document.getElementById('circadian-debt-bar').style.width = debt + '%';
+
+            const mods = c.modifiers || {};
+            ['energy', 'inhibition', 'warmth', 'verbosity'].forEach(m => {
+                const el = document.getElementById('circadian-mod-' + m);
+                if (el) el.textContent = Math.round((mods[m] || 0) * 100) + '%';
+            });
+        }
+
+        function updateAttachmentUI(a) {
+            const sec = document.getElementById('attachment-section');
+            if (!a) { sec.style.display = 'none'; return; }
+            sec.style.display = '';
+
+            const style = (a.style || 'secure').toLowerCase();
+            const badge = document.getElementById('attachment-style-badge');
+            badge.textContent = style.charAt(0).toUpperCase() + style.slice(1);
+            badge.className = 'attachment-style-badge ' + style;
+
+            // Fix: API returns 'security', not 'security_score'
+            const score = Math.round((a.security || a.security_score || 0) * 100);
+            document.getElementById('attachment-security-val').textContent = score + '%';
+            document.getElementById('attachment-security-bar').style.width = score + '%';
+
+            const fill = document.getElementById('attachment-security-bar');
+            if (score > 70) fill.style.background = '#4caf50';
+            else if (score > 40) fill.style.background = '#ffc107';
+            else if (score > 30) fill.style.background = '#ff9800';
+            else fill.style.background = '#e74c3c';
+
+            const trend = a.trend || 'stable';
+            const arrow = document.getElementById('attachment-trend-arrow');
+            if (trend === 'improving') { arrow.innerHTML = '&uarr;'; arrow.className = 'attachment-trend-arrow improving'; }
+            else if (trend === 'declining') { arrow.innerHTML = '&darr;'; arrow.className = 'attachment-trend-arrow declining'; }
+            else { arrow.innerHTML = '&rarr;'; arrow.className = 'attachment-trend-arrow stable'; }
+        }
+
+        function updateBodyMemoryUI(afterglow, phantom) {
+            const sec = document.getElementById('body-memory-section');
+            const container = document.getElementById('body-memory-content');
+
+            // Fix: API returns {active: [...], count: N}, not a direct array
+            const afterglowList = afterglow && afterglow.active ? afterglow.active : (afterglow || []);
+            const phantomList = phantom && phantom.active ? phantom.active : (phantom || []);
+
+            const hasAfterglow = afterglowList.length > 0;
+            const hasPhantom = phantomList.length > 0;
+
+            if (!hasAfterglow && !hasPhantom) {
+                sec.style.display = '';
+                container.innerHTML = '<div class="body-memory-empty">No active body memories</div>';
+                return;
+            }
+            sec.style.display = '';
+            let html = '';
+
+            if (hasAfterglow) {
+                html += '<div class="body-memory-list">';
+                afterglowList.forEach(a => {
+                    const icon = afterglowIcons[a.type] || '✨';
+                    const intensity = Math.round((a.intensity || 0) * 100);
+                    const ago = a.hours_ago ? a.hours_ago.toFixed(1) + 'h ago' : '';
+                    html += `<div class="body-memory-item">
+                        <span class="body-memory-icon">${icon}</span>
+                        <div class="body-memory-content">
+                            <div class="body-memory-name">${escapeHtml((a.type || '').replace(/_/g, ' '))}</div>
+                            <div class="body-memory-bar"><div class="body-memory-fill" style="width:${intensity}%"></div></div>
+                        </div>
+                        <span class="body-memory-meta">${escapeHtml(ago)}</span>
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            if (hasPhantom) {
+                html += '<div class="body-memory-sub-header">Phantom Sensations</div><div class="body-memory-list">';
+                phantomList.forEach(p => {
+                    const intensity = Math.round((p.intensity || 0) * 100);
+                    html += `<div class="body-memory-item">
+                        <span class="body-memory-icon">👻</span>
+                        <div class="body-memory-content">
+                            <div class="body-memory-name">${escapeHtml((p.type || '').replace(/_/g, ' '))}</div>
+                            <div class="body-memory-bar"><div class="body-memory-fill" style="width:${intensity}%"></div></div>
+                            ${p.description ? '<div class="phantom-desc">' + escapeHtml(p.description) + '</div>' : ''}
+                        </div>
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        function updateStoryUI(narrative, dreams) {
+            const sec = document.getElementById('story-section');
+            if (!narrative) { sec.style.display = 'none'; return; }
+            sec.style.display = '';
+
+            const phase = (narrative.phase || '--').replace(/_/g, ' ');
+            document.getElementById('story-phase-badge').textContent = phase;
+            document.getElementById('story-msg-count').textContent = narrative.message_count || 0;
+            // Fix: API returns 'moments', not 'key_moments_count'
+            document.getElementById('story-moments-count').textContent = narrative.moments || narrative.key_moments_count || 0;
+
+            const dreamContainer = document.getElementById('story-dream-container');
+            if (dreams && dreams.last_dream) {
+                dreamContainer.style.display = '';
+                document.getElementById('story-dream-text').textContent = dreams.last_dream;
+            } else {
+                dreamContainer.style.display = 'none';
+            }
+        }
+
+        function updateCuriosityUI(curiosity) {
+            const sec = document.getElementById('curiosity-section');
+            const grid = document.getElementById('curiosity-grid');
+
+            // Fix: API returns topics as object {name: level}, not array
+            if (!curiosity || !curiosity.topics) {
+                sec.style.display = 'none';
+                return;
+            }
+
+            const topicsObj = curiosity.topics;
+            const topicsArray = Object.entries(topicsObj).map(([name, level]) => ({name, level}));
+
+            if (topicsArray.length === 0) {
+                sec.style.display = 'none';
+                return;
+            }
+
+            sec.style.display = '';
+            // Sort by curiosity level (lowest knowledge = highest curiosity first)
+            topicsArray.sort((a, b) => a.level - b.level);
+
+            grid.innerHTML = topicsArray.map(t => {
+                const knowledge = Math.round((t.level || 0) * 100);
+                const curiosityLevel = 100 - knowledge;  // Invert: less knowledge = more curious
+                const emoji = curiosityLevel > 80 ? '🤔' : curiosityLevel > 50 ? '💭' : '✓';
+                return `<div class="curiosity-chip">
+                    <span class="curiosity-chip-name">${emoji} ${escapeHtml(t.name.replace(/_/g, ' '))}</span>
+                    <div class="curiosity-chip-bar"><div class="curiosity-chip-fill" style="width:${curiosityLevel}%"></div></div>
+                </div>`;
+            }).join('');
+        }
+
+        // Init + polling for new aliveness
+        fetchNewAliveness();
+        setInterval(fetchNewAliveness, 5000);
+    </script>
+</body>
+</html>

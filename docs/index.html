@@ -223,10 +223,74 @@
     .below {
       max-width: 1160px;
       margin: 0 auto;
-      padding: 0 24px 80px;
+      padding: 0 24px 40px;
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 16px;
+    }
+    .section-band {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 32px 24px 56px;
+    }
+    .section-band h2 {
+      margin: 0 0 10px;
+      font-size: 32px;
+    }
+    .section-band p {
+      color: #c6d0dc;
+      line-height: 1.55;
+      max-width: 760px;
+    }
+    .dashboard-frame {
+      margin-top: 22px;
+      height: min(760px, 78vh);
+      min-height: 560px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #0a0a14;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.36);
+    }
+    .dashboard-frame iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+      background: #0a0a14;
+    }
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 22px;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 18px;
+    }
+    .panel h3 { margin: 0 0 12px; }
+    .panel ul {
+      margin: 0;
+      padding-left: 18px;
+      color: #c6d0dc;
+      line-height: 1.7;
+    }
+    .checks {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 18px;
+      color: #c6d0dc;
+      line-height: 1.55;
+      margin-top: 18px;
+    }
+    .checks span::before {
+      content: "✓";
+      color: var(--green);
+      font-weight: 800;
+      margin-right: 8px;
     }
     .feature {
       border-top: 1px solid var(--line);
@@ -251,6 +315,7 @@
       .hero section { width: 100%; max-width: 100%; }
       .dashboard { margin-top: 44px; }
       .below { grid-template-columns: 1fr; }
+      .split, .checks { grid-template-columns: 1fr; }
       .nav code { display: none; }
     }
     @media (max-width: 520px) {
@@ -269,20 +334,22 @@
   <div class="shell">
     <nav class="nav">
       <div class="brand"><img src="./assets/logo.svg" alt="">Alive-AI</div>
-      <code>npx github:vindepemarte/alive-ai init my-ai</code>
+      <code>npx alive-ai@latest init my-ai</code>
     </nav>
     <main class="hero">
       <section>
         <div class="kicker">Local-first emotional AI runtime</div>
         <h1>Give your AI a nervous system.</h1>
-        <p class="lead">Alive-AI adds persistent mood, memory, impulses, attachment, and a live dashboard to a local AI companion. It can be a friend, partner, coach, character, or research subject you control.</p>
-        <pre class="install"><code>npx github:vindepemarte/alive-ai init my-ai
+        <p class="lead">Alive-AI adds persistent mood, memory, impulses, attachment, and a live dashboard to a local AI companion. It is built to feel human enough that you may not want to stop talking to it. Use it at your own risk.</p>
+        <pre class="install"><code>npx alive-ai@latest init my-ai
 cd my-ai
 npx . setup
+npx . doctor
 npx . demo
 npx . start</code></pre>
         <div class="actions">
           <a class="button" href="https://github.com/vindepemarte/alive-ai">GitHub</a>
+          <a class="button secondary" href="#dashboard">Full WebUI</a>
           <a class="button secondary" href="#why">Why it matters</a>
         </div>
       </section>
@@ -320,6 +387,51 @@ npx . start</code></pre>
       <div class="feature"><h2>Persistent affect</h2><p>Feelings decay, compound, and influence future messages instead of resetting after each prompt.</p></div>
       <div class="feature"><h2>Memory with weight</h2><p>Working, episodic, semantic, and emotional memory change what the agent notices next.</p></div>
       <div class="feature"><h2>Transparent experiment</h2><p>Alive-AI simulates internal life without claiming biological consciousness.</p></div>
+    </section>
+
+    <section class="section-band" id="dashboard">
+      <h2>Full WebUI Dashboard</h2>
+      <p>This is the actual local dashboard surface with mock live state for the public showcase. When you run Alive-AI locally, these panels stream real state from your runtime over Server-Sent Events.</p>
+      <div class="dashboard-frame">
+        <iframe src="./dashboard.html" title="Alive-AI full WebUI dashboard preview"></iframe>
+      </div>
+    </section>
+
+    <section class="section-band">
+      <h2>Requirements</h2>
+      <div class="split">
+        <div class="panel">
+          <h3>Minimum</h3>
+          <ul>
+            <li>Node.js 18+</li>
+            <li>Python 3.11+</li>
+            <li>8 GB RAM with cloud LLMs or remote Ollama</li>
+            <li>2 GB free disk</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Comfortable</h3>
+          <ul>
+            <li>16 GB RAM for small local models</li>
+            <li>32 GB RAM for 7B+ local models, Redis, voice, and long sessions</li>
+            <li>10 GB+ free disk for models, memory, and media</li>
+            <li>Optional uv, ffmpeg, Docker, and Ollama</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-band">
+      <h2>Roadmap</h2>
+      <div class="checks">
+        <span>npm/npx installer and guided setup</span>
+        <span>Persistent emotional state</span>
+        <span>Memory, idle thoughts, and impulses</span>
+        <span>Full local WebUI dashboard</span>
+        <span>Per-user memory isolation</span>
+        <span>Private runtime data excluded from public repo</span>
+      </div>
+      <p>Next: local model bootstrap profiles, desktop wrapper, browser onboarding, more input channels, memory import/export, plugin APIs, and safety evaluation for unhealthy attachment risk.</p>
     </section>
   </div>
   <script>
