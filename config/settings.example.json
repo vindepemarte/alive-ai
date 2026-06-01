@@ -9,6 +9,7 @@
   "WEBUI_ENABLED": true,
   "WEBUI_PORT": 8080,
   "language": "en",
+  "HOT_RELOAD_ENABLED": false,
   "MESSAGE_BATCH_DELAY_SECONDS": 3.5,
   "TERMINAL_MESSAGE_BATCH_DELAY_SECONDS": 5.0,
   "LLM_PROVIDER": "ollama",

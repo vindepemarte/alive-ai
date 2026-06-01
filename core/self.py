@@ -120,13 +120,18 @@ class Self:
         # Start emotion decay timer
         self._timer_task = asyncio.create_task(self._decay_timer())
 
-        # Start hot reloader
-        try:
-            from .hot_reload import HotReloader
-            self._hot_reload = HotReloader(self.nervous)
-            self._hot_reload.start()
-        except Exception as e:
-            print(f"[{name}] Hot reload unavailable: {e}")
+        # Hot reload is developer tooling. Keep it opt-in for normal npm installs.
+        import os
+        hot_reload_enabled = str(
+            self.config.settings.get("HOT_RELOAD_ENABLED", os.environ.get("ALIVE_AI_HOT_RELOAD", "false"))
+        ).lower() in ("1", "true", "yes", "on")
+        if hot_reload_enabled:
+            try:
+                from .hot_reload import HotReloader
+                self._hot_reload = HotReloader(self.nervous)
+                self._hot_reload.start()
+            except Exception as e:
+                print(f"[{name}] Hot reload unavailable: {e}")
 
         print(f"[{name}] Ready!")
 
