@@ -12,7 +12,7 @@ from collections import deque
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from sse_starlette.sse import EventSourceResponse
+from core.paths import data_dir, media_dir
 
 
 app = FastAPI(title="Alive-AI Dashboard")
@@ -26,10 +26,7 @@ def load_persistent_stats() -> dict:
     stats = {"messages": 0, "memories": 0, "evaluations": 0}
 
     # Try different base paths
-    base_paths = [
-        Path("/app/data"),
-        Path(__file__).parent.parent / "data",
-    ]
+    base_paths = [data_dir()]
 
     # Count messages from conversation summaries (in users/*/summaries/)
     for base_path in base_paths:
@@ -309,10 +306,7 @@ async def event_generator(request: Request):
 
     try:
         # Send initial state
-        yield {
-            "event": "state",
-            "data": json.dumps(alive_ai_state)
-        }
+        yield f"event: state\ndata: {json.dumps(alive_ai_state)}\n\n"
 
         while True:
             if await request.is_disconnected():
@@ -323,14 +317,11 @@ async def event_generator(request: Request):
                 event.clear()
             except asyncio.TimeoutError:
                 # Send keepalive
-                yield {"event": "ping", "data": "{}"}
+                yield "event: ping\ndata: {}\n\n"
                 continue
 
             # Send updated state
-            yield {
-                "event": "state",
-                "data": json.dumps(alive_ai_state)
-            }
+            yield f"event: state\ndata: {json.dumps(alive_ai_state)}\n\n"
     except asyncio.CancelledError:
         pass  # Client disconnected normally
     except Exception as e:
@@ -350,7 +341,15 @@ async def dashboard():
 @app.get("/events")
 async def sse_events(request: Request):
     """SSE endpoint for real-time updates"""
-    return EventSourceResponse(event_generator(request))
+    return StreamingResponse(
+        event_generator(request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/state")
@@ -363,9 +362,7 @@ async def get_state():
 async def get_avatar():
     """Serve a random avatar image"""
     try:
-        pics_path = Path("/app/mypics/public")
-        if not pics_path.exists():
-            pics_path = Path(__file__).parent.parent / "mypics" / "public"
+        pics_path = media_dir("mypics") / "public"
 
         if pics_path.exists():
             # Get all image files

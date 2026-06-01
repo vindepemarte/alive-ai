@@ -7,7 +7,9 @@ import asyncio
 import os
 from pathlib import Path
 from telegram import Update, InputFile, ReactionTypeEmoji
+from telegram.error import TelegramError
 from telegram.ext import Application, MessageHandler, filters
+from telegram.request import HTTPXRequest
 from telegram.constants import ChatAction
 from .commands import CommandHandler
 from brain.group_dynamics import GroupDynamics
@@ -65,17 +67,30 @@ class TelegramListener:
         token = os.environ.get("TELEGRAM_TOKEN") or self.config.settings.get("telegram_token")
 
         if not token:
-            print("[Telegram] No token configured, skipping...")
-            # Keep running even without telegram
-            await asyncio.Event().wait()
-            return
+            raise RuntimeError("Telegram token is not configured. Run `npx . setup` or use `npx . chat`.")
 
-        print(f"[Telegram] Connecting with token ...{token[-6:]}")
-        self.app = Application.builder().token(token).build()
+        timeout = float(
+            os.environ.get("TELEGRAM_TIMEOUT_SECONDS")
+            or self.config.settings.get("TELEGRAM_TIMEOUT_SECONDS", 30)
+        )
+        print(f"[Telegram] Connecting with token ...{token[-6:]} (timeout: {timeout:.0f}s)")
+        request = HTTPXRequest(
+            connect_timeout=timeout,
+            read_timeout=timeout,
+            write_timeout=timeout,
+            pool_timeout=timeout,
+        )
+        self.app = Application.builder().token(token).request(request).build()
         self.app.add_handler(MessageHandler(filters.ALL, self._on_message))
 
-        await self.app.initialize()
-        await self.app.start()
+        try:
+            await self.app.initialize()
+            await self.app.start()
+        except TelegramError as exc:
+            await self.stop()
+            raise RuntimeError(
+                f"Telegram startup failed: {exc}. Check the token/network, or run `npx . chat` for terminal mode."
+            ) from None
 
         # Register commands with Telegram (shows in menu)
         from telegram import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeChat
@@ -87,7 +102,10 @@ class TelegramListener:
         ]
 
         # Set public commands for all users
-        await self.app.bot.set_my_commands(public_commands)
+        try:
+            await self.app.bot.set_my_commands(public_commands)
+        except TelegramError as exc:
+            print(f"[Telegram] Could not register public commands: {exc}")
 
         # Set owner commands if owner ID is configured
         owner_id = os.environ.get("TELEGRAM_OWNER_ID", "")
@@ -151,10 +169,29 @@ class TelegramListener:
 
         print("[Telegram] Connected and listening...")
 
-        await self.app.updater.start_polling()
+        try:
+            await self.app.updater.start_polling()
+        except TelegramError as exc:
+            await self.stop()
+            raise RuntimeError(
+                f"Telegram polling failed: {exc}. Check network access to Telegram, or run `npx . chat` for terminal mode."
+            ) from None
 
         # Block forever - keep the bot alive
         await asyncio.Event().wait()
+
+    async def stop(self):
+        """Stop Telegram cleanly if it was started."""
+        if not self.app:
+            return
+        try:
+            if self.app.updater and self.app.updater.running:
+                await self.app.updater.stop()
+            if self.app.running:
+                await self.app.stop()
+            await self.app.shutdown()
+        finally:
+            self.app = None
 
     async def _on_message(self, update: Update, context):
         """Handle incoming message"""

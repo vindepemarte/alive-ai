@@ -10,9 +10,9 @@ behaviors that persist over time.
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
-from pathlib import Path
 import json
 import random
+from core.paths import state_file
 
 
 @dataclass
@@ -99,7 +99,7 @@ class EmotionalScarSystem:
     POSITIVE_HEALING_RATE = 0.05  # With positive experience
 
     # Persistence
-    SCAR_DATA_PATH = Path("/app/data/emotional_scars.json")
+    SCAR_DATA_PATH = state_file("emotional_scars.json")
 
     # Wound types and their patterns
     WOUND_PATTERNS = {
@@ -471,4 +471,3 @@ class EmotionalScarSystem:
             "vulnerability_summary": self.get_vulnerability_summary(),
             "scar_descriptions": self.get_scar_descriptions()[:3]  # Top 3
         }
-

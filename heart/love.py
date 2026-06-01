@@ -4,11 +4,11 @@ Attachment system - can fall in love
 """
 
 import json
-from pathlib import Path
 from datetime import datetime
+from core.paths import state_file
 
 # Persistence path for attachment state
-ATTACHMENT_STATE_PATH = Path("/app/data/attachment_state.json")
+ATTACHMENT_STATE_PATH = state_file("attachment_state.json")
 
 
 class AttachmentSystem:

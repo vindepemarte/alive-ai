@@ -29,7 +29,7 @@ npx . doctor
 npx . chat
 ```
 
-The terminal chat starts the real runtime and prints responses in your shell. The dashboard runs locally at:
+The terminal chat starts the real runtime in a split-pane TUI: chat on the left, live logs on the right. The dashboard runs locally at:
 
 ```text
 http://127.0.0.1:8080
@@ -55,12 +55,15 @@ alive-ai init my-ai
 | `npx alive-ai@latest init my-ai` | Scaffold a clean local Alive-AI project. |
 | `npx . setup` | Guided onboarding for local config, providers, Telegram, voice, images, and memory. |
 | `npx . doctor` | Check OS, Node, Python, uv, ffmpeg, Docker, and OpenMind reachability. |
-| `npx . chat` | Start the real runtime with terminal chat input. |
+| `npx . chat` | Start the real runtime with split-pane terminal chat and logs. |
+| `npx . chat --plain` | Start raw terminal chat without the TUI. |
 | `npx . demo` | Run a keyless animated dashboard demo. |
 | `npx . start` | Start the runtime using the configured input channel, usually Telegram. |
 | `npx . start --skip-install` | Start again without reinstalling Python dependencies. |
+| `npx . update` | Refresh runtime files from the latest npm package while preserving config/data/media. |
+| `npx . uninstall` | Remove Alive-AI runtime files, config, venv, cache, data, and media from the project. |
 
-Stop a foreground run with `Ctrl+C`.
+`start` and `chat` check npm for a newer Alive-AI version. You can update, skip once, or skip that specific version. Stop terminal chat with `/exit` or `Ctrl+C`.
 
 If you use Docker:
 
@@ -89,6 +92,16 @@ myvids/
 ```
 
 The setup accepts `skip` for optional keys and `local` for Ollama.
+
+Startup config is loaded from multiple places in this order:
+
+```text
+.env
+config/secrets.env
+config/settings.json
+```
+
+Shell environment variables win over `.env`/`config/secrets.env`. Runtime settings come from `config/settings.json`. Telegram uses `TELEGRAM_TOKEN` when present, otherwise `telegram_token` from `config/settings.json`.
 
 | Setup item | Options |
 | --- | --- |
@@ -126,7 +139,13 @@ myvids/example.txt
 
 ## Terminal Chat
 
-`npx . chat` uses the same core runtime as Telegram. It emits the same `message_received` events, saves memory the same way, and updates the local WebUI.
+`npx . chat` uses the same core runtime as Telegram. It emits the same `message_received` events, saves memory the same way, and updates the local WebUI. The default terminal interface is split-pane: chat/input on the left, startup/runtime logs on the right.
+
+Use raw mode when you want the old plain shell behavior:
+
+```bash
+npx . chat --plain
+```
 
 Terminal commands:
 
@@ -204,6 +223,8 @@ Comfortable local setup:
 
 `npx . start` creates `.alive-ai/venv` and installs Python dependencies. System-level packages such as Node, Python, Ollama, Docker, and ffmpeg must already exist on the machine.
 
+The CLI prefers Python 3.12, 3.11, then 3.13 before falling back to the system `python3`. When `uv` is installed, Alive-AI now passes the selected Python explicitly so `uv` does not silently choose a newer interpreter.
+
 ## Platform Support
 
 Alive-AI is designed for macOS, Windows, and Linux.
@@ -260,9 +281,11 @@ Implemented:
 - [x] Per-user memory/state isolation
 - [x] Telegram input/output runtime
 - [x] Terminal chat runtime with owner-style slash commands
+- [x] Split-pane terminal chat with logs
 - [x] Local WebUI dashboard with live state streaming
 - [x] Optional hybrid OpenMind cloud/local semantic memory
 - [x] npm/npx CLI scaffold, setup, doctor, demo, chat, and start commands
+- [x] Update prompt and project uninstall command
 - [x] Clean public repo with private personas, media, runtime data, and multi-AI orchestration removed
 - [x] GitHub Pages site and full static WebUI export
 

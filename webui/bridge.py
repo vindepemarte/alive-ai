@@ -3,12 +3,15 @@ WebUI Bridge - Connects Alive-AI's nervous system to the dashboard
 """
 
 import asyncio
+import contextlib
 from datetime import datetime
 from .app import (
     update_state, add_conversation, alive_ai_state, update_soul_state, set_soul_orchestrator,
     update_interoceptive_state, update_idle_state, update_bids_state,
     update_memory_state, update_inconsistency_state
 )
+
+_webui_server = None
 
 
 def init_bridge(nervous):
@@ -359,8 +362,26 @@ async def start_webui(host: str = "0.0.0.0", port: int = 8080):
     import uvicorn
     from .app import app
 
+    global _webui_server
     config = uvicorn.Config(app, host=host, port=port, log_level="warning")
     server = uvicorn.Server(config)
+    _webui_server = server
 
     print(f"[WebUI] Dashboard starting at http://{host}:{port}")
-    await server.serve()
+    try:
+        await server.serve()
+    except asyncio.CancelledError:
+        server.should_exit = True
+        with contextlib.suppress(Exception):
+            await server.shutdown()
+        raise
+    finally:
+        if _webui_server is server:
+            _webui_server = None
+
+
+async def stop_webui():
+    """Ask the WebUI server to exit cleanly."""
+    if _webui_server:
+        _webui_server.should_exit = True
+        await asyncio.sleep(0)

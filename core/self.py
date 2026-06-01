@@ -4,6 +4,7 @@ The AI's Self - coordinates everything via nervous system
 """
 
 import asyncio
+import contextlib
 from pathlib import Path
 from .events import NervousSystem
 from .config import Config
@@ -130,7 +131,47 @@ class Self:
         print(f"[{name}] Ready!")
 
         # Start listening
-        await self._input.start()
+        try:
+            await self._input.start()
+        finally:
+            await self.stop()
+
+    async def stop(self):
+        """Stop background loops and close network clients."""
+        if self._hot_reload:
+            with contextlib.suppress(Exception):
+                self._hot_reload.stop()
+            self._hot_reload = None
+
+        if self._input and hasattr(self._input, "stop"):
+            with contextlib.suppress(Exception):
+                result = self._input.stop()
+                if asyncio.iscoroutine(result):
+                    await result
+
+        if self._default_mode:
+            with contextlib.suppress(Exception):
+                await self._default_mode.stop_background_processing()
+            self._default_mode = None
+
+        if self._subconscious:
+            with contextlib.suppress(Exception):
+                await self._subconscious.stop()
+            self._subconscious = None
+
+        if self._timer_task:
+            self._timer_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._timer_task
+            self._timer_task = None
+
+        seen = set()
+        for client in (self._llm, self._fast_llm):
+            if not client or id(client) in seen or not hasattr(client, "close"):
+                continue
+            seen.add(id(client))
+            with contextlib.suppress(Exception):
+                await client.close()
 
     async def _decay_timer(self):
         """Natural emotion decay every minute + memory check"""

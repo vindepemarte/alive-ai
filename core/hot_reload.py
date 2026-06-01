@@ -10,6 +10,7 @@ import threading
 from pathlib import Path
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileModifiedEvent
+from .paths import project_root
 
 
 class HotReloader:
@@ -24,7 +25,7 @@ class HotReloader:
         self.pending_reload = False
         self.observer = None
         self.watched_dirs = ["core", "brain", "heart", "config", "input", "output"]
-        self.base_path = Path("/app")
+        self.base_path = project_root()
 
     def start(self):
         """Start watching for file changes"""

@@ -5,6 +5,7 @@
   "ALIVE_AI_TERMINAL_USER_ID": "terminal_owner",
   "telegram_token": "",
   "TELEGRAM_OWNER_ID": "",
+  "TELEGRAM_TIMEOUT_SECONDS": 30,
   "WEBUI_ENABLED": true,
   "WEBUI_PORT": 8080,
   "language": "en",

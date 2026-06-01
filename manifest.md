@@ -20,6 +20,7 @@ A local-first emotional AI runtime with memory, impulses, terminal chat, Telegra
 - **Voice synthesis** - gTTS, Google TTS, or VibeVoice
 - **Media management** - Photos/videos with categories and no-repeat
 - **Input channels** - Terminal chat or Telegram bot
+- **CLI lifecycle** - npm update checks, project update, and uninstall helpers
 - **Commands** - /status, /dashboard, /self, /impulse, /stats, /reset
 
 ## Entry Point

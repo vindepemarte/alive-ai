@@ -11,8 +11,8 @@ interprets and responds to the world.
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
-from pathlib import Path
 import json
+from core.paths import state_file
 
 
 @dataclass
@@ -61,7 +61,7 @@ class HormonalModulationMatrix:
     MAX_METABOLITES = 10
 
     # Persistence
-    HORMONAL_DATA_PATH = Path("/app/data/hormonal_state.json")
+    HORMONAL_DATA_PATH = state_file("hormonal_state.json")
 
     def __init__(self):
         # Primary hormones (0.0 - 1.0)

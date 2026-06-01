@@ -12,6 +12,7 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 import json
 import os
+from core.paths import data_dir
 
 
 @dataclass
@@ -118,7 +119,7 @@ class SelfIntegrityCore:
     DAMAGE_RATE = 0.12    # Base damage from negative experiences
 
     # Data persistence - configurable via environment variable
-    INTEGRITY_DATA_PATH = Path(os.environ.get("ALIVE_AI_DATA_PATH", "/app/data")) / "integrity_state.json"
+    INTEGRITY_DATA_PATH = data_dir() / "integrity_state.json"
 
     def __init__(self):
         # Core integrity components (0.0 - 1.0)

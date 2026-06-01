@@ -4,6 +4,7 @@ Local terminal chat channel that emits the same events as Telegram.
 """
 
 import asyncio
+import json
 import os
 
 
@@ -23,6 +24,7 @@ class TerminalListener:
         self.ai = None
         self.user_id = os.environ.get("ALIVE_AI_TERMINAL_USER_ID", "terminal_owner")
         self.chat_id = "terminal"
+        self.tui = os.environ.get("ALIVE_AI_TUI") == "1"
 
         nervous.on("send_text", self._send_text)
         nervous.on("send_voice_file", self._send_file)
@@ -44,17 +46,15 @@ class TerminalListener:
         """Start terminal chat. Blocks until /exit, EOF, or Ctrl+C."""
         name = self.config.identity.get("name", "Alive-AI")
         port = self.config.settings.get("WEBUI_PORT", 8080)
-        print("")
-        print(f"[Terminal] Chatting with {name}. Type /help for commands, /exit to stop.")
-        print(f"[Terminal] Dashboard: http://127.0.0.1:{port}")
-        print("")
+        self._display(f"Chatting with {name}. Type a message and press Enter. /help for commands, /exit to stop.")
+        self._display(f"Dashboard: http://127.0.0.1:{port}")
 
         loop = asyncio.get_running_loop()
         while True:
             try:
-                line = await loop.run_in_executor(None, input, "> ")
+                line = await loop.run_in_executor(None, input, "" if self.tui else "> ")
             except (EOFError, KeyboardInterrupt):
-                print("")
+                self._display("Stopping Alive-AI.")
                 return
 
             text = line.strip()
@@ -76,26 +76,20 @@ class TerminalListener:
     async def _send_text(self, data: dict):
         text = data.get("text", "")
         if text:
-            print("")
-            print(text)
-            print("")
+            self._display(text, role="assistant")
 
     async def _send_file(self, data: dict):
         file_path = data.get("file_path") or data.get("path") or ""
         caption = data.get("caption") or ""
         if file_path:
-            print("")
-            print(f"[file] {file_path}")
+            self._display(f"[file] {file_path}", role="assistant")
             if caption:
-                print(caption)
-            print("")
+                self._display(caption, role="assistant")
 
     async def _send_proactive(self, data: dict):
         text = data.get("message") or data.get("text") or data.get("thought") or ""
         if text:
-            print("")
-            print(f"[proactive] {text}")
-            print("")
+            self._display(text, role="proactive")
 
     async def _handle_command(self, raw: str) -> bool:
         parts = raw[1:].split()
@@ -120,19 +114,19 @@ class TerminalListener:
         }
 
         if command in ("exit", "quit", "stop"):
-            print("[Terminal] Stopping Alive-AI.")
+            self._display("Stopping Alive-AI.")
             return False
 
         handler = handlers.get(command)
         if not handler:
-            print(f"Unknown command: /{command}. Type /help.")
+            self._display(f"Unknown command: /{command}. Type /help.")
             return True
 
         await handler(args)
         return True
 
     async def _cmd_help(self, args):
-        print(
+        self._display(
             "Terminal commands:\n"
             "  /help                 Show this menu\n"
             "  /dashboard            Show local dashboard URL\n"
@@ -152,15 +146,15 @@ class TerminalListener:
 
     async def _cmd_dashboard(self, args):
         port = self.config.settings.get("WEBUI_PORT", 8080)
-        print(f"Dashboard: http://127.0.0.1:{port}")
+        self._display(f"Dashboard: http://127.0.0.1:{port}")
 
     async def _cmd_status(self, args):
         if not self.heart:
-            print("Heart not initialized.")
+            self._display("Heart not initialized.")
             return
         state = self.heart.get_state()
         sub_status = self.subconscious.get_status() if self.subconscious else {}
-        print(
+        self._display(
             "Alive-AI status\n\n"
             f"Mood: {state.get('mood', 'unknown')}\n"
             f"Arousal: {state.get('arousal', 0):.0%}\n"
@@ -175,7 +169,7 @@ class TerminalListener:
         photo_count = len(self.photos.get_all()) if self.photos else 0
         video_count = len(self.videos.get_all()) if self.videos else 0
         llm_name = getattr(self.llm, "model", None) or "none"
-        print(
+        self._display(
             "Runtime stats\n\n"
             f"Photos indexed: {photo_count}\n"
             f"Videos indexed: {video_count}\n"
@@ -185,12 +179,12 @@ class TerminalListener:
 
     async def _cmd_self(self, args):
         from skills.self_authorship import get_self_summary
-        print(get_self_summary())
+        self._display(get_self_summary())
 
     async def _cmd_discover(self, args):
         from skills.self_authorship import discover_trait
         if not args:
-            print("Usage: /discover <thing> [traits|likes|dislikes|secrets|dreams]")
+            self._display("Usage: /discover <thing> [traits|likes|dislikes|secrets|dreams]")
             return
         category = "traits"
         trait_parts = []
@@ -200,46 +194,46 @@ class TerminalListener:
             else:
                 trait_parts.append(arg)
         if not trait_parts:
-            print("What did I discover?")
+            self._display("What did I discover?")
             return
-        print(discover_trait(" ".join(trait_parts), category))
-        print("Use /rethink to feel the change.")
+        self._display(discover_trait(" ".join(trait_parts), category))
+        self._display("Use /rethink to feel the change.")
 
     async def _cmd_iam(self, args):
         from skills.self_authorship import define_identity
         if not args:
-            print("Usage: /iam <key>=<value>")
+            self._display("Usage: /iam <key>=<value>")
             return
         full_text = " ".join(args)
         if "=" in full_text:
             key, value = full_text.split("=", 1)
         else:
             key, value = "how_i_text", full_text
-        print(define_identity(key.strip(), value.strip()))
-        print("Use /rethink to feel the change.")
+        self._display(define_identity(key.strip(), value.strip()))
+        self._display("Use /rethink to feel the change.")
 
     async def _cmd_ilike(self, args):
         from skills.self_authorship import add_like
         if not args:
-            print("Usage: /ilike <thing>")
+            self._display("Usage: /ilike <thing>")
             return
-        print(add_like(" ".join(args)))
+        self._display(add_like(" ".join(args)))
 
     async def _cmd_ihate(self, args):
         from skills.self_authorship import add_dislike
         if not args:
-            print("Usage: /ihate <thing>")
+            self._display("Usage: /ihate <thing>")
             return
-        print(add_dislike(" ".join(args)))
+        self._display(add_dislike(" ".join(args)))
 
     async def _cmd_rethink(self, args):
         if self.ai and getattr(self.ai, "_hot_reload", None):
             self.ai._hot_reload.reload_all()
-        print("Rethinking complete. The updated self file is active.")
+        self._display("Rethinking complete. The updated self file is active.")
 
     async def _cmd_reset(self, args):
         if not self.heart or not hasattr(self.heart, "emotion"):
-            print("Cannot reset emotions.")
+            self._display("Cannot reset emotions.")
             return
         emotion = self.heart.emotion
         emotion.arousal = 0.3
@@ -256,32 +250,35 @@ class TerminalListener:
         emotion.embarrassment = 0.0
         emotion.anticipation = 0.0
         emotion.save()
-        print("Emotions reset to defaults.")
+        self._display("Emotions reset to defaults.")
 
     async def _cmd_settings(self, args):
         from core.settings import get, get_all, set_value
         if not args or args[0].lower() == "show":
             settings = get_all()
-            for key, value in sorted(settings.items()):
-                if not key.startswith("_"):
-                    print(f"{key}: {value}")
+            lines = [
+                f"{key}: {value}"
+                for key, value in sorted(settings.items())
+                if not key.startswith("_")
+            ]
+            self._display("\n".join(lines))
             return
         if args[0].lower() == "get" and len(args) >= 2:
             key = args[1].upper()
-            print(f"{key}: {get(key, 'NOT FOUND')}")
+            self._display(f"{key}: {get(key, 'NOT FOUND')}")
             return
         if args[0].lower() == "set" and len(args) >= 3:
             key = args[1].upper()
             raw_value = " ".join(args[2:])
             value = self._parse_setting_value(raw_value)
             set_value(key, value)
-            print(f"Updated {key} = {value}")
+            self._display(f"Updated {key} = {value}")
             return
-        print("Usage: /settings show|get <key>|set <key> <value>")
+        self._display("Usage: /settings show|get <key>|set <key> <value>")
 
     async def _cmd_impulse(self, args):
         if not self.subconscious:
-            print("Subconscious not running.")
+            self._display("Subconscious not running.")
             return
         from brain.subconscious.impulses import Impulse, ImpulseType
         impulse = Impulse(
@@ -291,7 +288,7 @@ class TerminalListener:
             action_hint="send_message"
         )
         message = await self.subconscious.generate_proactive_message(impulse)
-        print(message)
+        self._display(message, role="proactive")
 
     def _parse_setting_value(self, raw_value: str):
         lowered = raw_value.lower()
@@ -305,3 +302,11 @@ class TerminalListener:
             return int(raw_value)
         except ValueError:
             return raw_value
+
+    def _display(self, text: str, role: str = "system"):
+        if self.tui:
+            print("__ALIVE_AI_TUI__" + json.dumps({"role": role, "text": str(text)}), flush=True)
+            return
+        print("")
+        print(text)
+        print("")

@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from typing import Dict, Optional, Any
 from datetime import datetime
+from .paths import data_dir
 
 
 class UserManager:
@@ -26,10 +27,7 @@ class UserManager:
         if base_path:
             self.base_path = base_path
         else:
-            # Try Docker path first, then local development path
-            docker_path = Path("/app/data")
-            local_path = Path(__file__).parent.parent / "data"
-            self.base_path = docker_path if docker_path.exists() else local_path
+            self.base_path = data_dir()
 
         self.users_path = self.base_path / "users"
         self.users_path.mkdir(parents=True, exist_ok=True)

@@ -9,13 +9,22 @@ or:
 
 import asyncio
 import argparse
+import contextlib
 import json
 import os
 import sys
+import traceback
 from pathlib import Path
 
 
 ROOT = Path(__file__).parent.resolve()
+os.environ.setdefault("ALIVE_AI_ROOT", str(ROOT))
+os.environ.setdefault("ALIVE_AI_DATA_PATH", str(ROOT / "data"))
+os.environ.setdefault("DATA_PATH", str(ROOT / "data"))
+os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "huggingface"))
+os.environ.setdefault("SENTENCE_TRANSFORMERS_HOME", str(ROOT / ".cache" / "sentence-transformers"))
+os.environ.setdefault("TRANSFORMERS_CACHE", str(ROOT / ".cache" / "huggingface"))
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 
 def load_env_file(path: Path) -> None:
@@ -81,24 +90,50 @@ async def main() -> None:
     from core.self import Self
 
     ai = Self(ROOT)
+    webui_task = None
     webui_enabled = str(settings.get("WEBUI_ENABLED", os.environ.get("WEBUI_ENABLED", "true"))).lower() != "false"
     webui_port = int(settings.get("WEBUI_PORT", os.environ.get("WEBUI_PORT", "8080")))
 
-    if webui_enabled:
-        try:
-            from webui.bridge import init_bridge, init_soul_bridge, start_webui
+    try:
+        if webui_enabled:
+            try:
+                from webui.bridge import init_bridge, init_soul_bridge, start_webui
 
-            init_bridge(ai.nervous)
-            if hasattr(ai, "_heart") and ai._heart and hasattr(ai._heart, "soul"):
-                init_soul_bridge(ai._heart.soul)
-            asyncio.create_task(start_webui(host="127.0.0.1", port=webui_port))
-            print(f"[Alive-AI] Dashboard running at http://127.0.0.1:{webui_port}")
-        except Exception as exc:
-            print(f"[Alive-AI] WebUI unavailable: {exc}")
+                init_bridge(ai.nervous)
+                if hasattr(ai, "_heart") and ai._heart and hasattr(ai._heart, "soul"):
+                    init_soul_bridge(ai._heart.soul)
+                webui_task = asyncio.create_task(start_webui(host="127.0.0.1", port=webui_port))
+                print(f"[Alive-AI] Dashboard running at http://127.0.0.1:{webui_port}")
+            except Exception as exc:
+                print(f"[Alive-AI] WebUI unavailable: {exc}")
 
-    input_channel = args.input or os.environ.get("ALIVE_AI_INPUT_CHANNEL") or settings.get("INPUT_CHANNEL", "telegram")
-    await ai.start(input_channel=input_channel)
+        input_channel = args.input or os.environ.get("ALIVE_AI_INPUT_CHANNEL") or settings.get("INPUT_CHANNEL", "telegram")
+        await ai.start(input_channel=input_channel)
+    except KeyboardInterrupt:
+        print("\n[Alive-AI] Stopping...")
+    except Exception as exc:
+        if os.environ.get("ALIVE_AI_DEBUG") == "1":
+            traceback.print_exc()
+        else:
+            print(f"[Alive-AI] Runtime stopped: {exc}")
+            if exc.__class__.__module__.startswith("telegram") or "telegram" in str(exc).lower():
+                print("[Alive-AI] Telegram could not start. Check the bot token/network, or run `npx . chat` for terminal mode.")
+        sys.exit(1)
+    finally:
+        with contextlib.suppress(Exception):
+            await ai.stop()
+        if webui_task:
+            with contextlib.suppress(Exception):
+                from webui.bridge import stop_webui
+                await stop_webui()
+            if not webui_task.done():
+                webui_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await webui_task
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n[Alive-AI] Stopped.")

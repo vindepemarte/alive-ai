@@ -7,6 +7,7 @@ const os = require("os");
 const path = require("path");
 const readline = require("readline");
 const { spawn, spawnSync } = require("child_process");
+const { runRuntimeTui } = require("./tui");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_PORT = 8080;
@@ -44,9 +45,12 @@ Usage:
   alive-ai init <directory>       Create a new Alive-AI project
   alive-ai setup [--yes]          Create local config from templates
   alive-ai demo [--port 8080]     Run the animated dashboard demo
+  alive-ai update [--yes]         Update this project from the latest package
   alive-ai start [--skip-install] Install Python deps if needed and start runtime
-  alive-ai chat [--skip-install]  Start runtime with terminal chat input
+  alive-ai chat [--skip-install]  Start split-pane terminal chat and logs
+  alive-ai chat --plain           Start raw terminal chat without the TUI
   alive-ai doctor                 Check local prerequisites
+  alive-ai uninstall              Remove Alive-AI runtime files from this project
 
 Quick start:
   npx alive-ai@latest init my-ai
@@ -55,7 +59,8 @@ Quick start:
   npx . doctor
   npx . chat
   npx . demo
-  npx . start`);
+  npx . start
+  npx . uninstall`);
 }
 
 function argValue(args, name, fallback) {
@@ -163,6 +168,198 @@ function readProjectSettings() {
   } catch {
     return {};
   }
+}
+
+function readSimpleEnv(file) {
+  if (!fs.existsSync(file)) return {};
+  const data = {};
+  for (const rawLine of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#") || !line.includes("=")) continue;
+    const [key, ...rest] = line.split("=");
+    data[key.trim()] = rest.join("=").trim();
+  }
+  return data;
+}
+
+function packageVersion() {
+  try {
+    return readJson(path.join(PACKAGE_ROOT, "package.json")).version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function compareVersions(a, b) {
+  const left = String(a || "0").split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const right = String(b || "0").split(".").map((part) => Number.parseInt(part, 10) || 0);
+  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+    const delta = (left[i] || 0) - (right[i] || 0);
+    if (delta) return delta;
+  }
+  return 0;
+}
+
+function npmLatestVersion() {
+  const result = spawnSync("npm", ["view", "alive-ai", "version", "--silent"], {
+    encoding: "utf8",
+    timeout: 5000,
+  });
+  if (result.status !== 0) return null;
+  return result.stdout.trim() || null;
+}
+
+function updatePrefsPath() {
+  return path.join(os.homedir(), ".alive-ai", "update-prefs.json");
+}
+
+function readUpdatePrefs() {
+  try {
+    return readJson(updatePrefsPath());
+  } catch {
+    return {};
+  }
+}
+
+function writeUpdatePrefs(data) {
+  writeJson(updatePrefsPath(), data);
+}
+
+async function maybeCheckForUpdate(args) {
+  if (hasFlag(args, "--no-update-check") || process.env.ALIVE_AI_SKIP_UPDATE_CHECK === "1") return;
+  if (!process.stdin.isTTY) return;
+  const current = packageVersion();
+  const latest = npmLatestVersion();
+  if (!latest || compareVersions(latest, current) <= 0) return;
+
+  const prefs = readUpdatePrefs();
+  if (prefs.skipVersion === latest) return;
+
+  console.log("");
+  console.log(`Alive-AI ${latest} is available. Current project runtime is ${current}.`);
+  const answer = normalizeChoice(await ask("Update before starting? yes, skip, or never", "yes", false), "yes");
+  if (answer === "never") {
+    prefs.skipVersion = latest;
+    writeUpdatePrefs(prefs);
+    console.log(`Skipping Alive-AI ${latest}. Run \`npx . update\` whenever you want it.`);
+    return;
+  }
+  if (answer === "skip" || answer === "no" || answer === "n") return;
+
+  const update = spawnSync("npx", ["-y", "alive-ai@latest", "update", "--yes"], {
+    stdio: "inherit",
+    cwd: process.cwd(),
+  });
+  if (update.status !== 0) {
+    console.log("Update failed, continuing with the current runtime.");
+    return;
+  }
+  console.log("Update complete. Starting with the refreshed project files.");
+}
+
+const UPDATE_PRESERVE = new Set([
+  "config/settings.json",
+  "config/self.json",
+  "config/directives.json",
+  "config/instructions.md",
+  ".env",
+  "config/secrets.env",
+  "data",
+  "mypics",
+  "myvids",
+  ".alive-ai",
+  ".cache",
+]);
+
+function shouldPreserve(relPath) {
+  const normalized = relPath.split(path.sep).join("/");
+  if (UPDATE_PRESERVE.has(normalized)) return true;
+  return [...UPDATE_PRESERVE].some((prefix) => normalized.startsWith(`${prefix}/`));
+}
+
+function copyUpdateRecursive(src, dest, baseDest = dest) {
+  const relPath = path.relative(baseDest, dest);
+  if (relPath && shouldPreserve(relPath)) return;
+  const stat = fs.statSync(src);
+  if (stat.isDirectory()) {
+    ensureDir(dest);
+    for (const entry of fs.readdirSync(src)) {
+      if (entry === ".git" || entry === "node_modules" || entry === "__pycache__") continue;
+      copyUpdateRecursive(path.join(src, entry), path.join(dest, entry), baseDest);
+    }
+    return;
+  }
+  if (src.endsWith(".pyc")) return;
+  ensureDir(path.dirname(dest));
+  fs.copyFileSync(src, dest);
+}
+
+async function updateProject(args) {
+  const assumeYes = hasFlag(args, "--yes") || hasFlag(args, "-y") || !process.stdin.isTTY;
+  if (!fs.existsSync(path.join(process.cwd(), "config")) || !fs.existsSync(path.join(process.cwd(), "main.py"))) {
+    console.error("Run `alive-ai update` from an Alive-AI project directory.");
+    process.exit(1);
+  }
+  if (!assumeYes) {
+    const answer = normalizeChoice(await ask("Update runtime files while preserving config/data? yes or no", "yes", false), "yes");
+    if (!["yes", "y"].includes(answer)) return;
+  }
+  for (const entry of COPY_ENTRIES) {
+    const src = path.join(PACKAGE_ROOT, entry);
+    if (!fs.existsSync(src)) continue;
+    copyUpdateRecursive(src, path.join(process.cwd(), entry), process.cwd());
+  }
+  console.log(`Alive-AI project updated to ${packageVersion()}.`);
+  console.log("Preserved config/, data/, mypics/, myvids/, .alive-ai/, and .cache/.");
+}
+
+async function uninstallProject(args) {
+  const assumeYes = hasFlag(args, "--yes") || hasFlag(args, "-y");
+  const deleteProject = hasFlag(args, "--delete-project");
+  const target = process.cwd();
+  if (!fs.existsSync(path.join(target, "main.py")) || !fs.existsSync(path.join(target, "package.json"))) {
+    console.error("Run `alive-ai uninstall` from an Alive-AI project directory.");
+    process.exit(1);
+  }
+  if (!assumeYes) {
+    const answer = normalizeChoice(await ask("Remove Alive-AI runtime files, config, venv, cache, data, and media from this project? yes or no", "no", false), "no");
+    if (!["yes", "y"].includes(answer)) {
+      console.log("Uninstall cancelled.");
+      return;
+    }
+  }
+
+  const entries = new Set([
+    ...COPY_ENTRIES,
+    "config",
+    "data",
+    "mypics",
+    "myvids",
+    ".alive-ai",
+    ".cache",
+    ".env",
+  ]);
+  for (const entry of entries) {
+    const dest = path.join(target, entry);
+    if (!fs.existsSync(dest)) continue;
+    fs.rmSync(dest, { recursive: true, force: true });
+    console.log(`removed ${entry}`);
+  }
+
+  try {
+    fs.rmSync(updatePrefsPath(), { force: true });
+  } catch {}
+
+  if (deleteProject) {
+    const parent = path.dirname(target);
+    process.chdir(parent);
+    fs.rmSync(target, { recursive: true, force: true });
+    console.log(`Removed project directory: ${target}`);
+    return;
+  }
+
+  console.log("Alive-AI local files removed. The project folder itself was kept.");
+  console.log("If you installed globally, remove the global CLI with: npm uninstall -g alive-ai");
 }
 
 async function setupProject(args) {
@@ -282,18 +479,44 @@ function findCommand(candidates) {
   return null;
 }
 
+function pythonVersion(command) {
+  const result = spawnSync(command, ["-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"], {
+    encoding: "utf8",
+  });
+  if (result.status !== 0) return "";
+  return result.stdout.trim();
+}
+
+function findPython() {
+  const preferred = ["python3.12", "python3.11", "python3.13", "python3", "python"];
+  for (const command of preferred) {
+    const result = spawnSync(command, ["--version"], { stdio: "ignore" });
+    if (result.status !== 0) continue;
+    const version = pythonVersion(command);
+    const [major, minor] = version.split(".").map((part) => Number.parseInt(part, 10));
+    if (major === 3 && minor >= 11) return { command, version };
+  }
+  return null;
+}
+
 async function doctor() {
-  const python = findCommand(["python3.11", "python3", "python"]);
+  const python = findPython();
   const uv = findCommand(["uv"]);
   const ffmpeg = findCommand(["ffmpeg"]);
   const docker = findCommand(["docker"]);
   const node = process.version;
   const settings = readProjectSettings();
+  const venvPython = process.platform === "win32"
+    ? path.join(process.cwd(), ".alive-ai", "venv", "Scripts", "python.exe")
+    : path.join(process.cwd(), ".alive-ai", "venv", "bin", "python");
 
   console.log("Alive-AI doctor");
   console.log(`  system: ${os.platform()} ${os.arch()}`);
   console.log(`  node:   ${node}`);
-  console.log(`  python: ${python || "missing"}`);
+  console.log(`  python: ${python ? `${python.command} ${python.version}` : "missing"}`);
+  if (fs.existsSync(venvPython)) {
+    console.log(`  venv:   ${pythonVersion(venvPython) || "unknown"} (${path.relative(process.cwd(), venvPython)})`);
+  }
   console.log(`  uv:     ${uv || "missing, will use venv + pip"}`);
   console.log(`  ffmpeg: ${ffmpeg || "missing, voice conversion may be limited"}`);
   console.log(`  docker: ${docker || "missing, Redis can still be external"}`);
@@ -328,7 +551,7 @@ async function doctor() {
 }
 
 function ensurePythonEnv(skipInstall) {
-  const python = findCommand(["python3.11", "python3", "python"]);
+  const python = findPython();
   if (!python) {
     console.error("Python 3.11+ is required.");
     process.exit(1);
@@ -347,8 +570,8 @@ function ensurePythonEnv(skipInstall) {
   if (!fs.existsSync(pythonBin)) {
     console.log("Creating Python environment...");
     const create = uv
-      ? spawnSync("uv", ["venv", venvDir], { stdio: "inherit" })
-      : spawnSync(python, ["-m", "venv", venvDir], { stdio: "inherit" });
+      ? spawnSync("uv", ["venv", "--python", python.command, venvDir], { stdio: "inherit" })
+      : spawnSync(python.command, ["-m", "venv", venvDir], { stdio: "inherit" });
     if (create.status !== 0) process.exit(create.status || 1);
   }
 
@@ -363,23 +586,67 @@ function ensurePythonEnv(skipInstall) {
   return pythonBin;
 }
 
-function startRuntime(args) {
+async function startRuntime(args, options = {}) {
   if (!fs.existsSync(path.join(process.cwd(), "config", "settings.json"))) {
     console.log("Missing config/settings.json. Starting onboarding first.");
     const setupArgs = process.stdin.isTTY ? [] : ["--yes"];
-    setupProject(setupArgs).then(() => startRuntime(args));
-    return;
+    await setupProject(setupArgs);
   }
+  await maybeCheckForUpdate(args);
+  const settings = readProjectSettings();
+  const secrets = readSimpleEnv(path.join(process.cwd(), "config", "secrets.env"));
+  const requestedInputChannel = argValue(args, "--input", null);
+  const effectiveInputChannel = (requestedInputChannel || settings.INPUT_CHANNEL || "telegram").toLowerCase();
+  const telegramToken = process.env.TELEGRAM_TOKEN || secrets.TELEGRAM_TOKEN || settings.telegram_token;
+  if (effectiveInputChannel === "telegram" && !telegramToken) {
+    console.error("Telegram is selected, but no Telegram bot token is configured.");
+    console.error("Run `npx . setup` to add a token, or use `npx . chat` for terminal mode.");
+    process.exit(1);
+  }
+
   const pythonBin = ensurePythonEnv(hasFlag(args, "--skip-install"));
   const extraArgs = [];
-  const inputChannel = argValue(args, "--input", null);
-  if (inputChannel) extraArgs.push("--input", inputChannel);
-  const child = spawn(pythonBin, ["main.py", ...extraArgs], { stdio: "inherit", cwd: process.cwd() });
-  child.on("exit", (code) => process.exit(code || 0));
+  if (requestedInputChannel) extraArgs.push("--input", requestedInputChannel);
+  const dataPath = path.join(process.cwd(), "data");
+  ensureDir(dataPath);
+  const env = {
+    ...process.env,
+    ALIVE_AI_ROOT: process.cwd(),
+    ALIVE_AI_DATA_PATH: dataPath,
+    DATA_PATH: dataPath,
+    HF_HOME: path.join(process.cwd(), ".cache", "huggingface"),
+    SENTENCE_TRANSFORMERS_HOME: path.join(process.cwd(), ".cache", "sentence-transformers"),
+    TRANSFORMERS_CACHE: path.join(process.cwd(), ".cache", "huggingface"),
+    TOKENIZERS_PARALLELISM: process.env.TOKENIZERS_PARALLELISM || "false",
+  };
+  if (options.tui) env.ALIVE_AI_TUI = "1";
+
+  const child = spawn(pythonBin, ["main.py", ...extraArgs], {
+    stdio: options.tui ? ["pipe", "pipe", "pipe"] : "inherit",
+    cwd: process.cwd(),
+    env,
+  });
+
+  if (options.tui) {
+    const code = await runRuntimeTui(child, {
+      dashboard: `http://127.0.0.1:${readProjectSettings().WEBUI_PORT || DEFAULT_PORT}`,
+    });
+    process.exitCode = code;
+    return;
+  }
+
+  await new Promise((resolve) => {
+    child.on("exit", (code) => {
+      process.exitCode = code || 0;
+      resolve();
+    });
+  });
 }
 
 function startTerminalChat(args) {
-  return startRuntime(["--input", "terminal", ...args]);
+  const plain = hasFlag(args, "--plain");
+  const filteredArgs = args.filter((arg) => arg !== "--plain");
+  return startRuntime(["--input", "terminal", ...filteredArgs], { tui: !plain });
 }
 
 function demoHtml() {
@@ -464,10 +731,12 @@ async function main() {
   if (!command || command === "--help" || command === "-h") return usage();
   if (command === "init") return initProject(args);
   if (command === "setup") return setupProject(args);
+  if (command === "update") return updateProject(args);
   if (command === "demo") return startDemo(args);
   if (command === "start") return startRuntime(args);
   if (command === "chat") return startTerminalChat(args);
   if (command === "doctor") return doctor();
+  if (command === "uninstall") return uninstallProject(args);
   console.error(`Unknown command: ${command}`);
   usage();
   process.exit(1);

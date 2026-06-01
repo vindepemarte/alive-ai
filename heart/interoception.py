@@ -31,16 +31,13 @@ import logging
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.settings import get_float, get_int, get
+from core.paths import state_file
 
 # Configure logging
 logger = logging.getLogger("Interoception")
 logger.setLevel(logging.DEBUG)
 
-# Persistence path - use /app/data if available (Docker), otherwise local data directory
-if Path("/app/data").exists():
-    INTEROCEPTION_DATA_PATH = Path("/app/data/interoceptive_state.json")
-else:
-    INTEROCEPTION_DATA_PATH = Path(__file__).parent.parent / "data" / "interoceptive_state.json"
+INTEROCEPTION_DATA_PATH = state_file("interoceptive_state.json")
 
 
 class InteroceptiveStateType(Enum):

@@ -283,15 +283,16 @@ npx . chat</code></pre>
   <section class="facts">
     <div class="fact"><h2>Persistent affect</h2><p>Emotions decay, compound, and influence future messages instead of resetting after each prompt.</p></div>
     <div class="fact"><h2>Memory with weight</h2><p>Built-in local memory stays active, and OpenMind can add cloud or local semantic recall.</p></div>
-    <div class="fact"><h2>Terminal or Telegram</h2><p>Chat from the command line with `npx . chat`, or connect a Telegram bot when you want mobile access.</p></div>
+    <div class="fact"><h2>Terminal or Telegram</h2><p>Chat from the split-pane terminal with `npx . chat`, use `npx . chat --plain` for raw mode, or connect Telegram for mobile access.</p></div>
   </section>
 
   <section class="section" id="setup">
     <h2>Setup Flow</h2>
     <p>`npx . setup` asks for the minimum required configuration and lets optional systems be skipped. Use `local` for Ollama, `skip` for optional keys, and OpenMind cloud or local when you want a shared long-term semantic memory.</p>
     <div class="steps">
-      <div class="step"><strong>Start local terminal chat</strong><span>`npx . chat` starts the same runtime with terminal input and the WebUI at `http://127.0.0.1:8080`.</span></div>
-      <div class="step"><strong>Start Telegram/runtime mode</strong><span>`npx . start` starts the runtime with the configured input channel. Stop foreground runs with `Ctrl+C`.</span></div>
+      <div class="step"><strong>Start local terminal chat</strong><span>`npx . chat` starts the same runtime with chat on the left, logs on the right, and the WebUI at `http://127.0.0.1:8080`.</span></div>
+      <div class="step"><strong>Start Telegram/runtime mode</strong><span>`npx . start` starts the configured input channel and validates Telegram before polling. Stop foreground runs with `Ctrl+C`.</span></div>
+      <div class="step"><strong>Keep it updated</strong><span>`start` and `chat` check npm for newer versions. Use `npx . update` manually or `npx . uninstall` to remove local runtime files.</span></div>
       <div class="step"><strong>Use OpenMind</strong><span>Choose `openmind-cloud` for `https://theopenmind.pro` or `openmind-local` for `http://127.0.0.1:3333`.</span></div>
       <div class="step"><strong>Preview the dashboard</strong><span>`npx . demo` is keyless. The real runtime dashboard streams local state over SSE.</span></div>
     </div>

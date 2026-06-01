@@ -7,10 +7,12 @@ The foundation of the AI. Always required.
 - `config.py` - Configuration loader
 - `state.py` - Global state management
 - `self.py` - The Self (main coordinator)
+- `paths.py` - Runtime path resolution for npm/local/Docker installs
 
 ## Key Integration Points
 - **NervousSystem** - Central event bus; all modules communicate via events
 - **Self** - Coordinates: memory, heart, LLM, subconscious, input/output
+- **Paths** - Keeps project runtime state under local `data/` instead of hard-coded `/app`
 - Connects to subconscious for proactive messaging
 - Emits: `message_received`, `send_text`, `send_voice_file`, `send_image`, `send_video`
 

@@ -4,9 +4,9 @@ Extended for Soul Architecture dimensions
 """
 import json
 from datetime import datetime
-from pathlib import Path
+from core.paths import state_file
 
-EMOTION_STATE_PATH = Path("/app/data/emotion_state.json")  # Use mounted /app directory
+EMOTION_STATE_PATH = state_file("emotion_state.json")
 DEFAULTS = {
     "valence": 0.5, "arousal": 0.3, "dominance": 0.5, "desire": 0.0,
     "high_desire_threshold": 0.7, "joy": 0.5, "love": 0.2, "trust": 0.5,

@@ -17,6 +17,7 @@ from pathlib import Path
 import json
 import threading
 import time
+from core.paths import state_file
 
 
 @dataclass
@@ -129,10 +130,7 @@ class SoulTelemetry:
     """
 
     # Default data path
-    DEFAULT_DATA_PATH = Path("/app/data/soul_telemetry.json")
-
-    # Alternative path for local development
-    FALLBACK_DATA_PATH = Path(__file__).parent.parent / "data" / "soul_telemetry.json"
+    DEFAULT_DATA_PATH = state_file("soul_telemetry.json")
 
     # Default retention period (hours)
     DEFAULT_RETENTION_HOURS = 24
@@ -160,11 +158,7 @@ class SoulTelemetry:
         if data_path:
             self.data_path = Path(data_path)
         else:
-            # Try /app/data first, fallback to local data directory
-            if self.DEFAULT_DATA_PATH.parent.exists():
-                self.data_path = self.DEFAULT_DATA_PATH
-            else:
-                self.data_path = self.FALLBACK_DATA_PATH
+            self.data_path = self.DEFAULT_DATA_PATH
 
         # Ensure data directory exists
         self.data_path.parent.mkdir(parents=True, exist_ok=True)
