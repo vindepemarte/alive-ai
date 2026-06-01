@@ -14,8 +14,11 @@ from .app import (
 _webui_server = None
 
 
-def init_bridge(nervous):
+def init_bridge(nervous, ai=None):
     """Connect nervous system events to webui updates"""
+    if ai is not None:
+        from .app import set_self_ref
+        set_self_ref(ai)
 
     async def on_emotion(data):
         """Update emotion state in dashboard"""
@@ -178,6 +181,16 @@ def init_bridge(nervous):
         except Exception as e:
             print(f"[WebUI] Error updating inconsistency state: {e}")
 
+    async def on_thinking_start(data):
+        """Set thinking state to True"""
+        alive_ai_state["thinking"] = True
+        update_state({})
+
+    async def on_thinking_done(data):
+        """Set thinking state to False"""
+        alive_ai_state["thinking"] = False
+        update_state({})
+
     # Register event listeners
     nervous.on("emotion_update", on_emotion)
     nervous.on("send_text", on_message_sent)
@@ -187,6 +200,8 @@ def init_bridge(nervous):
     nervous.on("subconscious_impulse", on_subconscious)
     nervous.on("subconscious_thought", on_subconscious_thought)
     nervous.on("soul_tick", on_soul_tick_event)
+    nervous.on("thinking_start", on_thinking_start)
+    nervous.on("thinking_done", on_thinking_done)
 
     # Register aliveness event listeners
     nervous.on("interoceptive_update", on_interoceptive_update)

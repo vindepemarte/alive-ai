@@ -9,8 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 from collections import deque
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
+from fastapi import FastAPI, Request, BackgroundTasks
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from core.paths import data_dir, media_dir
 
@@ -128,6 +128,7 @@ alive_ai_state = {
     "last_user_message": None,
     "stats": _persistent_stats,
     "conversation": [],
+    "thinking": False,
     "recent_thoughts": [],
     "updated_at": datetime.now().isoformat(),
     "start_time": _start_time.isoformat(),
@@ -193,6 +194,15 @@ soul_history: deque = deque(maxlen=100)
 
 # Reference to Soul Orchestrator (set by bridge)
 _soul_orchestrator = None
+
+# Reference to AI Instance (set by bridge)
+_self_ref = None
+
+
+def set_self_ref(ai):
+    global _self_ref
+    _self_ref = ai
+
 
 # Connected clients for SSE
 clients = []
@@ -943,6 +953,69 @@ async def get_new_aliveness():
         result["almost_said"] = {"message_counter": 0}
 
     return result
+
+
+@app.post("/api/chat")
+async def chat_endpoint(request: Request, background_tasks: BackgroundTasks):
+    data = await request.json()
+    text = data.get("text", "").strip()
+    if not text or not _self_ref:
+        return JSONResponse({"status": "error", "message": "No text or AI not ready"}, 400)
+    # Add user message immediately to conversation
+    add_conversation("user", text)
+    update_state({})
+    # Fire message handler in background
+    async def _send():
+        from core.message_handler import handle_message
+        await handle_message(_self_ref, {
+            "user_id": "webui",
+            "text": text,
+            "chat_id": "webui",
+            "source": "webui"
+        })
+    background_tasks.add_task(_send)
+    return JSONResponse({"status": "sent"})
+
+
+@app.get("/api/settings")
+async def get_settings():
+    import json
+    from pathlib import Path
+    config_dir = Path(os.environ.get("ALIVE_AI_ROOT", ".")) / "config"
+    result = {}
+    for fname in ["settings.json", "self.json", "directives.json"]:
+        p = config_dir / fname
+        if p.exists():
+            try:
+                result[fname] = {"type": "json", "content": json.loads(p.read_text())}
+            except Exception:
+                result[fname] = {"type": "json", "content": {}}
+    p = config_dir / "instructions.md"
+    if p.exists():
+        result["instructions.md"] = {"type": "markdown", "content": p.read_text()}
+    return result
+
+
+@app.post("/api/settings")
+async def save_settings(request: Request):
+    import json
+    from pathlib import Path
+    data = await request.json()
+    fname = data.get("file", "")
+    allowed = {"settings.json", "self.json", "directives.json", "instructions.md"}
+    if fname not in allowed:
+        return JSONResponse({"status": "error", "message": "Invalid file"}, 400)
+    config_dir = Path(os.environ.get("ALIVE_AI_ROOT", ".")) / "config"
+    p = config_dir / fname
+    content = data.get("content")
+    try:
+        if fname.endswith(".json"):
+            p.write_text(json.dumps(content, indent=2, ensure_ascii=False))
+        else:
+            p.write_text(content)
+        return {"status": "saved"}
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, 500)
 
 
 # Mount static files

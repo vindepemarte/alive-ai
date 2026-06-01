@@ -1064,6 +1064,277 @@
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
+
+        /* Multi-Page Dashboard & Tab Switching */
+        .main.chat-active {
+            overflow-y: hidden;
+            padding-bottom: 0;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 75px - var(--safe-top) - var(--safe-bottom) - 75px);
+        }
+        
+        .page-section {
+            width: 100%;
+        }
+
+        /* Chat Page Styles */
+        #page-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            position: relative;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scroll-behavior: smooth;
+        }
+
+        /* Scrollbar styling for chat */
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .chat-msg-row {
+            display: flex;
+            width: 100%;
+            margin-bottom: 4px;
+        }
+        .chat-msg-row.user {
+            justify-content: flex-end;
+        }
+        .chat-msg-row.alive-ai {
+            justify-content: flex-start;
+        }
+
+        .chat-bubble {
+            max-width: 80%;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            line-height: 1.45;
+            position: relative;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        .chat-msg-row.user .chat-bubble {
+            background: linear-gradient(135deg, var(--accent-pink) 0%, #a55eea 100%);
+            color: #fff;
+            border-radius: 20px 20px 4px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-msg-row.alive-ai .chat-bubble {
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+            border-radius: 20px 20px 20px 4px;
+        }
+
+        .chat-bubble-time {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 4px;
+            text-align: right;
+            display: block;
+        }
+        .chat-msg-row.alive-ai .chat-bubble-time {
+            color: var(--text-muted);
+        }
+
+        /* Typing Dots Animation */
+        .typing-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            margin-top: 4px;
+            color: var(--accent-pink);
+            font-size: 0.85rem;
+        }
+
+        .typing-dots {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .typing-dots span {
+            width: 6px;
+            height: 6px;
+            background-color: var(--accent-pink);
+            border-radius: 50%;
+            display: inline-block;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+
+        /* Settings CSS */
+        .settings-card {
+            margin-bottom: 20px;
+        }
+        .settings-header-btn-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+        }
+        .settings-file-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent-pink);
+        }
+        .settings-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .settings-field-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .settings-field-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .settings-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .settings-input:focus {
+            border-color: var(--accent-pink);
+            box-shadow: 0 0 8px var(--glow-pink);
+        }
+        .settings-checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 4px 0;
+        }
+        .settings-checkbox-container input {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent-pink);
+        }
+        .settings-checkbox-label {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .settings-textarea {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            min-height: 120px;
+            resize: vertical;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .settings-textarea:focus {
+            border-color: var(--accent-pink);
+            box-shadow: 0 0 8px var(--glow-pink);
+        }
+        .btn-action {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-action:hover {
+            background: var(--accent-pink);
+            border-color: var(--accent-pink);
+            box-shadow: 0 0 10px var(--glow-pink);
+        }
+        .btn-save-all {
+            background: linear-gradient(135deg, var(--accent-pink) 0%, #a55eea 100%);
+            border: none;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-save-all:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 15px var(--glow-pink);
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(26, 26, 46, 0.95);
+            border: 1px solid var(--accent-pink);
+            box-shadow: 0 4px 20px var(--glow-pink);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 2000;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+        }
+        .toast-container.show {
+            transform: translateX(-50%) translateY(0);
+        }
     </style>
 </head>
 <body>
@@ -1092,7 +1363,8 @@
         </header>
 
         <main class="main">
-            <!-- Stats Row -->
+            <div id="page-home" class="page-section">
+                <!-- Stats Row -->
             <div class="stats-row">
                 <div class="stat-card">
                     <div class="stat-value" id="stat-messages">0</div>
@@ -1578,7 +1850,33 @@
                     <span class="tendency-badge" id="tendency-badge">neutral</span>
                 </div>
             </div>
+            </div> <!-- #page-home -->
+
+            <!-- CHAT PAGE -->
+            <div id="page-chat" class="page-section" style="display:none; flex-direction:column; height:100%;">
+                <div id="chat-messages" class="chat-messages"></div>
+                <div id="chat-typing" style="display:none; padding:8px 0; color:var(--accent-pink); font-size:0.85rem;">
+                    <div class="typing-indicator">
+                        <span>she is thinking</span>
+                        <div class="typing-dots">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-input-container" style="display:flex; gap:10px; padding:10px 0; background:var(--bg-primary); border-top:1px solid rgba(255,255,255,0.05); align-items: flex-end;">
+                    <textarea id="chat-input" rows="1" placeholder="Type a message..." style="flex:1; background:var(--bg-card); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:10px 16px; color:#fff; font-size:0.9rem; resize:none; font-family:inherit; outline:none; transition:border-color 0.2s;" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';"></textarea>
+                    <button id="chat-send" class="btn-send" style="background:linear-gradient(135deg,var(--accent-pink),#a55eea); border:none; border-radius:50%; width:42px; height:42px; color:#fff; font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:transform 0.2s, opacity 0.2s; outline:none;">↑</button>
+                </div>
+            </div>
+
+            <!-- SETTINGS PAGE -->
+            <div id="page-settings" class="page-section" style="display:none; flex-direction:column; gap:16px;">
+                <div id="settings-content">Loading settings...</div>
+            </div>
         </main>
+
+        <!-- Toast Notification Container -->
+        <div id="toast-notification" class="toast-container">Settings saved successfully</div>
 
         <nav class="bottom-nav">
             <div class="nav-item active">
@@ -1602,6 +1900,293 @@
             'playful': '😏', 'flirty': '💋', 'sad': '😢', 'bored': '😐',
             'angry': '😤', 'neutral': '😌', 'calm': '😌', 'loving': '💕'
         };
+
+        };
+
+        const pages = {
+            home: 'page-home',
+            chat: 'page-chat',
+            settings: 'page-settings'
+        };
+        let activePage = 'home';
+        let conversationCache = [];
+        let isSettingsLoaded = false;
+        let isSendingMessage = false;
+
+        // Tab switching
+        document.addEventListener('DOMContentLoaded', () => {
+            const navItems = document.querySelectorAll('.nav-item');
+            const mainEl = document.querySelector('.main');
+            
+            navItems.forEach((el, index) => {
+                el.addEventListener('click', () => {
+                    navItems.forEach(item => item.classList.remove('active'));
+                    el.classList.add('active');
+                    
+                    // Hide all pages
+                    document.getElementById('page-home').style.display = 'none';
+                    document.getElementById('page-chat').style.display = 'none';
+                    document.getElementById('page-settings').style.display = 'none';
+                    
+                    // Show current page
+                    const pageKeys = Object.keys(pages);
+                    activePage = pageKeys[index];
+                    const activePageId = pages[activePage];
+                    const activeEl = document.getElementById(activePageId);
+                    
+                    if (activePage === 'chat') {
+                        activeEl.style.display = 'flex';
+                        mainEl.classList.add('chat-active');
+                        scrollChatToBottom();
+                    } else {
+                        activeEl.style.display = 'block';
+                        mainEl.classList.remove('chat-active');
+                    }
+                    
+                    if (activePage === 'settings') {
+                        loadSettings();
+                    }
+                });
+            });
+
+            // Chat input handlers
+            const sendBtn = document.getElementById('chat-send');
+            const inputEl = document.getElementById('chat-input');
+            if (sendBtn) {
+                sendBtn.addEventListener('click', sendMessage);
+            }
+            if (inputEl) {
+                inputEl.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                });
+            }
+        });
+
+        // Toast notifications
+        function showToast(text, duration = 3000) {
+            const toast = document.getElementById('toast-notification');
+            toast.textContent = text;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        // Chat scroll
+        function scrollChatToBottom() {
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        // Chat rendering
+        function updateChatUI(conversation, isThinking) {
+            const messagesContainer = document.getElementById('chat-messages');
+            if (!messagesContainer) return;
+            
+            // Check if conversation changed to avoid redrawing if same
+            const cacheStr = JSON.stringify(conversation);
+            const prevStr = JSON.stringify(conversationCache);
+            
+            if (cacheStr !== prevStr) {
+                conversationCache = conversation;
+                
+                if (!conversation || conversation.length === 0) {
+                    messagesContainer.innerHTML = '<div style="text-align:center;color:var(--text-muted);margin-top:40px;font-size:0.9rem;">No messages yet. Say hi!</div>';
+                } else {
+                    messagesContainer.innerHTML = conversation.map(msg => {
+                        const isUser = msg.role === 'user';
+                        const time = msg.time || '';
+                        return `<div class="chat-msg-row ${isUser ? 'user' : 'alive-ai'}">
+                            <div class="chat-bubble">
+                                <div>${escapeHtml(msg.content)}</div>
+                                <span class="chat-bubble-time">${time}</span>
+                            </div>
+                        </div>`;
+                    }).join('');
+                }
+                scrollChatToBottom();
+            }
+            
+            // Show/hide thinking indicator
+            const typingEl = document.getElementById('chat-typing');
+            if (typingEl) {
+                typingEl.style.display = isThinking ? 'block' : 'none';
+                if (isThinking) {
+                    scrollChatToBottom();
+                }
+            }
+        }
+
+        // Send message via API
+        async function sendMessage() {
+            const inputEl = document.getElementById('chat-input');
+            const btnEl = document.getElementById('chat-send');
+            if (!inputEl || !btnEl || isSendingMessage) return;
+            
+            const text = inputEl.value.trim();
+            if (!text) return;
+            
+            isSendingMessage = true;
+            inputEl.disabled = true;
+            btnEl.style.opacity = '0.5';
+            
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const resData = await response.json();
+                if (response.ok && resData.status === 'sent') {
+                    inputEl.value = '';
+                    inputEl.style.height = 'auto'; // reset textarea height
+                } else {
+                    showToast('Failed to send: ' + (resData.message || 'Unknown error'));
+                }
+            } catch (err) {
+                console.error('Error sending message:', err);
+                showToast('Failed to send message');
+            } finally {
+                isSendingMessage = false;
+                inputEl.disabled = false;
+                btnEl.style.opacity = '1';
+                inputEl.focus();
+            }
+        }
+
+        // Settings load
+        async function loadSettings() {
+            const container = document.getElementById('settings-content');
+            if (!container) return;
+            
+            try {
+                container.innerHTML = '<div style="text-align:center;color:var(--text-secondary);padding:20px;">Loading settings...</div>';
+                const response = await fetch('/api/settings');
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const settingsData = await response.json();
+                renderSettings(settingsData);
+                isSettingsLoaded = true;
+            } catch (err) {
+                console.error('Error loading settings:', err);
+                container.innerHTML = `<div style="text-align:center;color:#ff4d4d;padding:20px;">Failed to load settings: ${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        // Settings rendering
+        function renderSettings(settingsData) {
+            const container = document.getElementById('settings-content');
+            if (!container) return;
+            
+            let html = '';
+            Object.entries(settingsData).forEach(([filename, fileData]) => {
+                let contentStr = '';
+                if (fileData.type === 'json') {
+                    contentStr = JSON.stringify(fileData.content, null, 2);
+                } else {
+                    contentStr = fileData.content;
+                }
+                
+                html += `
+                <div class="section settings-card">
+                    <div class="settings-header-btn-row">
+                        <div class="settings-file-title">⚙️ ${filename}</div>
+                        <button class="btn-save btn-action" data-file="${filename}" onclick="saveFileSettings('${filename}')">Save</button>
+                    </div>
+                    <div class="settings-grid">
+                        <textarea class="settings-textarea" data-file="${filename}" oninput="validateJSONInput(this, '${filename}')" spellcheck="false">${escapeHtml(contentStr)}</textarea>
+                    </div>
+                </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        // Real-time JSON validation
+        function validateJSONInput(textarea, filename) {
+            const btn = document.querySelector(`.btn-save[data-file="${filename}"]`);
+            let errorEl = textarea.parentNode.querySelector('.json-error-msg');
+            
+            if (!errorEl) {
+                errorEl = document.createElement('div');
+                errorEl.className = 'json-error-msg';
+                errorEl.style.color = '#ff6b9d';
+                errorEl.style.fontSize = '0.8rem';
+                errorEl.style.marginTop = '4px';
+                textarea.parentNode.appendChild(errorEl);
+            }
+            
+            if (!filename.endsWith('.json')) {
+                errorEl.textContent = '';
+                return true;
+            }
+            
+            try {
+                JSON.parse(textarea.value);
+                textarea.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                errorEl.textContent = '';
+                if (btn) btn.disabled = false;
+                return true;
+            } catch (e) {
+                textarea.style.borderColor = '#ff6b9d';
+                errorEl.textContent = 'Invalid JSON: ' + e.message;
+                if (btn) btn.disabled = true;
+                return false;
+            }
+        }
+
+        // Settings saving
+        async function saveFileSettings(filename) {
+            const textarea = document.querySelector(`.settings-textarea[data-file="${filename}"]`);
+            if (!textarea) return;
+            
+            let parsedContent;
+            if (filename.endsWith('.json')) {
+                try {
+                    parsedContent = JSON.parse(textarea.value);
+                } catch (e) {
+                    showToast(`Invalid JSON in ${filename}: ${e.message}`);
+                    return;
+                }
+            } else {
+                parsedContent = textarea.value;
+            }
+            
+            const btn = document.querySelector(`.btn-save[data-file="${filename}"]`);
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Saving...';
+            }
+            
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file: filename,
+                        content: parsedContent
+                    })
+                });
+                const resData = await response.json();
+                if (response.ok && resData.status === 'saved') {
+                    showToast(`${filename} saved successfully!`);
+                } else {
+                    showToast(`Failed to save: ${resData.message || 'Unknown error'}`);
+                }
+            } catch (err) {
+                console.error('Error saving settings:', err);
+                showToast(`Error saving ${filename}`);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Save';
+                }
+            }
+        }
 
         let eventSource;
         let startTime = null;  // Will be set from server's start_time
@@ -1628,6 +2213,9 @@
         }
 
         function updateUI(data) {
+            // Update Chat UI
+            updateChatUI(data.conversation || [], !!data.thinking);
+
             // Mood
             const mood = data.mood || 'neutral';
             document.getElementById('mood-emoji').textContent = moodEmojis[mood] || '😌';

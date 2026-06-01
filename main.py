@@ -122,7 +122,7 @@ async def main() -> None:
             try:
                 from webui.bridge import init_bridge, init_soul_bridge, start_webui
 
-                init_bridge(ai.nervous)
+                init_bridge(ai.nervous, ai=ai)
                 if hasattr(ai, "_heart") and ai._heart and hasattr(ai._heart, "soul"):
                     init_soul_bridge(ai._heart.soul)
                 webui_task = asyncio.create_task(start_webui(host="127.0.0.1", port=webui_port))
