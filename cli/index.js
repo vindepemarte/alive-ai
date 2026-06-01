@@ -14,6 +14,7 @@ const DEFAULT_PORT = 8080;
 const COPY_ENTRIES = [
   "alive_ai",
   "brain",
+  "cli",
   "config",
   "core",
   "demo",
@@ -47,11 +48,11 @@ Usage:
   alive-ai doctor                 Check local prerequisites
 
 Quick start:
-  npx alive-ai@latest init my-ai
+  npx github:vindepemarte/alive-ai init my-ai
   cd my-ai
-  npx alive-ai setup
-  npx alive-ai demo
-  npx alive-ai start`);
+  npx . setup
+  npx . demo
+  npx . start`);
 }
 
 function argValue(args, name, fallback) {
@@ -112,8 +113,8 @@ function initProject(args) {
   console.log("");
   console.log("Next:");
   console.log(`  cd ${target}`);
-  console.log("  npx alive-ai setup");
-  console.log("  npx alive-ai demo");
+  console.log("  npx . setup");
+  console.log("  npx . demo");
 }
 
 function readJson(file) {
@@ -200,7 +201,7 @@ async function setupProject(args) {
   ensureDir(path.join(process.cwd(), "myvids"));
 
   console.log("Alive-AI config created.");
-  console.log("Run `npx alive-ai demo` to preview the dashboard or `npx alive-ai start` to start the runtime.");
+  console.log("Run `npx . demo` to preview the dashboard or `npx . start` to start the runtime.");
 }
 
 function findCommand(candidates) {
@@ -266,7 +267,7 @@ function ensurePythonEnv(skipInstall) {
 
 function startRuntime(args) {
   if (!fs.existsSync(path.join(process.cwd(), "config", "settings.json"))) {
-    console.error("Missing config/settings.json. Run `npx alive-ai setup` first.");
+    console.error("Missing config/settings.json. Run `npx . setup` first.");
     process.exit(1);
   }
   const pythonBin = ensurePythonEnv(hasFlag(args, "--skip-install"));

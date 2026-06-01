@@ -11,16 +11,16 @@ Alive-AI does not claim biological consciousness. It is an open-source runtime f
 ## Install
 
 ```bash
-npx alive-ai@latest init my-ai
+npx github:vindepemarte/alive-ai init my-ai
 cd my-ai
-npx alive-ai setup
-npx alive-ai demo
+npx . setup
+npx . demo
 ```
 
 Start the real runtime:
 
 ```bash
-npx alive-ai start
+npx . start
 ```
 
 The local dashboard runs at:
@@ -40,22 +40,23 @@ http://127.0.0.1:8080
 ## Commands
 
 ```bash
-npx alive-ai init my-ai       # scaffold a clean local project
-npx alive-ai setup            # create safe local config
-npx alive-ai demo             # preview animated dashboard, no keys needed
-npx alive-ai doctor           # check Python, uv, ffmpeg, Docker
-npx alive-ai start            # install Python deps and run the runtime
+npx github:vindepemarte/alive-ai init my-ai  # scaffold a clean local project
+cd my-ai
+npx . setup                                # create safe local config
+npx . demo                                 # preview animated dashboard, no keys needed
+npx . doctor                               # check Python, uv, ffmpeg, Docker
+npx . start                                # install Python deps and run the runtime
 ```
 
 For repeat starts after dependencies are installed:
 
 ```bash
-npx alive-ai start --skip-install
+npx . start --skip-install
 ```
 
 ## Setup
 
-`npx alive-ai setup` creates:
+`npx . setup` creates:
 
 ```text
 config/settings.json
@@ -101,13 +102,13 @@ Core subsystems:
 
 - `heart/`: continuous emotion, circadian rhythm, attachment, scars, somatic state, inconsistency.
 - `brain/`: LLM providers, memory, default-mode processing, bid detection, curiosity, dreams.
-- `skills/`: self-authorship, memory callbacks, relationship milestones, content scheduling, media selection.
+- `skills/`: self-authorship, memory callbacks, relationship milestones, progression layers, media selection.
 - `webui/`: local dashboard with Server-Sent Events.
 - `input/telegram/`: Telegram listener and owner commands.
 
 ## Dashboard
 
-`npx alive-ai demo` starts a zero-config animated dashboard preview. The real dashboard uses the same idea, but streams live state from the runtime:
+`npx . demo` starts a zero-config animated dashboard preview. The real dashboard uses the same idea, but streams live state from the runtime:
 
 - emotions and mood,
 - recent thoughts,
@@ -122,7 +123,7 @@ Docker is optional. It is useful when you want Redis Stack for vector search:
 
 ```bash
 docker compose up -d redis
-npx alive-ai start
+npx . start
 ```
 
 Or run everything in containers:
