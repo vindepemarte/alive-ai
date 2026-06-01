@@ -1,0 +1,2 @@
+"""Terminal input channel."""
+

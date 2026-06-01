@@ -37,11 +37,19 @@ class Memory:
         self.fact_extractor = FactExtractor(self.data_path / "facts.json")
         self.summarizer = ConversationSummarizer(self.data_path)
         self.vector_store = None
+        self.openmind = None
         self.bot_id = bot_id.lower()
         if embedding_service:
             self.vector_store = VectorMemoryStore(embedding_service, user_id=user_id, bot_id=bot_id)
             if self.vector_store.connect():
                 print(f"[Memory] Vector store ready for user {user_id} on bot {bot_id}! {self.vector_store.count()} memories")
+        try:
+            from .openmind import OpenMindMemoryBridge
+            if OpenMindMemoryBridge.enabled():
+                self.openmind = OpenMindMemoryBridge(nervous, user_id=user_id, bot_id=bot_id)
+                print(f"[Memory] OpenMind bridge enabled for user {user_id} on bot {bot_id}")
+        except Exception as e:
+            print(f"[Memory] OpenMind bridge unavailable: {e}")
         self.turn_count = 0
         nervous.on("memory_save", self._on_save)
 
@@ -123,6 +131,14 @@ class Memory:
         related = ""
         if current_message and self.vector_store:
             related = self.search_relevant_memories(current_message, limit=3)
+        if current_message and self.openmind:
+            openmind_related = await self.openmind.search_context(current_message, limit=3)
+            if openmind_related:
+                related = (
+                    f"{related}\n\nOpenMind long-term memory:\n{openmind_related}"
+                    if related else
+                    f"OpenMind long-term memory:\n{openmind_related}"
+                )
 
         # Get working memory (empty after restart)
         history = self.working.get_history()

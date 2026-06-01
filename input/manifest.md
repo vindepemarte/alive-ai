@@ -7,8 +7,10 @@ How the AI perceives and processes incoming messages.
   - `listener.py` - Message handler, routes to nervous system
   - `voice.py` - Voice message processing via STT
   - `commands.py` - Admin command handler
+- `terminal/` - Local terminal chat integration
+  - `listener.py` - CLI chat loop, slash commands, and output handlers
 
-## Commands (Admin Only)
+## Commands
 - `/start` - Welcome message
 - `/help` - Show all commands
 - `/status` - Current emotional/subconscious state
@@ -16,9 +18,13 @@ How the AI perceives and processes incoming messages.
 - `/impulse` - Force proactive message generation
 - `/stats` - System statistics (photos, videos, LLM)
 - `/reset` - Reset emotional state to defaults
+- `/dashboard` - Show local WebUI URL
+- `/self`, `/iam`, `/ilike`, `/ihate`, `/discover`, `/rethink` - Self-authorship commands
+- `/exit` - Stop terminal chat
 
 ## Integration Points
 - Receives Telegram updates
+- Receives terminal input through `npx . chat`
 - Uses STT for voice transcription
 - Emits `message_received` event to nervous system
 - Commands access: heart, subconscious, LLM, voice, photos, videos

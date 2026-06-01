@@ -6,7 +6,7 @@ Module loading and startup logic for Self
 import os
 
 
-async def load_modules(self):
+async def load_modules(self, input_channel: str = "telegram"):
     """Load all modules and initialize the AI system"""
     name = self.config.identity.get("name", "AI")
     print(f"[{name}] Waking up...")
@@ -21,7 +21,6 @@ async def load_modules(self):
     from brain.stt import GoogleSTT
     from brain.embeddings import get_embedding_service
     from heart.core import Heart
-    from input.telegram.listener import TelegramListener
     from output.text.sender import TextSender
     from skills.photo_manager.scanner import PhotoScanner
     from skills.video_manager.scanner import VideoScanner
@@ -41,7 +40,14 @@ async def load_modules(self):
     _init_photos(self, name)
     _init_videos(self, name)
 
-    self._input = TelegramListener(self.nervous, self.config, stt=self._stt, heart=self._heart)
+    input_channel = (input_channel or "telegram").lower()
+    if input_channel == "terminal":
+        from input.terminal.listener import TerminalListener
+        self._input = TerminalListener(self.nervous, self.config, stt=self._stt, heart=self._heart)
+    else:
+        from input.telegram.listener import TelegramListener
+        self._input = TelegramListener(self.nervous, self.config, stt=self._stt, heart=self._heart)
+    print(f"[{name}] Input channel: {input_channel}")
     self._output = TextSender(self.nervous, self.config)
     self.nervous.heart = self._heart
 
@@ -99,6 +105,10 @@ async def _init_voice(self, name: str):
 
     # Get TTS provider from settings (default to vibe)
     tts_provider = get("TTS_PROVIDER", "vibe").lower()
+    if tts_provider in ("none", "skip", "disabled", "off"):
+        print(f"[{name}] Voice disabled")
+        self._voice = None
+        return
 
     # Provider-specific configuration
     if tts_provider == "google":

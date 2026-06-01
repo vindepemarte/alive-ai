@@ -45,6 +45,7 @@ Usage:
   alive-ai setup [--yes]          Create local config from templates
   alive-ai demo [--port 8080]     Run the animated dashboard demo
   alive-ai start [--skip-install] Install Python deps if needed and start runtime
+  alive-ai chat [--skip-install]  Start runtime with terminal chat input
   alive-ai doctor                 Check local prerequisites
 
 Quick start:
@@ -52,6 +53,7 @@ Quick start:
   cd my-ai
   npx . setup
   npx . doctor
+  npx . chat
   npx . demo
   npx . start`);
 }
@@ -116,6 +118,7 @@ function initProject(args) {
   console.log(`  cd ${target}`);
   console.log("  npx . setup");
   console.log("  npx . doctor");
+  console.log("  npx . chat");
   console.log("  npx . demo");
 }
 
@@ -138,6 +141,28 @@ function ask(question, fallback, assumeYes) {
       resolve(answer.trim() || fallback);
     });
   });
+}
+
+function normalizeChoice(value, fallback = "") {
+  return String(value || fallback).trim().toLowerCase();
+}
+
+function isSkipped(value) {
+  return normalizeChoice(value) === "skip";
+}
+
+function emptyIfSkipped(value) {
+  return isSkipped(value) ? "" : value;
+}
+
+function readProjectSettings() {
+  const settingsPath = path.join(process.cwd(), "config", "settings.json");
+  if (!fs.existsSync(settingsPath)) return {};
+  try {
+    return readJson(settingsPath);
+  } catch {
+    return {};
+  }
 }
 
 async function setupProject(args) {
@@ -167,25 +192,68 @@ async function setupProject(args) {
     return;
   }
 
-  const displayName = await ask("Agent display name", "Nova", assumeYes);
-  const ownerId = await ask("Telegram owner ID (optional)", "", assumeYes);
-  const telegramToken = await ask("Telegram bot token (optional for demo)", "", assumeYes);
-  const provider = await ask("LLM provider: ollama, openrouter, or zai", "ollama", assumeYes);
+  const displayNameAnswer = await ask("Agent display name", "Nova", assumeYes);
+  const displayName = emptyIfSkipped(displayNameAnswer) || "Nova";
+  const ownerId = emptyIfSkipped(await ask("Telegram owner ID (optional, use skip to leave blank)", "", assumeYes));
+  const telegramToken = emptyIfSkipped(await ask("Telegram bot token (optional, use skip to leave blank)", "", assumeYes));
+  const providerChoice = normalizeChoice(
+    await ask("LLM provider: local, openrouter, zai, or skip", "local", assumeYes),
+    "local"
+  );
+  const provider = providerChoice === "local" ? "ollama" : providerChoice;
   const openRouterKey = provider === "openrouter"
-    ? await ask("OpenRouter API key", "", assumeYes)
+    ? emptyIfSkipped(await ask("OpenRouter API key (or skip)", "", assumeYes))
     : "";
   const zaiKey = provider === "zai"
-    ? await ask("ZAI API key", "", assumeYes)
+    ? emptyIfSkipped(await ask("ZAI API key (or skip)", "", assumeYes))
+    : "";
+  const ttsChoice = normalizeChoice(
+    await ask("Voice provider: gtts, google, vibe, or skip", "gtts", assumeYes),
+    "gtts"
+  );
+  const googleTtsKey = ttsChoice === "google"
+    ? emptyIfSkipped(await ask("Google TTS API key (optional, use skip for ADC)", "", assumeYes))
+    : "";
+  const vibeTtsUrl = ttsChoice === "vibe"
+    ? emptyIfSkipped(await ask("VibeVoice URL (or skip)", "http://127.0.0.1:8088", assumeYes))
+    : "";
+  const falKey = emptyIfSkipped(await ask("Fal.ai image API key (optional, use skip to disable)", "", assumeYes));
+  const memoryChoice = normalizeChoice(
+    await ask("Memory mode: built-in, openmind-cloud, or openmind-local", "built-in", assumeYes),
+    "built-in"
+  );
+  const openmindEnabled = memoryChoice.startsWith("openmind");
+  const openmindBaseUrl = openmindEnabled
+    ? memoryChoice === "openmind-local"
+      ? emptyIfSkipped(await ask("OpenMind local URL", "http://127.0.0.1:3333", assumeYes))
+      : emptyIfSkipped(await ask("OpenMind cloud URL", "https://theopenmind.pro", assumeYes))
+    : "";
+  const openmindKey = openmindEnabled
+    ? emptyIfSkipped(await ask("OpenMind API key (om_..., optional for unauthenticated local dev)", "", assumeYes))
     : "";
 
   const settings = readJson(settingsExample);
   settings.AGENT_NAME = displayName;
+  settings.INPUT_CHANNEL = "telegram";
   settings.telegram_token = telegramToken;
   settings.TELEGRAM_OWNER_ID = ownerId;
-  settings.LLM_PROVIDER = provider;
+  settings.LLM_PROVIDER = provider === "skip" ? "ollama" : provider;
   settings.OPENROUTER_API_KEY = openRouterKey;
   settings.ZAI_API_KEY = zaiKey;
-  settings.LLM_FALLBACK.ORDER = provider === "ollama" ? ["ollama"] : [provider, "ollama"];
+  settings.LLM_FALLBACK.ENABLED = provider !== "skip";
+  settings.LLM_FALLBACK.ORDER = provider === "skip"
+    ? ["ollama"]
+    : provider === "ollama"
+      ? ["ollama"]
+      : [provider, "ollama"];
+  settings.TTS_PROVIDER = ttsChoice === "skip" ? "none" : ttsChoice;
+  settings.GOOGLE_TTS_API_KEY = googleTtsKey;
+  settings.vibe_tts_url = vibeTtsUrl;
+  settings.FAL_API_KEY = falKey;
+  settings.OPENMIND_ENABLED = openmindEnabled;
+  settings.OPENMIND_MODE = openmindEnabled ? "hybrid" : "built-in";
+  settings.OPENMIND_BASE_URL = openmindBaseUrl || "https://theopenmind.pro";
+  settings.OPENMIND_API_KEY = openmindKey;
 
   const self = readJson(selfExample);
   self.who_i_am.name = displayName;
@@ -203,7 +271,7 @@ async function setupProject(args) {
   ensureDir(path.join(process.cwd(), "myvids"));
 
   console.log("Alive-AI config created.");
-  console.log("Run `npx . demo` to preview the dashboard or `npx . start` to start the runtime.");
+  console.log("Run `npx . chat` for terminal chat, `npx . demo` for the dashboard preview, or `npx . start` for Telegram/runtime mode.");
 }
 
 function findCommand(candidates) {
@@ -214,12 +282,13 @@ function findCommand(candidates) {
   return null;
 }
 
-function doctor() {
+async function doctor() {
   const python = findCommand(["python3.11", "python3", "python"]);
   const uv = findCommand(["uv"]);
   const ffmpeg = findCommand(["ffmpeg"]);
   const docker = findCommand(["docker"]);
   const node = process.version;
+  const settings = readProjectSettings();
 
   console.log("Alive-AI doctor");
   console.log(`  system: ${os.platform()} ${os.arch()}`);
@@ -228,6 +297,7 @@ function doctor() {
   console.log(`  uv:     ${uv || "missing, will use venv + pip"}`);
   console.log(`  ffmpeg: ${ffmpeg || "missing, voice conversion may be limited"}`);
   console.log(`  docker: ${docker || "missing, Redis can still be external"}`);
+  console.log(`  input:  ${settings.INPUT_CHANNEL || "telegram"}`);
 
   if (!python) {
     console.log("");
@@ -235,6 +305,23 @@ function doctor() {
     if (process.platform === "darwin") console.log("  brew install python@3.11");
     else if (process.platform === "win32") console.log("  winget install Python.Python.3.11");
     else console.log("  sudo apt install python3.11 python3.11-venv");
+  }
+
+  if (settings.OPENMIND_ENABLED) {
+    const baseUrl = String(settings.OPENMIND_BASE_URL || "https://theopenmind.pro").replace(/\/$/, "");
+    const headers = {};
+    if (settings.OPENMIND_API_KEY) headers.authorization = `Bearer ${settings.OPENMIND_API_KEY}`;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      const response = await fetch(`${baseUrl}/health`, { headers, signal: controller.signal });
+      clearTimeout(timer);
+      console.log(`  OpenMind: ${response.ok ? "reachable" : `HTTP ${response.status}`} (${baseUrl})`);
+    } catch (error) {
+      console.log(`  OpenMind: unreachable (${baseUrl})`);
+    }
+  } else {
+    console.log("  OpenMind: disabled");
   }
 
   if (!python) process.exitCode = 1;
@@ -284,8 +371,15 @@ function startRuntime(args) {
     return;
   }
   const pythonBin = ensurePythonEnv(hasFlag(args, "--skip-install"));
-  const child = spawn(pythonBin, ["main.py"], { stdio: "inherit", cwd: process.cwd() });
+  const extraArgs = [];
+  const inputChannel = argValue(args, "--input", null);
+  if (inputChannel) extraArgs.push("--input", inputChannel);
+  const child = spawn(pythonBin, ["main.py", ...extraArgs], { stdio: "inherit", cwd: process.cwd() });
   child.on("exit", (code) => process.exit(code || 0));
+}
+
+function startTerminalChat(args) {
+  return startRuntime(["--input", "terminal", ...args]);
 }
 
 function demoHtml() {
@@ -372,6 +466,7 @@ async function main() {
   if (command === "setup") return setupProject(args);
   if (command === "demo") return startDemo(args);
   if (command === "start") return startRuntime(args);
+  if (command === "chat") return startTerminalChat(args);
   if (command === "doctor") return doctor();
   console.error(`Unknown command: ${command}`);
   usage();

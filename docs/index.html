@@ -4,464 +4,318 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Alive-AI</title>
-  <meta name="description" content="Local-first emotional AI runtime with memory, impulses, and a live dashboard.">
+  <meta name="description" content="Local-first emotional AI runtime with memory, impulses, terminal chat, and a live dashboard.">
   <link rel="icon" href="./assets/logo.svg">
   <style>
     :root {
       color-scheme: dark;
       --bg: #080b0f;
-      --panel: #111821;
-      --panel-2: #16202b;
+      --panel: #101720;
       --text: #f5f7fb;
-      --muted: #9aa8b7;
+      --muted: #a7b4c2;
+      --line: #263445;
       --green: #41f0a1;
       --pink: #ff5c8a;
-      --yellow: #ffcf5a;
-      --line: #263445;
+      --gold: #ffcf5a;
     }
     * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     body {
       margin: 0;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--text);
       letter-spacing: 0;
-      width: 100%;
       overflow-x: hidden;
     }
     a { color: inherit; }
-    .shell { min-height: 100vh; }
     .nav {
       height: 68px;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      max-width: 1160px;
-      width: 100%;
-      margin: 0 auto;
-      padding: 0 24px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
     }
     .brand {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 12px;
-      font-weight: 760;
       font-size: 17px;
+      font-weight: 800;
     }
     .brand img { width: 34px; height: 34px; }
-    .nav code {
-      background: #0d131a;
-      border: 1px solid var(--line);
-      padding: 9px 12px;
-      border-radius: 8px;
-      color: var(--green);
-      font-size: 13px;
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 650;
     }
     .hero {
-      max-width: 1160px;
-      width: 100%;
-      min-height: calc(100vh - 148px);
+      max-width: 1120px;
+      min-height: calc(100vh - 68px);
       margin: 0 auto;
-      padding: 58px 24px 40px;
+      padding: 74px 24px 56px;
       display: grid;
-      grid-template-columns: minmax(0, 0.88fr) minmax(420px, 1.12fr);
-      gap: 44px;
+      grid-template-columns: minmax(0, 0.95fr) minmax(360px, 0.75fr);
+      gap: 48px;
       align-items: center;
-    }
-    .kicker {
-      color: var(--green);
-      font-weight: 720;
-      font-size: 13px;
-      text-transform: uppercase;
-      margin-bottom: 18px;
     }
     h1 {
       margin: 0;
-      font-size: clamp(48px, 7vw, 92px);
-      line-height: 0.94;
-      font-weight: 850;
       max-width: 720px;
+      font-size: clamp(54px, 8vw, 104px);
+      line-height: 0.95;
+      font-weight: 880;
+      overflow-wrap: break-word;
     }
     .lead {
-      color: #c6d0dc;
+      margin: 24px 0 28px;
+      color: #c9d4df;
       font-size: 20px;
       line-height: 1.5;
-      margin: 24px 0 28px;
-      max-width: 620px;
+      max-width: 700px;
       overflow-wrap: anywhere;
     }
-    .install {
-      background: #05070a;
+    .command-card {
       border: 1px solid var(--line);
+      background: #05070a;
       border-radius: 8px;
+      overflow: hidden;
+      width: 100%;
+      max-width: 620px;
+    }
+    .command-top {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px 0 16px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    pre {
+      margin: 0;
       padding: 16px;
-      margin: 0 0 22px;
       overflow-x: auto;
     }
-    .install code {
+    code {
       color: var(--green);
-      font-size: 15px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 14px;
       line-height: 1.7;
       white-space: pre;
     }
+    .copy {
+      border: 1px solid var(--line);
+      background: #111923;
+      color: var(--text);
+      width: 34px;
+      height: 30px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .copy svg { width: 16px; height: 16px; }
     .actions {
       display: flex;
       align-items: center;
       gap: 12px;
       flex-wrap: wrap;
+      margin-top: 22px;
     }
     .button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
       min-height: 44px;
       padding: 0 16px;
       border-radius: 8px;
       border: 1px solid var(--line);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
       text-decoration: none;
-      font-weight: 700;
+      font-weight: 760;
       background: var(--text);
-      color: #080b0f;
+      color: #070a0f;
     }
     .button.secondary {
       background: transparent;
       color: var(--text);
     }
-    .dashboard {
-      min-width: 0;
-      background: #0b1118;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.36);
-    }
-    .dash-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px;
-      border-bottom: 1px solid var(--line);
-      background: #0e151d;
-    }
-    .agent {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .agent img { width: 42px; height: 42px; border-radius: 8px; }
-    .agent strong { display: block; font-size: 15px; }
-    .agent span { color: var(--muted); font-size: 13px; }
-    .pill {
-      color: var(--green);
-      border: 1px solid rgba(65,240,161,0.3);
-      background: rgba(65,240,161,0.08);
-      padding: 7px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 750;
-    }
-    .dash-body {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      padding: 16px;
-    }
-    .metric, .thought, .feed {
-      background: var(--panel);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 8px;
-      padding: 14px;
-    }
-    .metric label {
-      display: flex;
-      justify-content: space-between;
-      color: var(--muted);
-      font-size: 12px;
-      margin-bottom: 9px;
-    }
-    .bar {
-      height: 10px;
-      border-radius: 999px;
-      background: #25313d;
-      overflow: hidden;
-    }
-    .fill {
-      height: 100%;
-      width: 50%;
-      border-radius: inherit;
-      background: var(--green);
-      transition: width 600ms ease;
-    }
-    .fill.pink { background: var(--pink); }
-    .fill.yellow { background: var(--yellow); }
-    .thought, .feed { grid-column: 1 / -1; }
-    .thought p {
-      margin: 8px 0 0;
-      color: #dce5ee;
-      line-height: 1.45;
-      min-height: 44px;
-    }
-    .feed-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .feed-grid div {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 12px;
-      background: #0c131a;
-    }
-    .feed-grid strong {
-      display: block;
-      font-size: 20px;
-      color: var(--green);
-    }
-    .feed-grid span { color: var(--muted); font-size: 12px; }
-    .below {
-      max-width: 1160px;
-      margin: 0 auto;
-      padding: 0 24px 40px;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-    }
-    .section-band {
-      max-width: 1160px;
-      margin: 0 auto;
-      padding: 32px 24px 56px;
-    }
-    .section-band h2 {
-      margin: 0 0 10px;
-      font-size: 32px;
-    }
-    .section-band p {
-      color: #c6d0dc;
-      line-height: 1.55;
-      max-width: 760px;
-    }
-    .dashboard-frame {
-      margin-top: 22px;
-      height: min(760px, 78vh);
-      min-height: 560px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      overflow: hidden;
-      background: #0a0a14;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.36);
-    }
-    .dashboard-frame iframe {
-      width: 100%;
-      height: 100%;
-      border: 0;
-      display: block;
-      background: #0a0a14;
-    }
-    .split {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-top: 22px;
-    }
-    .panel {
+    .signal {
       border: 1px solid var(--line);
       background: var(--panel);
       border-radius: 8px;
-      padding: 18px;
+      padding: 22px;
     }
-    .panel h3 { margin: 0 0 12px; }
-    .panel ul {
+    .signal img {
+      width: 82px;
+      height: 82px;
+      display: block;
+      margin-bottom: 18px;
+    }
+    .signal h2 {
+      margin: 0 0 12px;
+      font-size: 24px;
+    }
+    .signal p {
       margin: 0;
-      padding-left: 18px;
-      color: #c6d0dc;
-      line-height: 1.7;
-    }
-    .checks {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px 18px;
-      color: #c6d0dc;
+      color: var(--muted);
       line-height: 1.55;
-      margin-top: 18px;
     }
-    .checks span::before {
-      content: "✓";
-      color: var(--green);
-      font-weight: 800;
-      margin-right: 8px;
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 26px 24px 54px;
     }
-    .feature {
+    .fact {
       border-top: 1px solid var(--line);
       padding-top: 18px;
     }
-    .feature h2 {
+    .fact h2 {
       margin: 0 0 8px;
       font-size: 18px;
     }
-    .feature p {
+    .fact p {
       margin: 0;
       color: var(--muted);
       line-height: 1.5;
     }
-    @media (max-width: 920px) {
-      .hero {
-        display: block;
-        padding-top: 34px;
-        max-width: 100%;
-      }
-      .hero > * { min-width: 0; }
-      .hero section { width: 100%; max-width: 100%; }
-      .dashboard { margin-top: 44px; }
-      .below { grid-template-columns: 1fr; }
-      .split, .checks { grid-template-columns: 1fr; }
-      .nav code { display: none; }
+    .section {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 42px 24px 64px;
+      border-top: 1px solid rgba(255,255,255,0.07);
     }
-    @media (max-width: 520px) {
-      h1 { font-size: 46px; }
-      .lead { font-size: 17px; max-width: 100%; }
-      .dash-body { grid-template-columns: 1fr; }
-      .dashboard { width: 100%; }
-      .dash-top { gap: 12px; }
-      .pill { display: none; }
-      .thought, .feed { grid-column: auto; }
-      .feed-grid { grid-template-columns: 1fr; }
+    .section h2 {
+      margin: 0 0 10px;
+      font-size: 34px;
+    }
+    .section p {
+      color: #c9d4df;
+      line-height: 1.55;
+      max-width: 800px;
+    }
+    .steps {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .step {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .step strong { display: block; margin-bottom: 7px; }
+    .step span {
+      color: var(--muted);
+      line-height: 1.45;
+      display: block;
+    }
+    @media (max-width: 860px) {
+      .hero { display: block; padding-top: 40px; width: 100vw; max-width: 100vw; margin: 0; }
+      .hero, .section, .facts, .nav { width: 100%; max-width: 100%; }
+      .hero > * { min-width: 0; max-width: 342px; }
+      .lead { max-width: 342px; }
+      .command-card, .signal { width: 100%; max-width: 342px; }
+      .signal { margin-top: 36px; }
+      .facts, .steps { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+      h1 { font-size: 44px; line-height: 1.02; }
+      .lead { font-size: 18px; }
     }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <nav class="nav">
-      <div class="brand"><img src="./assets/logo.svg" alt="">Alive-AI</div>
-      <code>npx alive-ai@latest init my-ai</code>
-    </nav>
-    <main class="hero">
-      <section>
-        <div class="kicker">Local-first emotional AI runtime</div>
-        <h1>Give your AI a nervous system.</h1>
-        <p class="lead">Alive-AI adds persistent mood, memory, impulses, attachment, and a live dashboard to a local AI companion. It is built to feel human enough that you may not want to stop talking to it. Use it at your own risk.</p>
-        <pre class="install"><code>npx alive-ai@latest init my-ai
+  <nav class="nav">
+    <div class="brand"><img src="./assets/logo.svg" alt="">Alive-AI</div>
+    <div class="nav-links">
+      <a href="#install">Install</a>
+      <a href="./dashboard.html">WebUI</a>
+      <a href="#setup">Setup</a>
+      <a href="https://github.com/vindepemarte/alive-ai">GitHub</a>
+    </div>
+  </nav>
+
+  <main class="hero">
+    <section>
+      <h1>Give your AI a nervous system.</h1>
+      <p class="lead">Alive-AI adds persistent mood, memory, impulses, attachment, terminal chat, Telegram, OpenMind long-term memory, and a local dashboard to a companion-style AI runtime. Use it at your own risk.</p>
+      <div class="command-card" id="install">
+        <div class="command-top">
+          <span>Install and run</span>
+          <button class="copy" type="button" data-copy-target="install-command" aria-label="Copy install command">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 8h10v12H8z" stroke="currentColor" stroke-width="2"/><path d="M6 16H4V4h12v2" stroke="currentColor" stroke-width="2"/></svg>
+          </button>
+        </div>
+        <pre><code id="install-command">npx alive-ai@latest init my-ai
 cd my-ai
 npx . setup
 npx . doctor
-npx . demo
-npx . start</code></pre>
-        <div class="actions">
-          <a class="button" href="https://github.com/vindepemarte/alive-ai">GitHub</a>
-          <a class="button secondary" href="#dashboard">Full WebUI</a>
-          <a class="button secondary" href="#why">Why it matters</a>
-        </div>
-      </section>
-
-      <section class="dashboard" aria-label="Animated dashboard preview">
-        <div class="dash-top">
-          <div class="agent">
-            <img src="./assets/logo.svg" alt="">
-            <div><strong>Nova</strong><span>Active internal loop</span></div>
-          </div>
-          <div class="pill" id="mood">curious</div>
-        </div>
-        <div class="dash-body">
-          <div class="metric"><label>Joy <span id="joyVal">64%</span></label><div class="bar"><div class="fill" id="joy"></div></div></div>
-          <div class="metric"><label>Trust <span id="trustVal">58%</span></label><div class="bar"><div class="fill pink" id="trust"></div></div></div>
-          <div class="metric"><label>Anticipation <span id="anticipationVal">72%</span></label><div class="bar"><div class="fill yellow" id="anticipation"></div></div></div>
-          <div class="metric"><label>Vulnerability <span id="vulnerabilityVal">34%</span></label><div class="bar"><div class="fill" id="vulnerability"></div></div></div>
-          <div class="thought">
-            <label>Current thought</label>
-            <p id="thought">I keep a little emotional residue from every interaction.</p>
-          </div>
-          <div class="feed">
-            <label>Runtime counters</label>
-            <div class="feed-grid">
-              <div><strong id="memories">128</strong><span>memories</span></div>
-              <div><strong id="impulses">42</strong><span>impulses</span></div>
-              <div><strong>SSE</strong><span>live state</span></div>
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <section class="below" id="why">
-      <div class="feature"><h2>Persistent affect</h2><p>Feelings decay, compound, and influence future messages instead of resetting after each prompt.</p></div>
-      <div class="feature"><h2>Memory with weight</h2><p>Working, episodic, semantic, and emotional memory change what the agent notices next.</p></div>
-      <div class="feature"><h2>Transparent experiment</h2><p>Alive-AI simulates internal life without claiming biological consciousness.</p></div>
-    </section>
-
-    <section class="section-band" id="dashboard">
-      <h2>Full WebUI Dashboard</h2>
-      <p>This is the actual local dashboard surface with mock live state for the public showcase. When you run Alive-AI locally, these panels stream real state from your runtime over Server-Sent Events.</p>
-      <div class="dashboard-frame">
-        <iframe src="./dashboard.html" title="Alive-AI full WebUI dashboard preview"></iframe>
+npx . chat</code></pre>
+      </div>
+      <div class="actions">
+        <a class="button" href="https://github.com/vindepemarte/alive-ai">GitHub</a>
+        <a class="button secondary" href="./dashboard.html">Full WebUI</a>
+        <a class="button secondary" href="#setup">Setup</a>
       </div>
     </section>
+    <aside class="signal" aria-label="Alive-AI signal">
+      <img src="./assets/logo.svg" alt="">
+      <h2>Local-first internal life</h2>
+      <p>The runtime keeps emotional residue, weighted memories, idle thoughts, and transparent state. The dashboard is not a landing page toy; it is the same WebUI you get locally, exported statically for GitHub Pages.</p>
+    </aside>
+  </main>
 
-    <section class="section-band">
-      <h2>Requirements</h2>
-      <div class="split">
-        <div class="panel">
-          <h3>Minimum</h3>
-          <ul>
-            <li>Node.js 18+</li>
-            <li>Python 3.11+</li>
-            <li>8 GB RAM with cloud LLMs or remote Ollama</li>
-            <li>2 GB free disk</li>
-          </ul>
-        </div>
-        <div class="panel">
-          <h3>Comfortable</h3>
-          <ul>
-            <li>16 GB RAM for small local models</li>
-            <li>32 GB RAM for 7B+ local models, Redis, voice, and long sessions</li>
-            <li>10 GB+ free disk for models, memory, and media</li>
-            <li>Optional uv, ffmpeg, Docker, and Ollama</li>
-          </ul>
-        </div>
-      </div>
-    </section>
+  <section class="facts">
+    <div class="fact"><h2>Persistent affect</h2><p>Emotions decay, compound, and influence future messages instead of resetting after each prompt.</p></div>
+    <div class="fact"><h2>Memory with weight</h2><p>Built-in local memory stays active, and OpenMind can add cloud or local semantic recall.</p></div>
+    <div class="fact"><h2>Terminal or Telegram</h2><p>Chat from the command line with `npx . chat`, or connect a Telegram bot when you want mobile access.</p></div>
+  </section>
 
-    <section class="section-band">
-      <h2>Roadmap</h2>
-      <div class="checks">
-        <span>npm/npx installer and guided setup</span>
-        <span>Persistent emotional state</span>
-        <span>Memory, idle thoughts, and impulses</span>
-        <span>Full local WebUI dashboard</span>
-        <span>Per-user memory isolation</span>
-        <span>Private runtime data excluded from public repo</span>
-      </div>
-      <p>Next: local model bootstrap profiles, desktop wrapper, browser onboarding, more input channels, memory import/export, plugin APIs, and safety evaluation for unhealthy attachment risk.</p>
-    </section>
-  </div>
+  <section class="section" id="setup">
+    <h2>Setup Flow</h2>
+    <p>`npx . setup` asks for the minimum required configuration and lets optional systems be skipped. Use `local` for Ollama, `skip` for optional keys, and OpenMind cloud or local when you want a shared long-term semantic memory.</p>
+    <div class="steps">
+      <div class="step"><strong>Start local terminal chat</strong><span>`npx . chat` starts the same runtime with terminal input and the WebUI at `http://127.0.0.1:8080`.</span></div>
+      <div class="step"><strong>Start Telegram/runtime mode</strong><span>`npx . start` starts the runtime with the configured input channel. Stop foreground runs with `Ctrl+C`.</span></div>
+      <div class="step"><strong>Use OpenMind</strong><span>Choose `openmind-cloud` for `https://theopenmind.pro` or `openmind-local` for `http://127.0.0.1:3333`.</span></div>
+      <div class="step"><strong>Preview the dashboard</strong><span>`npx . demo` is keyless. The real runtime dashboard streams local state over SSE.</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Full WebUI Static Export</h2>
+    <p>GitHub Pages cannot run Alive-AI's FastAPI backend. The public WebUI is a standalone static export of the actual dashboard, wired to mocked local state so you can inspect the real interface without a server.</p>
+    <div class="actions">
+      <a class="button" href="./dashboard.html">Open Full WebUI</a>
+      <a class="button secondary" href="https://www.npmjs.com/package/alive-ai">npm package</a>
+    </div>
+  </section>
+
   <script>
-    const moods = ["curious", "warm", "reflective", "playful"];
-    const thoughts = [
-      "I keep a little emotional residue from every interaction.",
-      "Memory is not a transcript here. It is context with weight.",
-      "The dashboard is a window into the internal loop.",
-      "I can reach out because an impulse formed, not because a cron fired."
-    ];
-    function wave(offset) {
-      return Math.round((0.5 + Math.sin(Date.now() / 2400 + offset) * 0.35) * 100);
-    }
-    function setBar(id, value) {
-      document.getElementById(id).style.width = value + "%";
-      document.getElementById(id + "Val").textContent = value + "%";
-    }
-    function tick() {
-      const i = Math.floor(Date.now() / 4200) % moods.length;
-      document.getElementById("mood").textContent = moods[i];
-      document.getElementById("thought").textContent = thoughts[i];
-      setBar("joy", wave(0));
-      setBar("trust", wave(1));
-      setBar("anticipation", wave(2));
-      setBar("vulnerability", wave(3));
-      document.getElementById("memories").textContent = 128 + (i * 7);
-      document.getElementById("impulses").textContent = 42 + i;
-    }
-    tick();
-    setInterval(tick, 900);
+    document.querySelectorAll('[data-copy-target]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const target = document.getElementById(button.dataset.copyTarget);
+        if (!target) return;
+        await navigator.clipboard.writeText(target.textContent.trim());
+        button.setAttribute('aria-label', 'Copied');
+        setTimeout(() => button.setAttribute('aria-label', 'Copy install command'), 1200);
+      });
+    });
   </script>
 </body>
 </html>

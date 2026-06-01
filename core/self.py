@@ -52,7 +52,7 @@ class Self:
         # Default Mode Network (background idle processing)
         self._default_mode = None
 
-    async def start(self):
+    async def start(self, input_channel: str = "telegram"):
         """Start the AI system"""
         # Set the active settings path for this async context
         settings_path = self.base / "config" / "settings.json"
@@ -71,7 +71,7 @@ class Self:
         name = self.config.identity.get("name", "AI")
 
         # Load modules via initialization module
-        await load_modules(self)
+        await load_modules(self, input_channel=input_channel)
 
         # Init Subconscious
         from brain.subconscious import SubconsciousLoop

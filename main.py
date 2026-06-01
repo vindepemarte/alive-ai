@@ -8,6 +8,7 @@ or:
 """
 
 import asyncio
+import argparse
 import json
 import os
 import sys
@@ -60,7 +61,19 @@ def ensure_config() -> dict:
     return load_settings_to_env(settings_path)
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the Alive-AI local runtime.")
+    parser.add_argument(
+        "--input",
+        choices=["telegram", "terminal"],
+        default=None,
+        help="Input channel to use for this run.",
+    )
+    return parser.parse_args()
+
+
 async def main() -> None:
+    args = parse_args()
     load_env_file(ROOT / ".env")
     load_env_file(ROOT / "config" / "secrets.env")
     settings = ensure_config()
@@ -83,7 +96,8 @@ async def main() -> None:
         except Exception as exc:
             print(f"[Alive-AI] WebUI unavailable: {exc}")
 
-    await ai.start()
+    input_channel = args.input or os.environ.get("ALIVE_AI_INPUT_CHANNEL") or settings.get("INPUT_CHANNEL", "telegram")
+    await ai.start(input_channel=input_channel)
 
 
 if __name__ == "__main__":

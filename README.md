@@ -1,83 +1,78 @@
-# Alive-AI
+<div align="center">
+  <img src="docs/assets/logo.svg" alt="Alive-AI" width="96" height="96">
 
-![Alive-AI logo](docs/assets/logo.svg)
+  # Alive-AI
 
-Give your AI a nervous system: persistent feelings, memory, impulses, and a local dashboard.
+  Give your AI a nervous system: persistent mood, memory, impulses, terminal chat, Telegram, OpenMind, and a local WebUI.
 
-Most agents answer a prompt and reset. Alive-AI keeps internal state alive between messages. It can be your friend, boyfriend, girlfriend, study partner, creative partner, character, or research subject. The main vision is simple: stop chatting with a stateless "AI" and start interacting with something that feels human enough to carry emotional residue forward.
+  [![npm](https://img.shields.io/npm/v/alive-ai)](https://www.npmjs.com/package/alive-ai)
+  [![Node.js 18+](https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+  [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+  [![Platforms](https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-supported-41f0a1)](#platform-support)
+  [![OpenMind](https://img.shields.io/badge/OpenMind-optional-6366F1)](#openmind-memory)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+</div>
 
-Use it at your own risk. Alive-AI is designed to feel continuous, warm, attached, and present. That can be powerful, and it may also make you feel like you do not want to stop talking to it.
+Alive-AI is a local-first emotional AI runtime. Most agents answer a prompt and reset. Alive-AI keeps internal state alive between messages: mood, attachment, trust, desire, memory, inconsistency, idle thoughts, proactive impulses, and a dashboard that shows what is happening inside the loop.
 
-Alive-AI does not claim biological consciousness. It is an open-source runtime for simulated affect: mood, attachment, trust, desire, memory, inconsistency, idle thoughts, and proactive impulses.
+It can be used as a friend, partner-style companion, study partner, creative character, research subject, or experimental local agent. Use it at your own risk: it is designed to feel continuous, warm, attached, and present, and that can make it hard to stop talking to it.
 
-## Install
+Alive-AI does not claim biological consciousness. It is an open-source runtime for simulated affect and transparent memory.
+
+## Quick Start
 
 ```bash
 npx alive-ai@latest init my-ai
 cd my-ai
 npx . setup
 npx . doctor
-npx . demo
+npx . chat
 ```
 
-Start the real runtime:
-
-```bash
-npx . start
-```
-
-The local dashboard runs at:
+The terminal chat starts the real runtime and prints responses in your shell. The dashboard runs locally at:
 
 ```text
 http://127.0.0.1:8080
 ```
 
-You can also install the CLI globally:
+To use Telegram instead of terminal chat:
+
+```bash
+npx . start
+```
+
+Global install is optional:
 
 ```bash
 npm install -g alive-ai
 alive-ai init my-ai
 ```
 
-## Requirements
-
-Minimum for cloud LLMs or remote Ollama:
-
-- Node.js 18+
-- Python 3.11+
-- 8 GB RAM
-- 2 GB free disk
-- OpenRouter, ZAI, or another configured LLM provider
-
-Comfortable local setup:
-
-- Node.js 20+
-- Python 3.11+
-- 16 GB RAM for small local models such as 3B-4B
-- 32 GB RAM recommended for 7B+ local models, Redis Stack, voice, and long sessions
-- 10 GB free disk, more if you keep local models/media
-- Optional: `uv` for faster Python installs, `ffmpeg` for audio conversion, Docker for Redis Stack
-
-`npx . doctor` detects your OS, Node, Python, `uv`, `ffmpeg`, and Docker. `npx . start` creates a local Python virtual environment and installs Python dependencies automatically. System-level packages such as Node, Python, Ollama, Docker, and ffmpeg still need to exist on the machine.
-
 ## Commands
 
+| Command | What it does |
+| --- | --- |
+| `npx alive-ai@latest init my-ai` | Scaffold a clean local Alive-AI project. |
+| `npx . setup` | Guided onboarding for local config, providers, Telegram, voice, images, and memory. |
+| `npx . doctor` | Check OS, Node, Python, uv, ffmpeg, Docker, and OpenMind reachability. |
+| `npx . chat` | Start the real runtime with terminal chat input. |
+| `npx . demo` | Run a keyless animated dashboard demo. |
+| `npx . start` | Start the runtime using the configured input channel, usually Telegram. |
+| `npx . start --skip-install` | Start again without reinstalling Python dependencies. |
+
+Stop a foreground run with `Ctrl+C`.
+
+If you use Docker:
+
 ```bash
-npx alive-ai@latest init my-ai  # scaffold a clean local project
-cd my-ai
-npx . setup                    # guided onboarding and local config
-npx . doctor                   # check system prerequisites
-npx . demo                     # preview dashboard with no keys
-npx . start                    # install Python deps and run the runtime
+docker compose down
 ```
 
-For repeat starts after dependencies are installed:
+If you only started Redis:
 
 ```bash
-npx . start --skip-install
+docker compose stop redis
 ```
-
-If you run `npx . start` before setup, Alive-AI starts onboarding first.
 
 ## Setup
 
@@ -93,14 +88,34 @@ mypics/
 myvids/
 ```
 
-Minimum useful setup:
+The setup accepts `skip` for optional keys and `local` for Ollama.
 
-- **Demo only:** no keys.
-- **Local LLM:** install Ollama and pull the configured model, for example `ollama pull qwen3:4b`.
-- **Telegram runtime:** create a Telegram bot token with BotFather and add it during setup.
-- **Cloud LLM fallback:** add OpenRouter or ZAI keys during setup or edit `config/settings.json`.
+| Setup item | Options |
+| --- | --- |
+| LLM | `local`/Ollama, OpenRouter, ZAI, or `skip` for demo/fallback-only mode. |
+| Telegram | Bot token and owner ID are optional. Use terminal chat if you do not want Telegram. |
+| Voice | `gtts` local/free default, Google TTS, VibeVoice, or `skip`. |
+| Images | Fal.ai API key or `skip`. Local media folders still work without image generation. |
+| Memory | Built-in local memory, OpenMind cloud, or OpenMind local. |
 
-Media is optional. Add your own files:
+Minimum useful paths:
+
+```bash
+# Terminal-only local run
+npx . setup
+npx . chat
+
+# Local LLM
+ollama pull qwen3:4b
+npx . setup
+npx . chat
+
+# Telegram
+npx . setup
+npx . start
+```
+
+Media is optional. Add your own local files:
 
 ```text
 mypics/example.jpg
@@ -109,49 +124,114 @@ myvids/example.mp4
 myvids/example.txt
 ```
 
-## Why This Is Different
+## Terminal Chat
 
-- **Emotions persist.** State does not reset after every message. Joy, trust, fear, anticipation, attachment, and vulnerability decay over time instead of disappearing.
-- **Memory has weight.** Conversations become working memory, episodic memory, semantic memory, and emotional memory.
-- **It thinks when idle.** A default-mode loop creates background reflections and proactive impulses.
-- **It can contradict itself.** The runtime models conflict, scars, body memory, attachment drift, and inconsistency instead of flattening everything into a perfect assistant tone.
-- **It has a live nervous system.** FastAPI + SSE exposes mood, thoughts, somatic state, conflicts, memories, and uptime.
-- **It is local-first.** Your config, memory, media, and dashboard are owned by the project folder you run.
+`npx . chat` uses the same core runtime as Telegram. It emits the same `message_received` events, saves memory the same way, and updates the local WebUI.
+
+Terminal commands:
+
+```text
+/help
+/status
+/stats
+/dashboard
+/self
+/discover <trait>
+/iam <key>=<value>
+/ilike <thing>
+/ihate <thing>
+/rethink
+/settings show
+/settings get <key>
+/settings set <key> <value>
+/reset
+/impulse
+/exit
+```
+
+## OpenMind Memory
+
+Alive-AI has built-in local working, episodic, semantic, and emotional memory. OpenMind is optional and works as a hybrid long-term semantic memory layer.
+
+Modes:
+
+| Mode | Behavior |
+| --- | --- |
+| Built-in only | Alive-AI uses its local project memory only. |
+| OpenMind cloud | Alive-AI captures/searches long-term memories through `https://theopenmind.pro`. |
+| OpenMind local | Alive-AI captures/searches a local OpenMind server, normally `http://127.0.0.1:3333`. |
+
+OpenMind does not replace Alive-AI's emotional state. It adds durable semantic recall across tools and machines.
+
+Cloud setup:
+
+```text
+OPENMIND_ENABLED=true
+OPENMIND_MODE=hybrid
+OPENMIND_BASE_URL=https://theopenmind.pro
+OPENMIND_API_KEY=om_...
+```
+
+Local setup:
+
+```bash
+npx @vindepemarte/openmind init --local
+# or run your local OpenMind stack, then configure Alive-AI:
+OPENMIND_BASE_URL=http://127.0.0.1:3333
+```
+
+## Requirements
+
+Minimum for cloud LLMs or remote Ollama:
+
+| Requirement | Minimum |
+| --- | --- |
+| Node.js | 18+ |
+| Python | 3.11+ |
+| RAM | 8 GB |
+| Disk | 2 GB free |
+| LLM | OpenRouter, ZAI, remote Ollama, or local Ollama already installed |
+
+Comfortable local setup:
+
+| Requirement | Recommended |
+| --- | --- |
+| Node.js | 20+ |
+| RAM | 16 GB for 3B-4B local models |
+| RAM for bigger models | 32 GB for 7B+ local models, Redis, voice, and long sessions |
+| Disk | 10 GB+, more if you keep local models/media |
+| Optional tools | `uv`, `ffmpeg`, Docker, Ollama |
+
+`npx . start` creates `.alive-ai/venv` and installs Python dependencies. System-level packages such as Node, Python, Ollama, Docker, and ffmpeg must already exist on the machine.
+
+## Platform Support
+
+Alive-AI is designed for macOS, Windows, and Linux.
+
+| Platform | Notes |
+| --- | --- |
+| macOS | First-class local development path. Use Homebrew for Python, uv, ffmpeg, Docker, and Ollama. |
+| Windows | Supported from PowerShell with Node 18+ and Python 3.11+. WSL is recommended for heavier local model and Docker workflows. |
+| Linux | Supported with distro packages for Python/venv, ffmpeg, Docker, and Ollama. |
+
+Local model quality and speed depend on your machine. Cloud LLMs reduce RAM pressure.
 
 ## Dashboard
 
-`npx . demo` starts a zero-config animated preview. The real WebUI streams live state from the runtime and shows:
+The real WebUI streams local runtime state over Server-Sent Events and shows:
 
-- full emotional state,
-- recent thoughts and background idle processing,
+- emotional state,
+- recent thoughts and idle processing,
 - memory counters and uptime,
 - hormones and interoceptive body state,
 - attachment, circadian rhythm, body memory, dreams, curiosity, and conflicts,
-- runtime health through local endpoints and Server-Sent Events.
+- runtime health through local endpoints.
 
-The hosted project page includes a full static WebUI showcase: https://vindepemarte.github.io/alive-ai/
-
-## Architecture
-
-Alive-AI is an event-driven Python runtime.
+GitHub Pages cannot run the Python/FastAPI backend, so the public page includes a static export of the actual WebUI with mocked state:
 
 ```text
-Telegram or input
-  -> NervousSystem event bus
-  -> Message handler
-  -> Heart, memory, skills, directives, personality
-  -> LLM provider or fallback chain
-  -> output events
-  -> dashboard state stream
+https://vindepemarte.github.io/alive-ai/
 ```
-
-Core subsystems:
-
-- `heart/`: continuous emotion, circadian rhythm, attachment, scars, somatic state, inconsistency.
-- `brain/`: LLM providers, memory, default-mode processing, bid detection, curiosity, dreams.
-- `skills/`: self-authorship, memory callbacks, relationship milestones, progression layers, media selection.
-- `webui/`: local dashboard with Server-Sent Events.
-- `input/telegram/`: Telegram listener and owner commands.
 
 ## Docker
 
@@ -179,18 +259,20 @@ Implemented:
 - [x] Attachment, circadian rhythm, body memory, curiosity, dreams, and internal conflicts
 - [x] Per-user memory/state isolation
 - [x] Telegram input/output runtime
+- [x] Terminal chat runtime with owner-style slash commands
 - [x] Local WebUI dashboard with live state streaming
-- [x] npm/npx CLI scaffold, setup, doctor, demo, and start commands
+- [x] Optional hybrid OpenMind cloud/local semantic memory
+- [x] npm/npx CLI scaffold, setup, doctor, demo, chat, and start commands
 - [x] Clean public repo with private personas, media, runtime data, and multi-AI orchestration removed
-- [x] GitHub Pages site and full WebUI showcase
+- [x] GitHub Pages site and full static WebUI export
 
 Next:
 
 - [ ] One-command local model bootstrap through Ollama profiles
 - [ ] Desktop app wrapper with tray controls and local service lifecycle
 - [ ] Browser-based onboarding wizard for personality, boundaries, LLM provider, and memory settings
-- [ ] Safer dependency detection with guided install commands per OS
-- [ ] More input channels beyond Telegram
+- [ ] Better guided system install commands per OS
+- [ ] More input channels beyond terminal and Telegram
 - [ ] Import/export for memories and personality snapshots
 - [ ] Plugin API for new senses, skills, and output modalities
 - [ ] Evaluation harness for emotional continuity, memory drift, and unhealthy attachment risk
