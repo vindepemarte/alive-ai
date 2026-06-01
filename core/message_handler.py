@@ -456,12 +456,23 @@ async def _process_single_message(self, data: dict):
                 interoception_tick()
             except Exception as e:
                 print(f"[Interoception] Tick error: {e}")
-        self.state.update_interaction()
-        if self._subconscious: self._subconscious.register_interaction()
         chat_id = data.get("chat_id")
         user_id = data.get("user_id", "")
+        self.state.update_interaction(user_id=user_id, chat_id=chat_id)
+        if self._subconscious: self._subconscious.register_interaction()
         if chat_id: self._default_chat_id = chat_id
         text = data.get("text", "")
+
+        circadian_interaction = {}
+        if CIRCADIAN_AVAILABLE:
+            try:
+                circadian_engine = get_circadian_engine()
+                circadian_interaction = circadian_engine.handle_user_interaction()
+                if circadian_interaction.get("woke_from_sleep"):
+                    print("[Circadian] Woken by user message")
+                await self.nervous.emit("circadian_update", circadian_interaction)
+            except Exception as e:
+                print(f"[Circadian] Interaction handling error: {e}")
 
         # User replied - reset follow-up state
         _follow_up.record_user_message()
@@ -482,6 +493,11 @@ async def _process_single_message(self, data: dict):
         user_memory = _get_or_create_user_memory(self, user_id)
 
         emotion = self._heart.react(text)
+        if circadian_interaction:
+            emotion["circadian"] = circadian_interaction
+            emotion["sleepiness"] = circadian_interaction.get("sleepiness", emotion.get("sleepiness", 0.0))
+            emotion["is_asleep"] = circadian_interaction.get("sleeping", False)
+            emotion["woke_from_sleep"] = circadian_interaction.get("woke_from_sleep", False)
 
         # No owner boost - let emotions develop authentically
         emotion["is_owner"] = is_owner  # Just flag for commands, no emotion changes

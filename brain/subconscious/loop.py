@@ -1,6 +1,8 @@
 """Brain: Subconscious Loop — continuous background process"""
-import asyncio, random
+import asyncio, json, random
+from datetime import datetime
 from typing import Callable, Optional
+from core.paths import state_file
 from .impulses import Impulse, ImpulseType
 from .impulse_generator import ImpulseGenerator
 from .working_memory import WorkingMemory
@@ -10,6 +12,11 @@ from .learning_system import LearningSystem
 from .goal_system import GoalSystem
 from .relationship_memory import RelationshipMemory
 from .relationship import MilestoneType
+
+
+def _subconscious_state_path(bot_id: str):
+    safe_bot_id = "".join(ch if ch.isalnum() or ch in ("_", "-") else "_" for ch in bot_id.lower())
+    return state_file(f"subconscious_state_{safe_bot_id or 'alive_ai'}.json")
 
 
 class SubconsciousLoop:
@@ -34,6 +41,8 @@ class SubconsciousLoop:
 
         # Message scheduler (for scheduled messages at specific times)
         self._message_scheduler = None
+        self._state_path = _subconscious_state_path(self.bot_id)
+        self._load_state_from_disk()
 
     async def start(self):
         if self.running: return
@@ -46,10 +55,12 @@ class SubconsciousLoop:
             self._task.cancel()
             try: await self._task
             except asyncio.CancelledError: pass
+        self.save_state()
 
     def register_interaction(self):
         self.evaluator.register_interaction()
         self.relationship.record_message_received()
+        self.save_state()
 
     def init_proactive_generator(self, llm=None, data_path=None):
         """Initialize proactive generator with LLM for contextual messages"""
@@ -77,13 +88,24 @@ class SubconsciousLoop:
         active = self.goals.get_active_goal()
         if active and response_sentiment > 0.3:
             self.goals.record_progress(active.type)
+        self.save_state()
 
     def record_milestone(self, mtype: str, desc: str):
-        try: self.relationship.record_milestone(MilestoneType(mtype), desc)
+        try:
+            self.relationship.record_milestone(MilestoneType(mtype), desc)
+            self.save_state()
         except ValueError: pass
 
     def record_experience(self, summary, sentiment=0.5, tags=None):
         self.relationship.record_experience(summary, sentiment, tags)
+        self.save_state()
+
+    def _get_circadian_state(self) -> dict:
+        try:
+            from heart.circadian import get_circadian_engine
+            return get_circadian_engine().get_state_summary()
+        except Exception:
+            return {}
 
     async def _loop(self):
         print("[Subconscious] Loop started - running every 30s")
@@ -91,6 +113,7 @@ class SubconsciousLoop:
             try:
                 await self._evaluate()
                 self.total_evaluations += 1
+                self.save_state()
                 if self.total_evaluations % 5 == 0:
                     print(f"[Subconscious] Evaluation #{self.total_evaluations} | Silence: {self.evaluator.get_silence_duration():.0f}min")
             except Exception as e:
@@ -98,35 +121,67 @@ class SubconsciousLoop:
             await asyncio.sleep(self.EVAL_INTERVAL)
 
     async def _evaluate(self):
-        impulse = await self.evaluator.evaluate(self.working_memory)
+        try:
+            circadian_state = self._get_circadian_state()
+            if circadian_state.get("sleeping"):
+                await self._rest_while_asleep(circadian_state)
+                return
 
-        # Check for scheduled messages FIRST (highest priority)
-        scheduled = self._check_scheduled_messages()
+            impulse = await self.evaluator.evaluate(self.working_memory)
 
-        # Check for follow-up (unanswered questions / silence)
-        follow_up = self._check_follow_up()
+            # Check for scheduled messages FIRST (highest priority)
+            scheduled = self._check_scheduled_messages()
 
-        # Handle scheduled messages with highest priority
-        if scheduled:
-            await self._handle_scheduled_messages(scheduled)
-            return  # Don't process other impulses after sending scheduled message
+            # Check for follow-up (unanswered questions / silence)
+            follow_up = self._check_follow_up()
 
-        if impulse:
-            print(f"[Subconscious] Impulse: {impulse.type.value} | strength: {impulse.strength:.2f} | can_act: {self._can_act()}")
-        if follow_up:
-            print(f"[Subconscious] Follow-up needed: {follow_up['type']} | silence: {follow_up['silence_minutes']:.0f}min")
+            # Handle scheduled messages with highest priority
+            if scheduled:
+                await self._handle_scheduled_messages(scheduled)
+                return  # Don't process other impulses after sending scheduled message
 
-        # Prioritize follow-ups over regular impulses.
-        if follow_up and self._can_act():
-            await self._handle_follow_up(follow_up)
-        elif impulse and impulse.should_act and self._can_act():
-            print(f"[Subconscious] ACTING on impulse: {impulse.action_hint}")
-            await self.action_handler.act_on_impulse(impulse, self.working_memory)
-        elif random.random() < 0.1:
-            thought_data = await self.evaluator.generate_background_thought(self.working_memory)
-            if thought_data:
-                # Emit thought to nervous system so WebUI can see it
-                await self.nervous.emit("subconscious_thought", thought_data)
+            if impulse:
+                print(f"[Subconscious] Impulse: {impulse.type.value} | strength: {impulse.strength:.2f} | can_act: {self._can_act()}")
+            if follow_up:
+                print(f"[Subconscious] Follow-up needed: {follow_up['type']} | silence: {follow_up['silence_minutes']:.0f}min")
+
+            # Prioritize follow-ups over regular impulses.
+            if follow_up and self._can_act():
+                await self._handle_follow_up(follow_up)
+            elif impulse and impulse.should_act and self._can_act():
+                print(f"[Subconscious] ACTING on impulse: {impulse.action_hint}")
+                await self.action_handler.act_on_impulse(impulse, self.working_memory)
+            elif random.random() < 0.1:
+                thought_data = await self.evaluator.generate_background_thought(self.working_memory)
+                if thought_data:
+                    # Emit thought to nervous system so WebUI can see it
+                    await self.nervous.emit("subconscious_thought", thought_data)
+        finally:
+            self.save_state()
+
+    async def _rest_while_asleep(self, circadian_state: dict):
+        """Keep the subconscious alive during sleep without acting outward."""
+        try:
+            from brain.dreams import get_dream_system
+            dream = get_dream_system().get_recent_dream(max_age_hours=12)
+        except Exception:
+            dream = None
+
+        content = f"Dreaming: {dream}" if dream else "Resting during sleep"
+        recent = self.working_memory.get_recent_thoughts(3)
+        if not recent or recent[-1].content != content:
+            self.working_memory.add_thought(
+                content,
+                thought_type="dream" if dream else "sleep",
+                emotion={"mood": "asleep", "sleepiness": circadian_state.get("sleepiness", 1.0)}
+            )
+
+        await self.nervous.emit("subconscious_rest", {
+            "sleeping": True,
+            "sleepiness": circadian_state.get("sleepiness", 1.0),
+            "dreaming": bool(dream),
+            "sleep_cycle_id": circadian_state.get("sleep_cycle_id"),
+        })
 
     def _check_follow_up(self):
         """Check if we need to follow up on unanswered question or silence"""
@@ -360,6 +415,10 @@ Your message:"""
         2. Minimum interval since last action (2 hours)
         3. At least 1 hour since last user message (post-conversation buffer)
         """
+        circadian_state = self._get_circadian_state()
+        if circadian_state.get("sleeping") or circadian_state.get("sleepiness", 0) >= 0.85:
+            return False
+
         # Check quiet hours
         if not self.evaluator.can_act_now():
             return False
@@ -379,15 +438,25 @@ Your message:"""
         return await self.action_handler.generate_proactive_message(impulse, self.working_memory)
 
     def get_status(self):
+        circadian_state = self._get_circadian_state()
         return {"running": self.running, "evaluations": self.total_evaluations,
                 "silence": self.evaluator.get_silence_duration(), "can_act": self._can_act(),
                 "memory": self.working_memory.get_state_summary(),
                 "learning_rate": self.learning.get_recent_success_rate(),
-                "goal": self.goals.daily_focus.value if self.goals.daily_focus else None}
+                "goal": self.goals.daily_focus.value if self.goals.daily_focus else None,
+                "circadian": circadian_state,
+                "sleeping": circadian_state.get("sleeping", False)}
 
     def get_state_for_save(self):
-        return {"learning": self.learning.to_dict(), "goals": self.goals.to_dict(),
-                "relationship": self.relationship.to_dict(), "working_memory": self.working_memory.to_dict()}
+        return {
+            "saved_at": datetime.now().isoformat(),
+            "total_evaluations": self.total_evaluations,
+            "evaluator_last_interaction_time": self.evaluator.last_interaction_time.isoformat(),
+            "learning": self.learning.to_dict(),
+            "goals": self.goals.to_dict(),
+            "relationship": self.relationship.to_dict(),
+            "working_memory": self.working_memory.to_dict(),
+        }
 
     def load_state(self, data):
         if "learning" in data:
@@ -396,3 +465,23 @@ Your message:"""
             self.goals = GoalSystem.from_dict(data["goals"]); self.evaluator.goals = self.goals
         if "relationship" in data:
             self.relationship = RelationshipMemory.from_dict(data["relationship"]); self.evaluator.relationship = self.relationship
+        if "working_memory" in data:
+            self.working_memory = WorkingMemory.from_dict(data["working_memory"])
+        if data.get("evaluator_last_interaction_time"):
+            self.evaluator.last_interaction_time = datetime.fromisoformat(data["evaluator_last_interaction_time"])
+        self.total_evaluations = int(data.get("total_evaluations", self.total_evaluations))
+
+    def save_state(self):
+        try:
+            self._state_path.parent.mkdir(parents=True, exist_ok=True)
+            self._state_path.write_text(json.dumps(self.get_state_for_save(), indent=2))
+        except Exception as e:
+            print(f"[Subconscious] Error saving state: {e}")
+
+    def _load_state_from_disk(self):
+        try:
+            if self._state_path.exists():
+                self.load_state(json.loads(self._state_path.read_text()))
+                print(f"[Subconscious] Loaded state from {self._state_path}")
+        except Exception as e:
+            print(f"[Subconscious] Error loading state: {e}")

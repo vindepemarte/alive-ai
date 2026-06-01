@@ -8,7 +8,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Alive-AI WebUI Static Export</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -139,11 +138,14 @@
         }
 
         .status-dot {
+            display: inline-block;
+            flex: 0 0 auto;
             width: 6px;
             height: 6px;
             background: var(--accent-green);
             border-radius: 50%;
             animation: blink 2s infinite;
+            font-size: 0;
         }
 
         @keyframes blink {
@@ -173,6 +175,35 @@
             max-width: 600px;
             margin: 0 auto;
             width: 100%;
+        }
+
+        .static-export-note {
+            background: linear-gradient(135deg, rgba(65, 240, 161, 0.14), rgba(74, 144, 217, 0.11));
+            border: 1px solid rgba(65, 240, 161, 0.28);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+            line-height: 1.45;
+            animation: static-note-breathe 4.8s ease-in-out infinite;
+        }
+
+        .static-export-note strong {
+            display: block;
+            color: var(--text-primary);
+            font-size: 0.92rem;
+            margin-bottom: 3px;
+        }
+
+        .static-export-note a {
+            color: var(--accent-green);
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        @keyframes static-note-breathe {
+            0%, 100% { border-color: rgba(65, 240, 161, 0.22); }
+            50% { border-color: rgba(74, 144, 217, 0.48); }
         }
 
         /* Stats Row */
@@ -737,9 +768,12 @@
         }
 
         .circadian-sleep-dot {
+            display: inline-block;
+            flex: 0 0 auto;
             width: 8px;
             height: 8px;
             border-radius: 50%;
+            font-size: 0;
         }
 
         .circadian-sleep-badge.awake .circadian-sleep-dot { background: #4caf50; }
@@ -1074,13 +1108,13 @@
             <div class="header-content">
                 <div class="header-left">
                     <div class="avatar-ring">
-                        <img src="./assets/logo.svg" alt="Alive-AI" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><defs><linearGradient id=%22g%22 x1=%220%25%22 y1=%220%25%22 x2=%22100%25%22 y2=%22100%25%22><stop offset=%220%25%22 style=%22stop-color:%23ff6b9d%22/><stop offset=%22100%25%22 style=%22stop-color:%23c44569%22/></linearGradient></defs><circle cx=%2250%22 cy=%2240%22 r=%2225%22 fill=%22url(%23g)%22/><ellipse cx=%2250%22 cy=%2285%22 rx=%2235%22 ry=%2225%22 fill=%22url(%23g)%22/></svg>'">
+                        <img src="./assets/logo.svg" alt="Alive-AI">
                     </div>
                     <div class="header-info">
                         <h1>Alive-AI</h1>
                         <div class="header-status">
-                            <span class="status-dot"></span>
-                            <span>Active now</span>
+                            <span class="status-dot" aria-hidden="true">&nbsp;</span>
+                            <span>Thinking during silence</span>
                         </div>
                     </div>
                 </div>
@@ -1092,6 +1126,11 @@
         </header>
 
         <main class="main">
+            <section class="static-export-note" aria-label="Static export notice">
+                <strong>Static Pages export</strong>
+                <span>This page is the real local WebUI exported for GitHub Pages. The backend cannot run here, so mocked state animates emotions, hormones, interoception, sleepiness, dreams, memory, and impulses. Run <code>npx . chat</code> locally for live SSE state.</span>
+            </section>
+
             <!-- Stats Row -->
             <div class="stats-row">
                 <div class="stat-card">
@@ -1453,7 +1492,7 @@
                 <div class="circadian-phase">
                     <span class="circadian-phase-name" id="circadian-phase">--</span>
                     <span class="circadian-sleep-badge awake" id="circadian-sleep-badge">
-                        <span class="circadian-sleep-dot"></span>
+                        <span class="circadian-sleep-dot" aria-hidden="true">&nbsp;</span>
                         <span id="circadian-sleep-text">Awake</span>
                     </span>
                 </div>
@@ -1680,7 +1719,8 @@
         const moodEmojis = {
             'high_desire': '🔥', 'excited': '🤩', 'happy': '😊', 'in_love': '🥰',
             'playful': '😏', 'flirty': '💋', 'sad': '😢', 'bored': '😐',
-            'angry': '😤', 'neutral': '😌', 'calm': '😌', 'loving': '💕'
+            'angry': '😤', 'neutral': '😌', 'calm': '😌', 'loving': '💕',
+            'curious': '🧭'
         };
 
         let eventSource;

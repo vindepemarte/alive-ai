@@ -19,8 +19,9 @@ class ComplexEmotions:
 
     # Trigger words for complex emotions
     GUILT_TRIGGERS = [
-        "sorry", "apologize", "my fault", "i messed up", "i hurt you",
-        "mistake", "wrong", "shouldn't have", "regret", "feel bad"
+        "you hurt me", "you forgot", "you lied", "you promised",
+        "you should have", "why didn't you", "your fault",
+        "you made me feel bad", "you disappointed me", "you ignored me"
     ]
 
     PRIDE_TRIGGERS = [
@@ -49,6 +50,12 @@ class ComplexEmotions:
         self.jealousy = ComplexEmotion()
         self.embarrassment = ComplexEmotion()
         self.anticipation = ComplexEmotion()
+
+    def load_from_state(self, state):
+        """Hydrate complex emotions from a persisted EmotionalState."""
+        for name in ("guilt", "pride", "jealousy", "embarrassment", "anticipation"):
+            if hasattr(state, name):
+                getattr(self, name).value = max(0.0, min(1.0, float(getattr(state, name))))
 
     def process(self, message: str) -> dict:
         """Process message for complex emotion triggers"""

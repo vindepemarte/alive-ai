@@ -5,10 +5,10 @@ that colors subsequent conversations for hours.
 """
 
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Dict, List, Optional
 import json
 import random
+from core.paths import state_file
 
 # =============================================================================
 # AFTERGLOW TYPE DEFINITIONS
@@ -73,7 +73,7 @@ AFTERGLOW_TYPES = {
 class AfterglowEngine:
     """Tracks emotional afterglows that persist after intense moments."""
 
-    PERSISTENCE_PATH = Path("./data/data/afterglow_state.json")
+    PERSISTENCE_PATH = state_file("afterglow_state.json")
 
     def __init__(self):
         self.active_afterglows: List[Dict] = []

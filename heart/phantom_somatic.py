@@ -5,10 +5,10 @@ and can be re-triggered by related words. Persists to data/phantom_somatic.json.
 """
 
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Optional
 import json
 import random
+from core.paths import state_file
 
 # =============================================================================
 # PHANTOM TYPE DEFINITIONS
@@ -99,7 +99,7 @@ EMOTION_TO_PHANTOM = {
 class PhantomSomaticEngine:
     """Creates and manages phantom body memories from intense moments."""
 
-    PERSISTENCE_PATH = Path("./data/data/phantom_somatic.json")
+    PERSISTENCE_PATH = state_file("phantom_somatic.json")
     MAX_PHANTOMS = 3
 
     def __init__(self):

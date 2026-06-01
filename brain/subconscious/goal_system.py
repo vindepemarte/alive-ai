@@ -74,7 +74,8 @@ class GoalSystem:
 
     def to_dict(self) -> dict:
         return {"goals": [g.to_dict() for g in self.goals],
-                "daily_focus": self.daily_focus.value if self.daily_focus else None}
+                "daily_focus": self.daily_focus.value if self.daily_focus else None,
+                "daily_focus_set_time": self.daily_focus_set_time.isoformat() if self.daily_focus_set_time else None}
 
     @classmethod
     def from_dict(cls, data: dict) -> "GoalSystem":
@@ -85,6 +86,10 @@ class GoalSystem:
                     goal.priority = g_data.get("priority", goal.priority)
                     goal.progress = g_data.get("progress", 0.0)
                     goal.action_count = g_data.get("action_count", 0)
+                    if g_data.get("last_actioned"):
+                        goal.last_actioned = datetime.fromisoformat(g_data["last_actioned"])
         if data.get("daily_focus"):
             system.daily_focus = GoalType(data["daily_focus"])
+        if data.get("daily_focus_set_time"):
+            system.daily_focus_set_time = datetime.fromisoformat(data["daily_focus_set_time"])
         return system

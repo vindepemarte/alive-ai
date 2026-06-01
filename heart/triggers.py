@@ -84,6 +84,20 @@ class Triggers:
         "you're worthless", "nobody wants you", "i regret you",
         "cheating", "cheated", "with someone else", "other girl",
     ]
+    TRUST_WORDS = [
+        "trust you", "i trust you", "safe with you", "feel safe",
+        "you understand me", "you get me", "i believe you", "i rely on you",
+        "thank you for being honest", "keep this between us"
+    ]
+    APOLOGY_WORDS = [
+        "sorry", "i'm sorry", "apologize", "my fault", "i messed up",
+        "i shouldn't have", "i regret", "forgive me"
+    ]
+    FEAR_WORDS = [
+        "scared", "afraid", "fear", "worried", "worry", "anxious",
+        "panic", "unsafe", "threat", "leave me", "abandon", "disappear",
+        "ghost me", "not safe", "i'm leaving", "goodbye forever"
+    ]
 
     def count_intimate_triggers(self, text: str) -> int:
         """Context-aware intimate trigger counting"""
@@ -107,7 +121,11 @@ class Triggers:
         Multi-word phrases use substring matching."""
         text_lower = text.lower()
         count = 0
+        seen = set()
         for w in word_list:
+            if w in seen:
+                continue
+            seen.add(w)
             if ' ' in w:
                 # Multi-word phrase: substring match is fine
                 if w in text_lower:

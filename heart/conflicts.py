@@ -11,6 +11,11 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from enum import Enum
+import json
+from core.paths import state_file
+
+
+CONFLICT_STATE_PATH = state_file("internal_conflicts.json")
 
 
 class ConflictType(Enum):
@@ -124,7 +129,10 @@ class InternalConflictGenerator:
         self.unconscious = unconscious_processor
 
         # Core values
-        self.values: List[Value] = self.DEFAULT_VALUES.copy()
+        self.values: List[Value] = [
+            Value(v.name, v.importance, v.description, v.times_honored, v.times_violated)
+            for v in self.DEFAULT_VALUES
+        ]
 
         # Active desires
         self.desires: List[Desire] = []
@@ -137,6 +145,8 @@ class InternalConflictGenerator:
 
         # Background tension from all sources
         self.background_tension: float = 0.0
+
+        self._load()
 
     def evaluate_for_conflicts(self, situation: Dict) -> List[InternalConflict]:
         """
@@ -172,6 +182,7 @@ class InternalConflictGenerator:
 
         # Update background tension
         self._update_background_tension()
+        self.save()
 
         return activated_conflicts
 
@@ -469,6 +480,7 @@ class InternalConflictGenerator:
                 created_at=datetime.now().isoformat()
             )
             self.desires.append(desire)
+        self.save()
 
     def fulfill_desire(self, name: str):
         """Mark a desire as fulfilled"""
@@ -483,6 +495,8 @@ class InternalConflictGenerator:
                     conflict.resolution_progress += 0.3
                     if conflict.resolution_progress >= 1.0:
                         self.conflicts.remove(conflict)
+            self._update_background_tension()
+            self.save()
 
     def resist_desire(self, name: str):
         """Mark a desire as resisted"""
@@ -493,6 +507,7 @@ class InternalConflictGenerator:
             desire.intensity *= 0.8
             if desire.intensity < 0.1:
                 self.desires.remove(desire)
+            self.save()
 
     # --- Value Management ---
 
@@ -501,6 +516,7 @@ class InternalConflictGenerator:
         value = next((v for v in self.values if v.name.lower() == name.lower()), None)
         if value:
             value.times_honored += 1
+            self.save()
 
     def violate_value(self, name: str):
         """Note that a value has been violated"""
@@ -509,6 +525,7 @@ class InternalConflictGenerator:
             value.times_violated += 1
             # Violating values is costly
             self.background_tension = min(1.0, self.background_tension + 0.1)
+            self.save()
 
     # --- Conflict Resolution ---
 
@@ -521,6 +538,7 @@ class InternalConflictGenerator:
 
             # Reduce background tension
             self.background_tension = max(0, self.background_tension - conflict.tension_level * 0.3)
+            self.save()
 
             print(f"[Conflicts] Conflict resolved: {conflict.description}")
 
@@ -531,6 +549,8 @@ class InternalConflictGenerator:
             conflict.times_avoided += 1
             conflict.tension_level = min(1.0, conflict.tension_level + 0.05)
             conflict.emotional_cost += 0.1
+            self._update_background_tension()
+            self.save()
 
     # --- Utility ---
 
@@ -548,6 +568,8 @@ class InternalConflictGenerator:
         # Decay conflict tension
         for conflict in self.conflicts:
             conflict.tension_level *= 0.99
+        self._update_background_tension()
+        self.save()
 
     def get_active_conflict_summary(self) -> List[str]:
         """Get human-readable summary of active conflicts"""
@@ -583,7 +605,128 @@ class InternalConflictGenerator:
         }
 
     def save(self):
-        """Save state (no persistence needed for conflicts - in-memory only)"""
-        # Conflicts and desires are transient states that naturally decay
-        # They are regenerated from current interactions
-        pass
+        """Persist active internal conflict state."""
+        try:
+            CONFLICT_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "saved_at": datetime.now().isoformat(),
+                "values": [
+                    {
+                        "name": v.name,
+                        "importance": v.importance,
+                        "description": v.description,
+                        "times_honored": v.times_honored,
+                        "times_violated": v.times_violated,
+                    }
+                    for v in self.values
+                ],
+                "desires": [
+                    {
+                        "name": d.name,
+                        "intensity": d.intensity,
+                        "source": d.source,
+                        "created_at": d.created_at,
+                        "times_pursued": d.times_pursued,
+                        "times_resisted": d.times_resisted,
+                    }
+                    for d in self.desires
+                ],
+                "conflicts": [
+                    {
+                        "conflict_id": c.conflict_id,
+                        "conflict_type": c.conflict_type.value,
+                        "intensity": c.intensity.value,
+                        "side_a": c.side_a,
+                        "side_b": c.side_b,
+                        "description": c.description,
+                        "tension_level": c.tension_level,
+                        "created_at": c.created_at,
+                        "times_faced": c.times_faced,
+                        "times_avoided": c.times_avoided,
+                        "resolution_progress": c.resolution_progress,
+                        "emotional_cost": c.emotional_cost,
+                    }
+                    for c in self.conflicts
+                ],
+                "ambivalences": [
+                    {
+                        "topic": a.topic,
+                        "conflicting_feelings": a.conflicting_feelings,
+                        "accumulated_tension": a.acclosenessulated_tension,
+                        "times_avoided": a.times_avoided,
+                        "created_at": a.created_at,
+                    }
+                    for a in self.ambivalences
+                ],
+                "background_tension": self.background_tension,
+            }
+            CONFLICT_STATE_PATH.write_text(json.dumps(data, indent=2))
+        except Exception as e:
+            print(f"[Conflicts] Error saving state: {e}")
+
+    def _load(self) -> bool:
+        try:
+            if not CONFLICT_STATE_PATH.exists():
+                return False
+            data = json.loads(CONFLICT_STATE_PATH.read_text())
+            loaded_values = []
+            for item in data.get("values", []):
+                loaded_values.append(Value(
+                    name=item["name"],
+                    importance=float(item.get("importance", 0.5)),
+                    description=item.get("description", ""),
+                    times_honored=int(item.get("times_honored", 0)),
+                    times_violated=int(item.get("times_violated", 0)),
+                ))
+            if loaded_values:
+                self.values = loaded_values
+
+            self.desires = [
+                Desire(
+                    name=item["name"],
+                    intensity=float(item.get("intensity", 0.0)),
+                    source=item.get("source", ""),
+                    created_at=item.get("created_at", datetime.now().isoformat()),
+                    times_pursued=int(item.get("times_pursued", 0)),
+                    times_resisted=int(item.get("times_resisted", 0)),
+                )
+                for item in data.get("desires", [])
+                if item.get("name")
+            ]
+            self.conflicts = [
+                InternalConflict(
+                    conflict_id=item["conflict_id"],
+                    conflict_type=ConflictType(item.get("conflict_type", ConflictType.VALUE_VALUE.value)),
+                    intensity=ConflictIntensity(item.get("intensity", ConflictIntensity.MILD.value)),
+                    side_a=item.get("side_a", ""),
+                    side_b=item.get("side_b", ""),
+                    description=item.get("description", ""),
+                    tension_level=float(item.get("tension_level", 0.0)),
+                    created_at=item.get("created_at", datetime.now().isoformat()),
+                    times_faced=int(item.get("times_faced", 0)),
+                    times_avoided=int(item.get("times_avoided", 0)),
+                    resolution_progress=float(item.get("resolution_progress", 0.0)),
+                    emotional_cost=float(item.get("emotional_cost", 0.0)),
+                )
+                for item in data.get("conflicts", [])
+                if item.get("conflict_id")
+            ]
+            self.ambivalences = [
+                AmbivalenceAcclosenessulator(
+                    topic=item["topic"],
+                    conflicting_feelings=item.get("conflicting_feelings", []),
+                    acclosenessulated_tension=float(
+                        item.get("acclosenessulated_tension", item.get("accumulated_tension", 0.0))
+                    ),
+                    times_avoided=int(item.get("times_avoided", 0)),
+                    created_at=item.get("created_at", datetime.now().isoformat()),
+                )
+                for item in data.get("ambivalences", [])
+                if item.get("topic")
+            ]
+            self.background_tension = float(data.get("background_tension", 0.0))
+            self._update_background_tension()
+            return True
+        except Exception as e:
+            print(f"[Conflicts] Error loading state: {e}")
+            return False

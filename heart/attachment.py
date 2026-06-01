@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 import json
+from core.paths import state_file
 
 # =============================================================================
 # ATTACHMENT STYLE DEFINITIONS
@@ -63,7 +64,7 @@ INTERACTION_DELTAS = {
 class AttachmentEngine:
     """Tracks attachment style evolution based on user behavior."""
 
-    PERSISTENCE_PATH = Path("./data/data/attachment_style.json")
+    PERSISTENCE_PATH = state_file("attachment_style.json")
 
     def __init__(self):
         self.security_score: float = 0.5

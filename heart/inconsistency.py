@@ -19,9 +19,9 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Any
 from enum import Enum
-from pathlib import Path
 import json
 import random
+from core.paths import state_file
 
 
 # =============================================================================
@@ -356,7 +356,7 @@ class InconsistencyEngine:
     4. It's PERSISTENT - state is saved and affects future behavior
     """
 
-    PERSISTENCE_PATH = Path("./data/data/inconsistency_state.json")
+    PERSISTENCE_PATH = state_file("inconsistency_state.json")
 
     def __init__(self, hormonal_matrix=None, somatic_system=None):
         """
@@ -849,17 +849,22 @@ class InconsistencyEngine:
         if self.hormonal:
             hormonal_context = self.hormonal.get_current_context()
             levels = hormonal_context.get("levels", {})
+            effects = hormonal_context.get("effects", {}).get("interoceptive", {})
 
-            # Cortisol reduces energy perception
-            cortisol = levels.get("cortisol", 0.2)
-            if cortisol > 0.5:
-                self.interoception.energy_level *= 0.95
-                self.interoception.cognitive_load = min(1.0, self.interoception.cognitive_load + 0.05)
+            self.interoception.energy_level = max(
+                0.0, min(1.0, self.interoception.energy_level + effects.get("energy", 0.0))
+            )
+            self.interoception.social_satiety = max(
+                0.0, min(1.0, self.interoception.social_satiety + effects.get("social_satiety", 0.0))
+            )
+            self.interoception.cognitive_load = max(
+                0.0, min(1.0, self.interoception.cognitive_load + effects.get("cognitive_load", 0.0))
+            )
 
-            # Oxytocin increases social satiety
-            oxytocin = levels.get("oxytocin", 0.3)
-            if oxytocin > 0.6:
-                self.interoception.social_satiety = min(1.0, self.interoception.social_satiety + 0.05)
+            if levels.get("melatonin", 0.3) > 0.6:
+                self.interoception.energy_level = max(0.0, self.interoception.energy_level - 0.03)
+            if levels.get("dopamine", 0.4) > 0.65:
+                self.interoception.recent_intensity = min(1.0, self.interoception.recent_intensity + 0.05)
 
         # Integrate with somatic system if available
         if self.somatic:
@@ -910,11 +915,19 @@ class InconsistencyEngine:
 
         # Hormonal influence
         if self.hormonal:
-            levels = self.hormonal.get_current_context().get("levels", {})
+            context = self.hormonal.get_current_context()
+            levels = context.get("levels", {})
+            impulse = context.get("effects", {}).get("impulse", {})
             if levels.get("cortisol", 0) > 0.5:
                 candidates.append(MoodState.ANXIOUS)
             if levels.get("oxytocin", 0) > 0.6:
                 candidates.extend([MoodState.TENDER, MoodState.CONTENT])
+            if levels.get("dopamine", 0) > 0.65:
+                candidates.extend([MoodState.ENERGETIC, MoodState.PLAYFUL])
+            if levels.get("melatonin", 0) > 0.6:
+                candidates.extend([MoodState.TIRED, MoodState.REFLECTIVE])
+            if impulse.get("stability_bias", 0) > 0.25:
+                candidates.append(MoodState.CONTENT)
 
         # Default candidates if none added
         if not candidates:

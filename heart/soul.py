@@ -124,7 +124,7 @@ class SoulOrchestrator:
         Returns:
             EmotionalExperience - what Alive-AI feels right now
         """
-        input_data = input_data or {}
+        input_data = self.hormonal.modulate_perception(input_data or {})
 
         # 1. Check self-integrity status
         integrity_state = self._assess_integrity(input_data)
@@ -139,7 +139,7 @@ class SoulOrchestrator:
         unconscious_output = self._process_unconscious(input_data)
 
         # 5. Generate somatic state
-        somatic_state = self._generate_somatic_state(input_data)
+        somatic_state = self._generate_somatic_state(input_data, hormonal_context)
 
         # 6. Check for scar activations
         scar_activation = self._check_scar_activations(input_data)
@@ -164,12 +164,11 @@ class SoulOrchestrator:
         if len(self.experience_history) > 50:
             self.experience_history = self.experience_history[-50:]
 
+        self.save()
         return experience
 
     def _assess_integrity(self, input_data: Dict) -> IntegrityState:
         """Assess current self-integrity state"""
-        state = self.integrity.get_state()
-
         # Check for integrity-relevant inputs
         if input_data:
             # Positive reinforcement
@@ -182,7 +181,7 @@ class SoulOrchestrator:
             if input_data.get("criticism", False):
                 self.integrity.wound("agency", 0.2, "criticism")
 
-        return state
+        return self.integrity.get_state()
 
     def _generate_predictions(self, input_data: Dict) -> PredictiveEmotionalOutput:
         """Generate predictive emotional state"""
@@ -196,8 +195,13 @@ class SoulOrchestrator:
         """Process unconscious influences"""
         return self.unconscious.process_unconsciously(input_data)
 
-    def _generate_somatic_state(self, input_data: Dict) -> str:
+    def _generate_somatic_state(self, input_data: Dict, hormonal_context: Dict = None) -> str:
         """Generate somatic (bodily) sensation state"""
+        hormonal_context = hormonal_context or {}
+        effects = hormonal_context.get("effects", {}).get("somatic", {})
+        if effects:
+            self.somatic.apply_hormonal_effects(effects, self.hormonal.get_dominant_hormone()[0])
+
         # Get relevant emotions from input
         emotions = {}
         if input_data:
@@ -211,9 +215,13 @@ class SoulOrchestrator:
                 emotions["sadness"] = input_data["sadness"]
 
         if emotions:
-            return self.somatic.generate_composite_sensation(emotions)
-        else:
-            return self.somatic.get_sensation_summary()
+            primary_desc = self.somatic.generate_composite_sensation(emotions)
+            summary = self.somatic.get_sensation_summary()
+            if summary and summary != "physically calm" and primary_desc not in summary:
+                return summary
+            return primary_desc
+
+        return self.somatic.get_sensation_summary()
 
     def _check_scar_activations(self, input_data: Dict) -> Optional[ScarActivation]:
         """Check if any emotional scars are activated"""
@@ -252,12 +260,12 @@ class SoulOrchestrator:
 
         # Calculate vulnerability (exposed/secure)
         vulnerability = self._calculate_vulnerability(
-            integrity_state, unconscious_output, scar_activation
+            integrity_state, unconscious_output, scar_activation, hormonal_context
         )
 
         # Determine response tendency
         response_tendency = self._determine_response_tendency(
-            valence, arousal, vulnerability, active_conflicts
+            valence, arousal, vulnerability, active_conflicts, hormonal_context
         )
 
         # Generate experience description
@@ -303,11 +311,7 @@ class SoulOrchestrator:
         valence += predictive_valence * self.weights["predictive"]
 
         # Hormonal contribution
-        hormonal_valence = 0.0
-        levels = hormonal.get("levels", {})
-        hormonal_valence += (levels.get("oxytocin", 0.5) - 0.5)
-        hormonal_valence += (levels.get("serotonin", 0.5) - 0.5)
-        hormonal_valence -= (levels.get("cortisol", 0.5) - 0.5) * 1.5
+        hormonal_valence = hormonal.get("effects", {}).get("soul", {}).get("valence", 0.0)
         valence += hormonal_valence * self.weights["hormonal"]
 
         # Unconscious contribution
@@ -339,9 +343,8 @@ class SoulOrchestrator:
             arousal += predictive.intensity * self.weights["predictive"]
 
         # Hormonal
-        levels = hormonal.get("levels", {})
-        arousal += levels.get("cortisol", 0.2) * 0.5 * self.weights["hormonal"]
-        arousal += levels.get("dopamine", 0.4) * 0.3 * self.weights["hormonal"]
+        hormonal_arousal = hormonal.get("effects", {}).get("soul", {}).get("arousal", 0.0)
+        arousal += hormonal_arousal * self.weights["hormonal"]
 
         # Unconscious anxiety
         arousal += unconscious.unexplained_anxiety * self.weights["unconscious"]
@@ -359,7 +362,8 @@ class SoulOrchestrator:
 
     def _calculate_vulnerability(self, integrity: IntegrityState,
                                 unconscious: UnconsciousOutput,
-                                scar: Optional[ScarActivation]) -> float:
+                                scar: Optional[ScarActivation],
+                                hormonal: Dict = None) -> float:
         """Calculate how exposed/fragile Alive-AI feels"""
         vulnerability = 0.0
 
@@ -377,12 +381,18 @@ class SoulOrchestrator:
         if scar:
             vulnerability += scar.vulnerability_spike * 0.5
 
+        if hormonal:
+            vulnerability += max(0.0, hormonal.get("effects", {}).get("soul", {}).get("vulnerability", 0.0))
+
         return max(0.0, min(1.0, vulnerability))
 
     def _determine_response_tendency(self, valence: float, arousal: float,
                                     vulnerability: float,
-                                    conflicts: List[InternalConflict]) -> str:
+                                    conflicts: List[InternalConflict],
+                                    hormonal: Dict = None) -> str:
         """Determine the general response tendency"""
+        hormonal = hormonal or {}
+        levels = hormonal.get("levels", {})
 
         # High vulnerability tends toward protection
         if vulnerability > 0.7:
@@ -399,9 +409,21 @@ class SoulOrchestrator:
         if arousal > 0.6 and valence > 0.3:
             return "eager"
 
+        if levels.get("cortisol", 0.0) > 0.65 and valence < 0.1:
+            return "protective"
+
+        if levels.get("melatonin", 0.0) > 0.6 and arousal < 0.45:
+            return "reflective"
+
         # Conflicts create ambivalence
         if conflicts:
             return "ambivalent"
+
+        if levels.get("dopamine", 0.0) > 0.7 and valence > -0.1:
+            return "eager"
+
+        if levels.get("oxytocin", 0.0) > 0.65 and valence > -0.2:
+            return "seeking"
 
         # Positive and calm
         if valence > 0.2 and arousal < 0.4:
@@ -579,7 +601,10 @@ class SoulOrchestrator:
         """Save all component states"""
         self.integrity.save()
         self.hormonal.save()
+        self.somatic.save()
+        self.unconscious.save()
         self.scars.save()
+        self.conflicts.save()
 
     def get_state_summary(self) -> Dict:
         """Get summary of all soul states (uses last experience, no redundant processing)"""

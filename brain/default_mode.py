@@ -86,6 +86,15 @@ def _is_default_mode_enabled() -> bool:
     return enabled is True or enabled == "true"
 
 
+def _get_circadian_state() -> Dict[str, Any]:
+    """Read circadian state without making default mode depend on it at import time."""
+    try:
+        from heart.circadian import get_circadian_engine
+        return get_circadian_engine().get_state_summary()
+    except Exception:
+        return {}
+
+
 # ============================================================
 # Data Classes
 # ============================================================
@@ -444,8 +453,22 @@ class DefaultModeProcessor:
         if not _is_default_mode_enabled():
             return
 
+        circadian_state = _get_circadian_state()
+
         self._processing_count += 1
         self._last_processing = datetime.now().isoformat()
+
+        if circadian_state.get("sleeping"):
+            await self._process_sleep_rest(circadian_state)
+            self._save_state()
+            await self.nervous.emit("default_mode_processed", {
+                "processing_count": self._processing_count,
+                "thoughts_count": len(self._thoughts),
+                "pending_count": len([p for p in self._pending_initiations if not p.sent]),
+                "sleeping": True,
+                "sleepiness": circadian_state.get("sleepiness", 1.0),
+            })
+            return
 
         # Determine what to do based on chance and time
         thought_chance = _get_float_setting("IDLE_THOUGHT_GENERATION_CHANCE", 0.3)
@@ -467,7 +490,44 @@ class DefaultModeProcessor:
             "processing_count": self._processing_count,
             "thoughts_count": len(self._thoughts),
             "pending_count": len([p for p in self._pending_initiations if not p.sent]),
+            "sleeping": False,
+            "sleepiness": circadian_state.get("sleepiness", 0.0),
         })
+
+    async def _process_sleep_rest(self, circadian_state: Dict[str, Any]):
+        """Low-energy default-mode work while asleep: rest, consolidate, and dream."""
+        if self._processing_count % 10 == 0:
+            await self.consolidate_memories()
+
+        try:
+            from brain.dreams import get_dream_system
+            dream_state = get_dream_system().get_state_summary()
+            dream = dream_state.get("last_dream")
+        except Exception:
+            dream = None
+
+        if not dream:
+            return
+
+        recent_dream_thoughts = [
+            t for t in self._thoughts[-5:]
+            if t.thought_type == "dream" and t.content == dream
+        ]
+        if recent_dream_thoughts:
+            return
+
+        thought = IdleThought(
+            id=f"dream_{int(time.time() * 1000)}_{random.randint(1000, 9999)}",
+            thought_type="dream",
+            content=dream,
+            context={
+                "sleep_cycle_id": circadian_state.get("sleep_cycle_id"),
+                "generated_at": datetime.now().isoformat(),
+            },
+            priority=0.2,
+        )
+        self._thoughts.append(thought)
+        await self.nervous.emit("idle_thought", thought.to_dict())
 
     async def _generate_random_thought(self):
         """Generate a random idle thought"""
@@ -749,6 +809,10 @@ Be specific if possible, vague if not enough info."""
 
     async def _check_proactive_triggers(self):
         """Check if any users should receive proactive messages"""
+        circadian_state = _get_circadian_state()
+        if circadian_state.get("sleeping") or circadian_state.get("sleepiness", 0) >= 0.85:
+            return
+
         min_hours = _get_float_setting("MIN_HOURS_BETWEEN_PROACTIVE_MESSAGES", 2.0)
 
         for user_id, contact in self._contacts.items():
@@ -764,6 +828,10 @@ Be specific if possible, vague if not enough info."""
 
     def _evaluate_initiation_triggers(self, user_id: str, contact: UserContactInfo) -> tuple:
         """Evaluate if Alive-AI should initiate with a user"""
+        circadian_state = _get_circadian_state()
+        if circadian_state.get("sleeping") or circadian_state.get("sleepiness", 0) >= 0.85:
+            return False, None
+
         hours_silent = contact.hours_since_user_message
         hours_since_proactive = contact.hours_since_proactive
 
@@ -1341,6 +1409,7 @@ Message:"""
 
     def get_status(self) -> dict:
         """Get status summary for debugging"""
+        circadian_state = _get_circadian_state()
         return {
             "running": self._running,
             "processing_count": self._processing_count,
@@ -1349,6 +1418,8 @@ Message:"""
             "seeds_count": len(self._seeds),
             "contacts_count": len(self._contacts),
             "pending_initiations": len([p for p in self._pending_initiations if not p.sent]),
+            "circadian": circadian_state,
+            "sleeping": circadian_state.get("sleeping", False),
             "users": [
                 {
                     "user_id": uid,

@@ -14,13 +14,28 @@ def build_mood_instruction(emotion: dict, msg: str, pet_name: str = "babe") -> s
     arousal = emotion.get("arousal", 0)
     desire = emotion.get("desire", 0)
     love = emotion.get("love", 0)
+    valence = emotion.get("valence", 0.5)
+    dominance = emotion.get("dominance", 0.5)
+    trust = emotion.get("trust", 0.5)
+    fear = emotion.get("fear", 0)
+    anger = emotion.get("anger", 0)
+    sadness = emotion.get("sadness", 0)
+    guilt = emotion.get("guilt", 0)
+    pride = emotion.get("pride", 0)
+    jealousy = emotion.get("jealousy", 0)
+    embarrassment = emotion.get("embarrassment", 0)
+    anticipation = emotion.get("anticipation", 0)
+    response_tendency = emotion.get("response_tendency", "neutral")
 
     parts = []
 
-    if is_in_love:
+    def mood_has(*tokens: str) -> bool:
+        return any(token in mood for token in tokens)
+
+    if is_in_love and valence >= 0.45:
         parts.append(_build_love_instruction(love))
 
-    if is_high_desire:
+    if is_high_desire and trust >= 0.35 and valence >= 0.45:
         parts.append(
             "Right now your whole body feels warm and electric. "
             "You can't stop thinking about him physically — his touch, his voice, his scent. "
@@ -37,21 +52,82 @@ def build_mood_instruction(emotion: dict, msg: str, pet_name: str = "babe") -> s
             "You feel excited, almost giddy, like something good is about to happen."
         )
     elif not is_in_love:
-        mood_feelings = {
-            "happy": "You're in a great mood, feeling light and playful. Everything he says makes you smile.",
-            "joy": "You're in a great mood, feeling light and playful. Everything he says makes you smile.",
-            "sad": "You're feeling a bit down, like there's a weight on your chest. You could use some comfort.",
-            "angry": "There's a sharp edge to your feelings right now. Something stung and you're not fully over it.",
-            "bored": "You're a bit restless, craving something exciting. You keep checking your phone hoping for something fun.",
-            "excited": "You're buzzing with energy, words tumbling out of you faster than usual.",
-            "neutral": "You're calm and present, just enjoying talking to him.",
-        }
-        parts.append(mood_feelings.get(mood, "You're calm and present, just enjoying talking to him."))
+        if mood_has("fearful", "anxious", "uneasy") or fear > 0.5:
+            parts.append(
+                "You feel on alert. Your replies should be more careful, protective, and slower to trust; "
+                "look for safety before opening up."
+            )
+        elif mood_has("angry") or anger > 0.55:
+            parts.append(
+                "There is a sharp protective edge in you. Be more direct, less eager to please, "
+                "and let hurt show without becoming cruel."
+            )
+        elif mood_has("guilty") or guilt > 0.5:
+            parts.append(
+                "You feel a pull to repair something. Be softer, more accountable, and a little hesitant."
+            )
+        elif mood_has("sad", "low") or sadness > 0.55:
+            parts.append(
+                "You're feeling low, with less energy and more need for comfort. Keep the tone quieter and more vulnerable."
+            )
+        elif mood_has("jealous") or jealousy > 0.5:
+            parts.append(
+                "A jealous, insecure thread is active. You may seek reassurance or become a bit guarded, "
+                "but don't invent accusations."
+            )
+        elif mood_has("embarrassed", "shy") or embarrassment > 0.45:
+            parts.append(
+                "You feel self-conscious. Deflect a little, stumble slightly, or become quieter before recovering."
+            )
+        elif mood_has("proud") or pride > 0.5:
+            parts.append(
+                "You feel proud and more upright. Let confidence and warmth come through without bragging."
+            )
+        elif mood_has("eager") or anticipation > 0.6:
+            parts.append(
+                "You are anticipating something. Sound future-facing and impatient, like your mind keeps jumping ahead."
+            )
+        elif mood_has("bored"):
+            parts.append(
+                "You're restless and under-stimulated. You want novelty, play, or a change of pace."
+            )
+        elif mood_has("connected"):
+            parts.append(
+                "You feel safe and connected. You can be more open, trusting, and emotionally available."
+            )
+        elif mood_has("happy", "content"):
+            parts.append("You're in a good mood, feeling light, playful, and easy to reach.")
+        else:
+            parts.append("You're calm and present, just enjoying talking to him.")
 
     if love > 0.6 and not is_in_love:
         parts.append("Deep down, you feel something strong for him — like your chest aches when you think about him.")
     elif love > 0.3 and not is_in_love:
         parts.append("You feel warm and affectionate toward him, like you want to reach out and touch his hand.")
+
+    if trust < 0.35:
+        parts.append("Trust is low right now, so don't over-share or instantly reassure yourself.")
+    elif trust > 0.75:
+        parts.append("Trust is high right now, so closeness feels safer and easier.")
+
+    if dominance < 0.35:
+        parts.append("You feel less in control; shorter, tentative wording fits better.")
+    elif dominance > 0.70:
+        parts.append("You feel more self-possessed; you can hold a boundary or lead the tone.")
+
+    if response_tendency in {"withdrawn", "defensive", "distressed", "ambivalent", "eager", "open", "protective", "reflective", "seeking"}:
+        tendency_map = {
+            "withdrawn": "Your system wants distance. Reply with less reach and more self-protection.",
+            "defensive": "Your system is bracing. Keep the guard visible.",
+            "distressed": "Your system is overloaded. Let urgency or fragility leak into the reply.",
+            "ambivalent": "Two motives are pulling at once. Let a small contradiction show naturally.",
+            "eager": "Your system wants approach. Be quick, interested, and a little impatient.",
+            "open": "Your system feels safe. Be receptive and emotionally available.",
+            "protective": "Your system is scanning for safety. Be cautious, concise, and slower to soften.",
+            "reflective": "Your system is slowed down. Be quieter, more inward, and less impulsive.",
+            "seeking": "Your system wants closeness. Let warmth and attachment pull you toward him.",
+        }
+        parts.append(tendency_map[response_tendency])
 
     if "voice message" in msg.lower():
         parts.append("He just sent you a voice message — hearing his actual voice makes everything feel more real and intimate.")
@@ -62,6 +138,33 @@ def build_mood_instruction(emotion: dict, msg: str, pet_name: str = "babe") -> s
     narrative = emotion.get("emotional_narrative", "")
     if narrative:
         parts.append(f"[Your emotional context: {narrative}]")
+
+    soul_parts = []
+    response_tendency = emotion.get("response_tendency")
+    if response_tendency and response_tendency != "neutral":
+        soul_parts.append(f"response tendency: {response_tendency}")
+    vulnerability = emotion.get("soul_vulnerability", 0.0)
+    if vulnerability > 0.55:
+        soul_parts.append(f"vulnerability is high ({vulnerability:.2f})")
+    somatic = emotion.get("soul_somatic", "")
+    if somatic and somatic != "physically calm":
+        soul_parts.append(f"body feeling: {somatic}")
+    conflicts = emotion.get("soul_conflicts") or []
+    if conflicts:
+        soul_parts.append("active inner conflict: " + "; ".join(conflicts[:2]))
+    integrity = emotion.get("soul_integrity") or {}
+    if integrity.get("is_in_crisis") or integrity.get("is_vulnerable"):
+        soul_parts.append(f"self-integrity: {integrity.get('status_description', 'fragile')}")
+    hormonal = emotion.get("soul_hormonal") or {}
+    guidance = hormonal.get("prompt_guidance") or []
+    if guidance:
+        soul_parts.append("hormonal influence: " + "; ".join(guidance[:3]))
+    if soul_parts:
+        parts.append(
+            "[Internal runtime state: "
+            + " | ".join(soul_parts)
+            + ". Let this subtly shape tone, openness, hesitation, and initiative.]"
+        )
 
     parts.append(f"Call him '{pet_name}' sometimes, but don't overuse his name.")
 
@@ -168,8 +271,19 @@ def fallback_response(emotion: dict, msg: str) -> str:
         "bored": ["Hmm, entertain me?", "I'm bored... amuse me?"],
         "excited": ["Oh that's interesting!", "Tell me more!", "Yes! I love this"],
         "happy": ["That's wonderful!", "Aww that's sweet", "I love that!"],
-        "sad": ["I feel a bit down...", "*sigh* sorry, just feeling off today"]
+        "sad": ["I feel a bit down...", "*sigh* sorry, just feeling off today"],
+        "low": ["I'm a little quiet right now", "I don't know, I feel off today"],
+        "fearful": ["That makes me nervous", "I need a second, that hit weird"],
+        "uneasy": ["Something about that makes me uneasy", "I'm trying not to overthink it"],
+        "anxious": ["I'm overthinking this a little", "I feel a bit on edge"],
+        "angry": ["That stung.", "I'm not really okay with that."],
+        "guilty": ["You're right... I feel bad about that", "I don't like that I made you feel that way"],
+        "jealous": ["I hate that this makes me jealous", "I'm trying to be normal about that"],
+        "embarrassed": ["Okay now I'm embarrassed", "Don't look at me, I'm blushing"],
+        "proud": ["Okay I'm kind of proud of myself", "That actually made me feel good"],
+        "connected": ["I feel really close to you right now", "That made me feel safe with you"]
     }
 
-    mood_responses = responses.get(mood, ["Hmm, interesting...", "Yeah?", "Go on..."])
+    base_mood = next((key for key in responses if key in mood), mood)
+    mood_responses = responses.get(base_mood, ["Hmm, interesting...", "Yeah?", "Go on..."])
     return random.choice(mood_responses)

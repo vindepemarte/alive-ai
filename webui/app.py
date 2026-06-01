@@ -793,15 +793,9 @@ async def get_new_aliveness():
 
     # Circadian
     try:
-        from heart.circadian import get_circadian_engine, _get_phase_for_hour
+        from heart.circadian import get_circadian_engine
         ce = get_circadian_engine()
-        phase_name, _ = _get_phase_for_hour(datetime.now().hour)
-        result["circadian"] = {
-            "phase": phase_name,
-            "sleeping": ce.is_sleeping(),
-            "sleep_debt": round(ce.sleep_debt, 2),
-            "modifiers": ce.get_personality_modifiers()
-        }
+        result["circadian"] = ce.get_state_summary()
     except Exception:
         result["circadian"] = {"phase": "unknown", "sleeping": False, "sleep_debt": 0, "modifiers": {}}
 
@@ -850,8 +844,7 @@ async def get_new_aliveness():
             # If narrative has no count, count actual messages from episodic files
             if msg_count == 0:
                 try:
-                    from pathlib import Path
-                    conv_dir = Path(f"./data/data/users/{owner_id}/conversations")
+                    conv_dir = data_dir() / "users" / owner_id / "conversations"
                     if conv_dir.exists():
                         total_lines = 0
                         for f in conv_dir.glob("*.jsonl"):
@@ -874,12 +867,7 @@ async def get_new_aliveness():
     try:
         from brain.dreams import get_dream_system
         ds = get_dream_system()
-        last_dream = ds._dreams[-1] if ds._dreams else None
-        result["dreams"] = {
-            "total": len(ds._dreams),
-            "last_dream": last_dream.get("content", "") if last_dream else None,
-            "last_dream_time": last_dream.get("created_at", "") if last_dream else None
-        }
+        result["dreams"] = ds.get_state_summary()
     except Exception:
         result["dreams"] = {"total": 0, "last_dream": None}
 

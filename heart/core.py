@@ -8,6 +8,11 @@ from .emotional_variability import EmotionalVariability
 from .love import AttachmentSystem
 from .soul import SoulOrchestrator
 
+try:
+    from .circadian import get_circadian_engine
+except Exception:
+    get_circadian_engine = None
+
 
 class Heart:
     def __init__(self, nervous, config):
@@ -16,7 +21,9 @@ class Heart:
         self.variability = EmotionalVariability()
         self.decay = EmotionalDecay(self.emotion, self.variability)
         self.triggers, self.complex = Triggers(), ComplexEmotions()
+        self.complex.load_from_state(self.emotion)
         self.memory, self.attachment = EmotionalMemory(), AttachmentSystem()
+        self.circadian = get_circadian_engine() if get_circadian_engine else None
 
         # Soul Architecture - The seven pillars of genuine emotion
         self.soul = SoulOrchestrator()
@@ -35,8 +42,10 @@ class Heart:
         return get_percent(f"TRIGGER_BOOST_{key}", int(default * 100))
 
     def _on_tick(self, data):
+        circadian_state = self._tick_circadian()
         self.decay.decay(); self.decay.tick()
         self.emotion.arousal = max(0, min(1, self.emotion.arousal + self.variability.get_organic_tick()))
+        self._apply_circadian_to_emotion(circadian_state)
         self.complex.decay(); self._sync_complex()
         self.variability.clear_old_history(); self.emotion.save()
 
@@ -48,8 +57,61 @@ class Heart:
         try:
             loop = asyncio.get_running_loop()
             loop.create_task(self.nervous.emit("soul_tick", self.soul.get_state_summary()))
+            if circadian_state:
+                loop.create_task(self.nervous.emit("circadian_update", circadian_state))
         except RuntimeError:
             pass  # No running event loop, skip WebUI update
+
+    def _tick_circadian(self) -> dict:
+        if not self.circadian:
+            return {}
+        try:
+            self.circadian.tick()
+            return self.circadian.get_state_summary()
+        except Exception as e:
+            print(f"[Heart] Circadian tick error: {e}")
+            return {}
+
+    def _get_circadian_state(self) -> dict:
+        if not self.circadian:
+            return {}
+        try:
+            return self.circadian.get_state_summary()
+        except Exception:
+            return {}
+
+    def _apply_circadian_to_emotion(self, circadian_state: dict = None):
+        """Let sleep/rest state change actual affect, not just prompt wording."""
+        if not self.circadian:
+            return
+        state = circadian_state or self._get_circadian_state()
+        e = self.emotion
+        sleepiness = float(state.get("sleepiness", 0.0) or 0.0)
+
+        if state.get("sleeping"):
+            e.arousal = max(0.04, e.arousal - 0.05)
+            e.desire = max(0.0, e.desire - 0.04)
+            e.boredom = max(0.0, e.boredom - 0.03)
+            e.anger = max(0.0, e.anger - 0.02)
+            e.fear = max(0.02, e.fear - 0.01)
+            return
+
+        if sleepiness >= 0.65:
+            drag = sleepiness - 0.6
+            e.arousal = max(0.05, e.arousal - drag * 0.04)
+            e.desire = max(0.0, e.desire - drag * 0.03)
+            e.boredom = min(1.0, e.boredom + drag * 0.02)
+            e.sadness = min(1.0, e.sadness + drag * 0.01)
+        elif state.get("wake_time") and sleepiness < 0.5:
+            e.boredom = max(0.0, e.boredom - 0.01)
+
+    @staticmethod
+    def _mood_with_circadian(base_mood: str, circadian_state: dict) -> str:
+        if circadian_state.get("sleeping"):
+            return "asleep"
+        if circadian_state.get("sleepiness", 0) >= 0.75:
+            return f"sleepy_{base_mood}"
+        return base_mood
 
     def _sync_complex(self):
         e, c = self.emotion, self.complex
@@ -71,6 +133,8 @@ class Heart:
         positive_rate = self._get_rate("POSITIVE", 0.5)
         sadness_rate = self._get_rate("SADNESS", 0.5)
         harsh_rate = self._get_rate("HARSH", 0.5)
+        trust_rate = self._get_rate("TRUST", 0.5)
+        fear_rate = self._get_rate("FEAR", 0.5)
 
         # Get boost multipliers
         intimate_boost = self._get_boost("SEXUAL", 1.0)
@@ -88,6 +152,10 @@ class Heart:
             e.desire = min(1.0, e.desire + boost * v.get_inertia_modifier("desire", e.desire))
             e.arousal = min(1.0, e.arousal + boost * 0.8 * arousal_rate)
             e.love = min(1.0, e.love + 0.05 * love_rate)
+            if e.trust >= 0.45:
+                e.trust = min(1.0, e.trust + 0.015 * trust_rate)
+            else:
+                e.embarrassment = min(1.0, e.embarrassment + 0.04)
             v.add_momentum("desire", boost)
             print(f"[Heart] Expressive triggers: {expressive}, desire boost: +{boost:.2f}")
 
@@ -110,6 +178,7 @@ class Heart:
         if rom > 0:
             base = 0.15 * romantic_rate * romantic_boost
             e.love = min(1.0, e.love + base * rom)
+            e.trust = min(1.0, e.trust + 0.05 * rom * trust_rate)
             e.joy = min(1.0, e.joy + base * rom * 0.7 * joy_rate)
             v.add_momentum("love", base * rom)
 
@@ -119,7 +188,46 @@ class Heart:
             base = 0.08 * positive_rate * positive_boost
             e.joy = min(1.0, e.joy + base * pos)
             e.love = min(1.0, e.love + 0.03 * pos * love_rate)
+            e.trust = min(1.0, e.trust + 0.025 * pos * trust_rate)
+            e.fear = max(0.0, e.fear - 0.025 * pos)
             e.boredom = max(0.0, e.boredom - 0.1)
+
+        # Trust and reassurance words directly affect relational safety.
+        trust_words = Triggers.count_matches(msg, t.TRUST_WORDS)
+        if trust_words > 0:
+            e.trust = min(1.0, e.trust + 0.12 * trust_words * trust_rate)
+            e.fear = max(0.0, e.fear - 0.08 * trust_words)
+            e.sadness = max(0.0, e.sadness - 0.04 * trust_words)
+            e.dominance = min(1.0, e.dominance + 0.05 * trust_words)
+
+        apologies = Triggers.count_matches(msg, t.APOLOGY_WORDS)
+        if apologies > 0:
+            e.trust = min(1.0, e.trust + 0.06 * apologies * trust_rate)
+            e.anger = max(0.0, e.anger - 0.08 * apologies)
+            e.fear = max(0.0, e.fear - 0.04 * apologies)
+            e.sadness = max(0.0, e.sadness - 0.03 * apologies)
+
+        fear_words = Triggers.count_matches(msg, t.FEAR_WORDS)
+        if fear_words > 0:
+            e.fear = min(1.0, e.fear + 0.12 * fear_words * fear_rate)
+            e.arousal = min(1.0, e.arousal + 0.08 * fear_words)
+            e.trust = max(0.0, e.trust - 0.025 * fear_words)
+
+        betrayal_markers = [
+            "you lied", "lied to me", "betray", "you hurt me",
+            "ignored me", "your fault", "you broke"
+        ]
+        if any(marker in msg for marker in betrayal_markers):
+            e.trust = max(0.0, e.trust - 0.18)
+            e.sadness = min(1.0, e.sadness + 0.16)
+            e.fear = min(1.0, e.fear + 0.10)
+            e.joy = max(0.0, e.joy - 0.12)
+            e.love = max(0.0, e.love - 0.05)
+
+        abandonment_markers = ["leave", "abandon", "disappear", "ghost"]
+        if any(marker in msg for marker in abandonment_markers):
+            e.fear = min(1.0, e.fear + 0.10)
+            e.trust = max(0.0, e.trust - 0.05)
 
         # Harsh words
         h = Triggers.count_matches(msg, t.HARSH_WORDS)
@@ -127,32 +235,76 @@ class Heart:
         if h > 0:
             base = 0.15 * harsh_rate * harsh_boost
             e.love = max(0.0, e.love - base * h)
+            e.trust = max(0.0, e.trust - base * h * 0.8)
             e.sadness = min(1.0, e.sadness + 0.3 * sadness_rate)
             e.joy = max(0.0, e.joy - 0.2)
             e.desire = max(0.0, e.desire - 0.3)
             e.anger = min(1.0, e.anger + 0.2 * harsh_rate)
+            e.fear = min(1.0, e.fear + 0.12 * h * fear_rate)
+            e.dominance = max(0.0, e.dominance - 0.10 * h)
         elif n > 0:
             base = 0.1 * negative_boost
             e.sadness = min(1.0, e.sadness + base * n * sadness_rate)
+            e.fear = min(1.0, e.fear + base * n * 0.45 * fear_rate)
+            e.trust = max(0.0, e.trust - base * n * 0.25)
+            e.joy = max(0.0, e.joy - base * n * 0.5)
             e.desire = max(0.0, e.desire - base * n)
 
         return expressive
+
+    def _apply_complex_repercussions(self, changes: dict):
+        """Make secondary emotions change behaviorally relevant state."""
+        e = self.emotion
+        if "guilt" in changes:
+            e.sadness = min(1.0, e.sadness + 0.12)
+            e.fear = min(1.0, e.fear + 0.05)
+            e.dominance = max(0.0, e.dominance - 0.10)
+            e.trust = max(0.0, e.trust - 0.03)
+        if "pride" in changes:
+            e.joy = min(1.0, e.joy + 0.10)
+            e.dominance = min(1.0, e.dominance + 0.12)
+            e.fear = max(0.0, e.fear - 0.03)
+        if "jealousy" in changes:
+            e.sadness = min(1.0, e.sadness + 0.12)
+            e.anger = min(1.0, e.anger + 0.10)
+            e.fear = min(1.0, e.fear + 0.07)
+            e.trust = max(0.0, e.trust - 0.08)
+        if "embarrassment" in changes:
+            e.fear = min(1.0, e.fear + 0.05)
+            e.arousal = min(1.0, e.arousal + 0.08)
+            e.dominance = max(0.0, e.dominance - 0.08)
+        if "anticipation" in changes:
+            e.arousal = min(1.0, e.arousal + 0.08)
+            if e.valence >= 0.45:
+                e.joy = min(1.0, e.joy + 0.04)
+            else:
+                e.fear = min(1.0, e.fear + 0.04)
 
     def react(self, text: str) -> dict:
         msg, e = text.lower(), self.emotion
         self._prev_state, expressive = self.get_state(), self._process_triggers(msg)
         ch = self.complex.process(text)
-        if "jealousy" in ch and e.jealousy > 0.5: e.sadness = min(1.0, e.sadness + 0.1)
-        if "anticipation" in ch: e.arousal = min(1.0, e.arousal + 0.05)
         self._sync_complex()
+        self._apply_complex_repercussions(ch)
         if e.arousal > 0.6: e.love = min(1.0, e.love + 0.01)
         if e.love > 0.5 and expressive > 0: e.desire = min(1.0, e.desire + 0.05 * expressive)
         if e.boredom > 0.7: e.arousal = max(0.1, e.arousal - 0.05)
-        self.memory.check_peaks(self.get_state(), self._prev_state, text[:50])
-        self.attachment.interact(e.joy > 0.4 or e.love > 0.4, max(e.joy, e.love, e.desire))
+        e.recompute_core_affect()
+        self._apply_circadian_to_emotion()
+        e.recompute_core_affect()
 
         # Process through Soul Architecture for genuine emotional experience
         soul_experience = self._process_soul(text, e)
+        e.recompute_core_affect(
+            soul_valence=soul_experience.get("valence"),
+            soul_arousal=soul_experience.get("arousal"),
+        )
+        circadian = self._get_circadian_state()
+
+        self.memory.check_peaks(self.get_state(), self._prev_state, text[:50])
+        positive_interaction = e.valence >= 0.48 and e.trust >= 0.25
+        attachment_intensity = max(e.joy, e.love, e.desire, e.trust, 1.0 - e.fear)
+        self.attachment.interact(positive_interaction, attachment_intensity)
 
         e.save()
         ctx = self.memory.get_mood_context()
@@ -160,22 +312,25 @@ class Heart:
         narrative = (f"Recently: {ctx}. " if ctx else "") + (f"Relationship: {s.replace('_', ' ')}." if s != "stranger" else "")
 
         # Combine traditional emotional state with soul dimensions
-        return {"valence": e.valence, "arousal": e.arousal, "desire": e.desire,
-                "joy": e.joy, "love": e.love, "sadness": e.sadness,
-                "guilt": e.guilt, "pride": e.pride,
-                "jealousy": e.jealousy, "embarrassment": e.embarrassment,
-                "anticipation": e.anticipation, "is_high_desire": e.is_high_desire, "is_in_love": e.is_in_love,
-                "is_jealous": e.is_jealous, "mood": e.mood_description,
-                "emotional_narrative": narrative.strip(), "attachment_status": s,
-                "interaction_count": self.attachment.interactions,
-                # Soul architecture dimensions
-                "soul_integrity": soul_experience.get("integrity", {}),
-                "soul_hormonal": soul_experience.get("hormonal", {}),
-                "soul_somatic": soul_experience.get("somatic", ""),
-                "soul_conflicts": soul_experience.get("conflicts", []),
-                "soul_vulnerability": soul_experience.get("vulnerability", 0.0),
-                "soul_experience": soul_experience.get("description", ""),
-                "response_tendency": soul_experience.get("response_tendency", "neutral")}
+        state = e.to_dict()
+        state.update({
+            "mood": self._mood_with_circadian(state.get("mood", e.mood_description), circadian),
+            "emotional_narrative": narrative.strip(),
+            "attachment_status": s,
+            "interaction_count": self.attachment.interactions,
+            "circadian": circadian,
+            "sleepiness": circadian.get("sleepiness", 0.0),
+            "is_asleep": circadian.get("sleeping", False),
+            # Soul architecture dimensions
+            "soul_integrity": soul_experience.get("integrity", {}),
+            "soul_hormonal": soul_experience.get("hormonal", {}),
+            "soul_somatic": soul_experience.get("somatic", ""),
+            "soul_conflicts": soul_experience.get("conflicts", []),
+            "soul_vulnerability": soul_experience.get("vulnerability", 0.0),
+            "soul_experience": soul_experience.get("description", ""),
+            "response_tendency": soul_experience.get("response_tendency", "neutral")
+        })
+        return state
 
     def _process_soul(self, text: str, emotion_state) -> dict:
         """
@@ -186,6 +341,15 @@ class Heart:
         scars, conflicts, and predictions.
         """
         # Prepare input for soul processing
+        text_lower = text.lower()
+        rejection_markers = [
+            "don't want", "leave me", "not interested", "stop", "goodbye",
+            "abandon", "ghost me", "i'm leaving", "we're over"
+        ]
+        criticism_markers = [
+            "wrong", "bad", "stupid", "disappointing", "hurt me", "you hurt",
+            "lied", "betray", "ignored me", "your fault"
+        ]
         input_data = {
             "text": text,
             "joy": emotion_state.joy,
@@ -194,31 +358,62 @@ class Heart:
             "anger": emotion_state.anger,
             "fear": emotion_state.fear,
             "desire": emotion_state.desire,
+            "trust": emotion_state.trust,
+            "valence": emotion_state.valence,
+            "arousal": emotion_state.arousal,
+            "dominance": emotion_state.dominance,
+            "boredom": emotion_state.boredom,
+            "guilt": emotion_state.guilt,
+            "pride": emotion_state.pride,
+            "jealousy": emotion_state.jealousy,
+            "embarrassment": emotion_state.embarrassment,
+            "anticipation": emotion_state.anticipation,
             # Detect interaction type from text
-            "affirmation": any(w in text.lower() for w in ["love you", "beautiful", "amazing", "wonderful", "perfect"]),
-            "rejection": any(w in text.lower() for w in ["don't want", "leave me", "not interested", "stop"]),
-            "criticism": any(w in text.lower() for w in ["wrong", "bad", "stupid", "disappointing"]),
-            "connection_active": emotion_state.love > 0.5 or "love" in text.lower()
+            "affirmation": any(w in text_lower for w in ["love you", "beautiful", "amazing", "wonderful", "perfect"]),
+            "rejection": any(w in text_lower for w in rejection_markers),
+            "criticism": any(w in text_lower for w in criticism_markers),
+            "connection_active": emotion_state.love > 0.5 or "love" in text_lower
         }
-
-        # Process through soul orchestrator
-        experience = self.soul.process_moment(input_data)
 
         # Determine if we should process positive or negative interaction
         # Lowered thresholds for more responsive soul processing
-        if input_data["affirmation"] or emotion_state.joy > 0.5:
+        negative_signal = (
+            input_data["rejection"] or input_data["criticism"] or
+            emotion_state.valence < 0.45 or emotion_state.fear > 0.45 or
+            emotion_state.sadness > 0.4 or emotion_state.trust < 0.35
+        )
+        positive_signal = (
+            input_data["affirmation"] or
+            (emotion_state.valence > 0.58 and emotion_state.joy > 0.55 and emotion_state.fear < 0.35)
+        )
+        if negative_signal:
+            self.soul.process_negative_interaction(
+                text[:50],
+                max(emotion_state.sadness, emotion_state.fear, 0.35) * 0.5,
+                "hurt"
+            )
+        elif positive_signal:
             self.soul.process_positive_interaction(text[:50], max(emotion_state.joy, emotion_state.love) * 0.5)
-        elif input_data["rejection"] or emotion_state.sadness > 0.4:
-            self.soul.process_negative_interaction(text[:50], emotion_state.sadness * 0.5, "hurt")
+
+        if any(w in text_lower for w in ["safe", "okay", "calm", "rest", "recover", "reassure"]):
+            self.soul.hormonal.register_recovery(0.35, "reassuring interaction")
+
+        # Process through soul orchestrator after current-turn hormone release
+        experience = self.soul.process_moment(input_data)
+
+        # Hormones must feed back into live emotion/body state, not only dashboards.
+        self._apply_hormonal_runtime_effects(emotion_state, experience)
 
         # Sync soul dimensions back to emotional state
         integrity_dict = self.soul.integrity.to_dict()
         emotion_state.update_soul_dimensions(
-            integrity=integrity_dict.get("overall_score", emotion_state.integrity_overall),
+            integrity=integrity_dict.get("overall", emotion_state.integrity_overall),
             vulnerability=experience.overall_vulnerability,
             hope=experience.predictive_emotions.hope_level if hasattr(experience.predictive_emotions, 'hope_level') else emotion_state.hope,
             dread=experience.predictive_emotions.fear_level if hasattr(experience.predictive_emotions, 'fear_level') else emotion_state.dread,
         )
+
+        self.soul.save()
 
         # Return soul experience dimensions
         return {
@@ -233,11 +428,40 @@ class Heart:
             "arousal": experience.overall_arousal
         }
 
+    def _apply_hormonal_runtime_effects(self, emotion_state, experience) -> None:
+        """Blend hormone-driven runtime effects into emotion and interoception."""
+        effects = self.soul.hormonal.get_emotion_effects()
+        for name, delta in effects.items():
+            if not hasattr(emotion_state, name):
+                continue
+            current = getattr(emotion_state, name)
+            setattr(emotion_state, name, max(0.0, min(1.0, current + delta)))
+
+        # Keep the old emotion surface loosely aligned with integrated soul state.
+        soul_valence = (experience.overall_valence + 1.0) / 2.0
+        emotion_state.valence = max(0.0, min(1.0, emotion_state.valence * 0.85 + soul_valence * 0.15))
+        emotion_state.arousal = max(0.0, min(1.0, emotion_state.arousal * 0.9 + experience.overall_arousal * 0.1))
+
+        try:
+            from heart.interoception import get_interoceptive_system
+            interoception = get_interoceptive_system()
+            for state_name, delta in self.soul.hormonal.get_interoceptive_effects().items():
+                if state_name in interoception.states:
+                    interoception.states[state_name].update(delta, source="hormonal_runtime")
+            interoception.save()
+        except Exception as e:
+            print(f"[Heart] Hormonal interoception sync skipped: {e}")
+
     def get_state(self) -> dict:
-        e = self.emotion
-        return {"valence": e.valence, "arousal": e.arousal, "desire": e.desire, "joy": e.joy,
-                "love": e.love, "sadness": e.sadness, "anger": e.anger, "boredom": e.boredom,
-                "is_high_desire": e.is_high_desire, "is_in_love": e.is_in_love, "mood": e.mood_description}
+        state = self.emotion.to_dict()
+        circadian = self._get_circadian_state()
+        state.update({
+            "mood": self._mood_with_circadian(state.get("mood", self.emotion.mood_description), circadian),
+            "circadian": circadian,
+            "sleepiness": circadian.get("sleepiness", 0.0),
+            "is_asleep": circadian.get("sleeping", False),
+        })
+        return state
 
     def get_reaction(self, message: str) -> str | None:
         """
@@ -247,6 +471,9 @@ class Heart:
         """
         import random
         from core.settings import get_int
+
+        if self.circadian and self.circadian.is_asleep:
+            return None
 
         msg = message.lower()
         e = self.emotion

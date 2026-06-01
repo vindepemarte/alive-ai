@@ -11,8 +11,13 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set
 from enum import Enum
+import json
 import random
 import math
+from core.paths import state_file
+
+
+UNCONSCIOUS_STATE_PATH = state_file("unconscious_state.json")
 
 
 class DefenseMechanism(Enum):
@@ -117,6 +122,7 @@ class UnconsciousProcessor:
         # Tracking
         self.total_repressions: int = 0
         self.total_leaks: int = 0
+        self._load()
 
     def process_unconsciously(self, input_data: Dict) -> UnconsciousOutput:
         """
@@ -153,7 +159,7 @@ class UnconsciousProcessor:
             unexplained_mood, unexplained_anxiety, defense, repression_pressure, implicit_biases
         )
 
-        return UnconsciousOutput(
+        output = UnconsciousOutput(
             unexplained_mood_shift=unexplained_mood,
             unexplained_anxiety=unexplained_anxiety,
             defense_activated=defense,
@@ -162,6 +168,8 @@ class UnconsciousProcessor:
             internal_tension=tension,
             description=description
         )
+        self.save()
+        return output
 
     def repress(self, content: str, emotion_type: str, intensity: float):
         """
@@ -196,6 +204,7 @@ class UnconsciousProcessor:
             self.repressed_materials = self.repressed_materials[1:]
 
         print(f"[Unconscious] Repressed: {content[:30]}... ({emotion_type})")
+        self.save()
 
     def _process_repression(self, input_data: Dict) -> Dict:
         """
@@ -380,6 +389,7 @@ class UnconsciousProcessor:
                 source_memory=source
             )
             self.implicit_associations.append(association)
+        self.save()
 
     def create_conflict(self, description: str, conflicting_parts: List[str], tension: float):
         """
@@ -406,12 +416,14 @@ class UnconsciousProcessor:
             # Keep most tense and most recent
             self.unresolved_conflicts.sort(key=lambda c: c.tension_level, reverse=True)
             self.unresolved_conflicts = self.unresolved_conflicts[:10]
+        self.save()
 
     def resolve_conflict(self, conflict_id: str, resolution: str):
         """Mark a conflict as resolved"""
         conflict = next((c for c in self.unresolved_conflicts if c.conflict_id == conflict_id), None)
         if conflict:
             self.unresolved_conflicts.remove(conflict)
+            self.save()
             print(f"[Unconscious] Conflict resolved: {conflict.description}")
 
     # --- Decay ---
@@ -428,6 +440,7 @@ class UnconsciousProcessor:
                 association.intensity *= 0.98
                 if association.intensity < 0.1:
                     self.implicit_associations.remove(association)
+        self.save()
 
     def to_dict(self) -> dict:
         """Export for integration"""
@@ -441,3 +454,110 @@ class UnconsciousProcessor:
             "background_anxiety": self.background_anxiety,
             "repression_pressure": sum(m.pressure for m in self.repressed_materials) / max(1, len(self.repressed_materials))
         }
+
+    def save(self):
+        """Persist unconscious influences that alter later behavior."""
+        try:
+            UNCONSCIOUS_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "saved_at": datetime.now().isoformat(),
+                "repressed_materials": [
+                    {
+                        "content_id": m.content_id,
+                        "description": m.description,
+                        "emotion_type": m.emotion_type,
+                        "original_intensity": m.original_intensity,
+                        "repression_time": m.repression_time,
+                        "pressure": m.pressure,
+                        "leak_count": m.leak_count,
+                    }
+                    for m in self.repressed_materials
+                ],
+                "unresolved_conflicts": [
+                    {
+                        "conflict_id": c.conflict_id,
+                        "description": c.description,
+                        "conflicting_parts": c.conflicting_parts,
+                        "tension_level": c.tension_level,
+                        "created_at": c.created_at,
+                        "times_avoided": c.times_avoided,
+                        "times_faced": c.times_faced,
+                    }
+                    for c in self.unresolved_conflicts
+                ],
+                "implicit_associations": [
+                    {
+                        "trigger_pattern": a.trigger_pattern,
+                        "emotional_response": a.emotional_response,
+                        "intensity": a.intensity,
+                        "times_reinforced": a.times_reinforced,
+                        "times_contradicted": a.times_contradicted,
+                        "source_memory": a.source_memory,
+                    }
+                    for a in self.implicit_associations
+                ],
+                "active_defense": self.active_defense.value if self.active_defense else None,
+                "defense_until": self.defense_until,
+                "background_anxiety": self.background_anxiety,
+                "background_mood_modifier": self.background_mood_modifier,
+                "total_repressions": self.total_repressions,
+                "total_leaks": self.total_leaks,
+            }
+            UNCONSCIOUS_STATE_PATH.write_text(json.dumps(data, indent=2))
+        except Exception as e:
+            print(f"[Unconscious] Error saving state: {e}")
+
+    def _load(self) -> bool:
+        try:
+            if not UNCONSCIOUS_STATE_PATH.exists():
+                return False
+            data = json.loads(UNCONSCIOUS_STATE_PATH.read_text())
+            self.repressed_materials = [
+                RepressedMaterial(
+                    content_id=item["content_id"],
+                    description=item.get("description", ""),
+                    emotion_type=item.get("emotion_type", "hurt"),
+                    original_intensity=float(item.get("original_intensity", 0.0)),
+                    repression_time=item.get("repression_time", datetime.now().isoformat()),
+                    pressure=float(item.get("pressure", 0.0)),
+                    leak_count=int(item.get("leak_count", 0)),
+                )
+                for item in data.get("repressed_materials", [])
+                if item.get("content_id")
+            ]
+            self.unresolved_conflicts = [
+                UnresolvedConflict(
+                    conflict_id=item["conflict_id"],
+                    description=item.get("description", ""),
+                    conflicting_parts=item.get("conflicting_parts", []),
+                    tension_level=float(item.get("tension_level", 0.0)),
+                    created_at=item.get("created_at", datetime.now().isoformat()),
+                    times_avoided=int(item.get("times_avoided", 0)),
+                    times_faced=int(item.get("times_faced", 0)),
+                )
+                for item in data.get("unresolved_conflicts", [])
+                if item.get("conflict_id")
+            ]
+            self.implicit_associations = [
+                ImplicitAssociation(
+                    trigger_pattern=item["trigger_pattern"],
+                    emotional_response=item.get("emotional_response", "neutral"),
+                    intensity=float(item.get("intensity", 0.0)),
+                    times_reinforced=int(item.get("times_reinforced", 0)),
+                    times_contradicted=int(item.get("times_contradicted", 0)),
+                    source_memory=item.get("source_memory", ""),
+                )
+                for item in data.get("implicit_associations", [])
+                if item.get("trigger_pattern")
+            ]
+            active_defense = data.get("active_defense")
+            self.active_defense = DefenseMechanism(active_defense) if active_defense else None
+            self.defense_until = data.get("defense_until")
+            self.background_anxiety = float(data.get("background_anxiety", 0.0))
+            self.background_mood_modifier = float(data.get("background_mood_modifier", 0.0))
+            self.total_repressions = int(data.get("total_repressions", 0))
+            self.total_leaks = int(data.get("total_leaks", 0))
+            return True
+        except Exception as e:
+            print(f"[Unconscious] Error loading state: {e}")
+            return False

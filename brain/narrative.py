@@ -5,10 +5,10 @@ enabling natural references to shared history and phase awareness.
 """
 
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Optional
 import json
 import random
+from core.paths import data_dir
 
 # =============================================================================
 # RELATIONSHIP PHASES
@@ -63,7 +63,7 @@ CALLBACKS_BY_PHASE = {
 class NarrativeEngine:
     """Tracks the relationship story arc per user."""
 
-    DATA_DIR = Path("./data/data")
+    DATA_DIR = data_dir()
 
     def __init__(self):
         self._cache: Dict[str, Dict] = {}  # user_id -> narrative data

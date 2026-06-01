@@ -38,4 +38,5 @@ class Goal:
 
     def to_dict(self) -> dict:
         return {"type": self.type.value, "name": self.name, "priority": self.priority,
-                "progress": self.progress, "action_count": self.action_count}
+                "progress": self.progress, "action_count": self.action_count,
+                "last_actioned": self.last_actioned.isoformat() if self.last_actioned else None}

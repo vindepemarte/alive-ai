@@ -65,7 +65,8 @@ class Evaluator:
             vulnerability=soul_context.get("vulnerability", 0),
             integrity=soul_context.get("integrity", 0.5),
             response_tendency=soul_context.get("response_tendency", "neutral"),
-            active_conflicts=soul_context.get("conflicts", [])
+            active_conflicts=soul_context.get("conflicts", []),
+            hormonal_effects=soul_context.get("hormonal_effects", {})
         )
         if impulse:
             working_memory.add_impulse(impulse)
@@ -94,7 +95,9 @@ class Evaluator:
             "valence": experience.overall_valence,
             "arousal": experience.overall_arousal,
             "somatic": experience.somatic_sensation,
-            "hormonal_state": soul.hormonal.get_hormonal_state_description()
+            "hormonal_state": soul.hormonal.get_hormonal_state_description(),
+            "hormonal_effects": soul.hormonal.get_impulse_effects(),
+            "hormonal_guidance": soul.hormonal.get_prompt_guidance()
         }
 
     def _update_context(self, wm) -> None:
@@ -140,6 +143,14 @@ class Evaluator:
 
         if soul_context.get("arousal", 0) > 0.6 and soul_context.get("valence", 0) < -0.2:
             thoughts.extend(["Something's bothering me", "Feeling restless"])
+
+        guidance = soul_context.get("hormonal_guidance", [])
+        if any("stress is high" in item for item in guidance):
+            thoughts.extend(["Feeling keyed up", "Trying to settle my system"])
+        if any("bonding is strong" in item for item in guidance):
+            thoughts.extend(["Feeling extra attached", "Wanting closeness"])
+        if any("sleepiness is present" in item for item in guidance):
+            thoughts.extend(["Feeling slow and sleepy", "Thoughts are quieter right now"])
 
         # Original emotional thoughts
         if emotion.get("love", 0) > 0.5:

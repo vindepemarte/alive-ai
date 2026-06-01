@@ -4,12 +4,12 @@ Tracks Alive-AI's conversations across ALL users so she can be transparent with 
 """
 
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Optional
 import json
 import threading
+from core.paths import state_file
 
-DATA_FILE = Path("./data/data/global_activity.json")
+DATA_FILE = state_file("global_activity.json")
 _lock = threading.Lock()
 
 

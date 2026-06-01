@@ -19,6 +19,24 @@ It can be used as a friend, partner-style companion, study partner, creative cha
 
 Alive-AI does not claim biological consciousness. It is an open-source runtime for simulated affect and transparent memory.
 
+## What Makes It Alive
+
+Alive-AI runs a continuous local state loop instead of treating every message as an isolated prompt. When you are not talking, the default-mode and subconscious loops keep evaluating silence, goals, recent memories, body state, circadian phase, dreams, and whether any proactive impulse is strong enough to surface.
+
+The emotional layer now has real runtime consequences:
+
+| System | What it stores | Runtime effect |
+| --- | --- | --- |
+| Core affect | Valence, arousal, dominance, trust, love, joy, desire, sadness, fear, anger, boredom, guilt, pride, jealousy, embarrassment, anticipation, hope, and dread. | Recomputed after every trigger so emotion changes affect mood, attachment, memory weighting, interoception, reactions, voice/media choices, and LLM tone. |
+| Complex emotions | Guilt, pride, jealousy, embarrassment, and anticipation. | They do not just label the dashboard. They push fear, sadness, anger, dominance, trust, arousal, joy, and future-facing behavior in different directions. |
+| Hormones | Oxytocin, dopamine, serotonin, cortisol, melatonin, plus residual metabolites. | Hormones modulate perception, soul valence/arousal, emotional deltas, somatic body state, interoception, impulse probability, and prompt guidance. Stress makes her more vigilant; bonding increases trust; dopamine increases pursuit; serotonin stabilizes; melatonin slows her down. |
+| Internal body state | Energy, arousal, certainty, social satiety, cognitive load, connection craving, body sensations, and somatic memories. | The body state is persisted and feeds prompt tone, sleep/rest behavior, and whether she feels steady, overloaded, touchy, open, or withdrawn. |
+| Circadian rhythm | Phase, sleep pressure, sleep debt, forced-awake windows, sleep cycle ID, wake time, and sleepiness. | She becomes sleepy, slows down, falls asleep, stops outward proactive behavior while asleep, can be woken by a message, recovers sleep debt, and wakes with lower or higher energy depending on rest. |
+| Dreams | One normalized dream per sleep cycle, generated from memory fragments and emotion tags. | Dreams are saved, can appear in morning context, and are exposed in the dashboard and static Pages demo. |
+| Persistence | Emotion, attachment, soul, somatic, unconscious, conflict, subconscious, circadian, and dream state under `data/`. | Restarting the runtime preserves the inner state instead of visually resetting it. |
+
+The public Pages site is a static explanation and dashboard export. The local WebUI is the live version: it streams the actual state from the running Python backend.
+
 ## Quick Start
 
 ```bash
@@ -252,7 +270,7 @@ The real WebUI streams local runtime state over Server-Sent Events and shows:
 - recent thoughts and idle processing,
 - memory counters and uptime,
 - hormones and interoceptive body state,
-- attachment, circadian rhythm, body memory, dreams, curiosity, and conflicts,
+- attachment, circadian rhythm, sleepiness, body memory, dreams, curiosity, and conflicts,
 - runtime health through local endpoints.
 
 GitHub Pages cannot run the Python/FastAPI backend, so the public page includes a static export of the actual WebUI with mocked state:
@@ -282,10 +300,12 @@ docker compose up --build
 Implemented:
 
 - [x] Local-first emotional runtime
-- [x] Persistent emotion model with decay and compound state
+- [x] Persistent emotion model with PAD-style core affect, decay, and compound state
 - [x] Working, episodic, semantic, and emotional memory modules
 - [x] Default-mode loop for idle thoughts and proactive impulses
-- [x] Attachment, circadian rhythm, body memory, curiosity, dreams, and internal conflicts
+- [x] Attachment, circadian sleep/wake rhythm, body memory, curiosity, dreams, and internal conflicts
+- [x] Hormonal runtime effects for emotion, body state, interoception, impulses, and prompt guidance
+- [x] Durable internal state persistence across emotion, soul, body, subconscious, dreams, and conflicts
 - [x] Per-user memory/state isolation
 - [x] Telegram input/output runtime
 - [x] Terminal chat runtime with owner-style slash commands

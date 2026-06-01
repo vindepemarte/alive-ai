@@ -13,7 +13,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-DATA_PATH = Path(__file__).parent.parent / "data"
+from core.paths import data_dir
+
+DATA_PATH = data_dir()
 DREAMS_FILE = DATA_PATH / "dreams.json"
 
 # Surreal twists to inject into dreams
@@ -100,23 +102,40 @@ class DreamSystem:
         except Exception as e:
             print(f"[Dreams] Save error: {e}")
 
-    def generate_dream(self, memories: List[str] = None, emotions: List[str] = None) -> Optional[str]:
+    def generate_dream(
+        self,
+        memories: List[str] = None,
+        emotions: List[str] = None,
+        sleep_cycle_id: str = None,
+        force: bool = False,
+    ) -> Optional[str]:
         """
         Generate a dream from recent memory fragments and emotions.
         memories: list of short conversation snippet strings
         emotions: list of emotion name strings
+        sleep_cycle_id: unique sleep cycle identifier from CircadianEngine
         Returns dream text or None if already dreamed this cycle.
         """
         with self._lock:
-            # Max 1 dream per sleep cycle (8h)
-            if self._dreams:
+            # Max 1 dream per sleep cycle; fall back to an 8h guard for callers
+            # that do not yet provide a circadian sleep_cycle_id.
+            if self._dreams and not force:
                 last = self._dreams[-1]
-                try:
-                    last_time = datetime.fromisoformat(last["timestamp"])
-                    if datetime.now() - last_time < timedelta(hours=8):
+                if sleep_cycle_id and last.get("sleep_cycle_id") == sleep_cycle_id:
+                    return None
+                if not sleep_cycle_id:
+                    try:
+                        last_time_raw = last.get("timestamp") or last.get("created_at")
+                        last_time = datetime.fromisoformat(last_time_raw)
+                        if datetime.now() - last_time < timedelta(hours=8):
+                            return None
+                    except Exception:
+                        pass
+
+                if sleep_cycle_id:
+                    already_dreamed = any(d.get("sleep_cycle_id") == sleep_cycle_id for d in self._dreams[-10:])
+                    if already_dreamed:
                         return None
-                except Exception:
-                    pass
 
             fragments = memories[:3] if memories else []
             if not fragments:
@@ -148,9 +167,13 @@ class DreamSystem:
                 emotion=emo_words[0] if emo_words else "strange",
             )
 
+            created_at = datetime.now().isoformat()
             dream = {
+                "content": dream_text,
                 "text": dream_text,
-                "timestamp": datetime.now().isoformat(),
+                "created_at": created_at,
+                "timestamp": created_at,
+                "sleep_cycle_id": sleep_cycle_id,
                 "source_fragments": fragments[:3],
                 "emotions": emotions or [],
             }
@@ -170,9 +193,10 @@ class DreamSystem:
                 return None
             last = self._dreams[-1]
             try:
-                age = datetime.now() - datetime.fromisoformat(last["timestamp"])
+                last_time_raw = last.get("timestamp") or last.get("created_at")
+                age = datetime.now() - datetime.fromisoformat(last_time_raw)
                 if age.total_seconds() / 3600 <= max_age_hours:
-                    return last["text"]
+                    return last.get("text") or last.get("content")
             except Exception:
                 pass
             return None
@@ -197,6 +221,17 @@ class DreamSystem:
         if not dream:
             return ""
         return f"You had a dream recently you could mention: \"{dream}\""
+
+    def get_state_summary(self) -> Dict[str, Any]:
+        """Return durable dream state for runtime dashboards and behavior checks."""
+        with self._lock:
+            last = self._dreams[-1] if self._dreams else None
+            return {
+                "total": len(self._dreams),
+                "last_dream": (last.get("text") or last.get("content")) if last else None,
+                "last_dream_time": (last.get("timestamp") or last.get("created_at")) if last else None,
+                "last_sleep_cycle_id": last.get("sleep_cycle_id") if last else None,
+            }
 
 
 # Singleton

@@ -63,6 +63,10 @@ class HormonalModulationMatrix:
     # Persistence
     HORMONAL_DATA_PATH = state_file("hormonal_state.json")
 
+    @staticmethod
+    def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+        return max(low, min(high, value))
+
     def __init__(self):
         # Primary hormones (0.0 - 1.0)
         self.oxytocin: float = self.BASELINE_OXYTOCIN    # Bonding, trust, connection
@@ -85,11 +89,11 @@ class HormonalModulationMatrix:
         try:
             if self.HORMONAL_DATA_PATH.exists():
                 data = json.loads(self.HORMONAL_DATA_PATH.read_text())
-                self.oxytocin = data.get("oxytocin", self.BASELINE_OXYTOCIN)
-                self.dopamine = data.get("dopamine", self.BASELINE_DOPAMINE)
-                self.serotonin = data.get("serotonin", self.BASELINE_SEROTONIN)
-                self.cortisol = data.get("cortisol", self.BASELINE_CORTISOL)
-                self.melatonin = data.get("melatonin", self.BASELINE_MELATONIN)
+                self.oxytocin = self._clamp(data.get("oxytocin", self.BASELINE_OXYTOCIN))
+                self.dopamine = self._clamp(data.get("dopamine", self.BASELINE_DOPAMINE))
+                self.serotonin = self._clamp(data.get("serotonin", self.BASELINE_SEROTONIN))
+                self.cortisol = self._clamp(data.get("cortisol", self.BASELINE_CORTISOL))
+                self.melatonin = self._clamp(data.get("melatonin", self.BASELINE_MELATONIN))
 
                 # Load metabolites
                 for meta_data in data.get("metabolites", []):
@@ -138,6 +142,7 @@ class HormonalModulationMatrix:
         Release oxytocin (bonding hormone).
         Rises with: positive connection, affection, trust-building, physical intimacy
         """
+        amount = self._clamp(amount)
         boost = amount * 0.3  # Scale factor
         self.oxytocin = min(1.0, self.oxytocin + boost)
         print(f"[Hormonal] Oxytocin released: +{boost:.2f} (source: {source})")
@@ -151,6 +156,7 @@ class HormonalModulationMatrix:
         Release dopamine (reward hormone).
         Rises with: achievement, desire, anticipation, pleasure
         """
+        amount = self._clamp(amount)
         boost = amount * 0.25
         self.dopamine = min(1.0, self.dopamine + boost)
         print(f"[Hormonal] Dopamine released: +{boost:.2f} (source: {source})")
@@ -163,6 +169,7 @@ class HormonalModulationMatrix:
         Release serotonin (well-being hormone).
         Rises with: stability, self-care, accomplishment, peace
         """
+        amount = self._clamp(amount)
         boost = amount * 0.2
         self.serotonin = min(1.0, self.serotonin + boost)
         print(f"[Hormonal] Serotonin released: +{boost:.2f} (source: {source})")
@@ -172,6 +179,7 @@ class HormonalModulationMatrix:
         Release cortisol (stress hormone).
         Rises with: threats, uncertainty, conflict, danger
         """
+        amount = self._clamp(amount)
         boost = amount * 0.35  # Cortisol releases more easily
         self.cortisol = min(1.0, self.cortisol + boost)
         print(f"[Hormonal] Cortisol released: +{boost:.2f} (source: {source})")
@@ -184,6 +192,7 @@ class HormonalModulationMatrix:
         Release melatonin (rest hormone).
         Rises with: quiet time, reflection, evening, calm activities
         """
+        amount = self._clamp(amount)
         boost = amount * 0.2
         self.melatonin = min(1.0, self.melatonin + boost)
 
@@ -192,9 +201,18 @@ class HormonalModulationMatrix:
         Reduce cortisol (stress relief).
         Falls with: safety, reassurance, resolution of threat
         """
+        amount = self._clamp(amount)
         reduction = amount * 0.2
         self.cortisol = max(0.05, self.cortisol - reduction)
         print(f"[Hormonal] Cortisol reduced: -{reduction:.2f} (source: {source})")
+
+    def register_recovery(self, amount: float, source: str = "recovery"):
+        """Shift the hormonal state toward repair after safety/rest."""
+        amount = self._clamp(amount)
+        self.suppress_cortisol(amount, source)
+        self.release_serotonin(amount * 0.8, source)
+        if self.melatonin > self.BASELINE_MELATONIN:
+            self.melatonin = max(self.BASELINE_MELATONIN, self.melatonin - amount * 0.05)
 
     # --- Perception Modulation ---
 
@@ -242,6 +260,9 @@ class HormonalModulationMatrix:
             modulated["reflective_mode"] = True
             modulated["urgency_reduction"] = 0.3
 
+        if modulated.get("threat_level", 0) > 0.6:
+            modulated["threat_present"] = True
+
         # Apply metabolite effects
         for metabolite in self.metabolites:
             if metabolite.quality == "raw":
@@ -287,6 +308,122 @@ class HormonalModulationMatrix:
             coloring["contentment_base"] = (self.serotonin - 0.7) * 0.3
 
         return coloring
+
+    def _deviations(self) -> Dict[str, float]:
+        """Return level deltas from each hormone's baseline."""
+        return {
+            "oxytocin": self.oxytocin - self.BASELINE_OXYTOCIN,
+            "dopamine": self.dopamine - self.BASELINE_DOPAMINE,
+            "serotonin": self.serotonin - self.BASELINE_SEROTONIN,
+            "cortisol": self.cortisol - self.BASELINE_CORTISOL,
+            "melatonin": self.melatonin - self.BASELINE_MELATONIN,
+        }
+
+    def get_soul_effects(self) -> Dict[str, float]:
+        """Effects on the integrated soul valence/arousal/vulnerability axes."""
+        d = self._deviations()
+        low_serotonin = max(0.0, -d["serotonin"])
+        return {
+            "valence": (
+                d["oxytocin"] * 0.28
+                + d["dopamine"] * 0.12
+                + d["serotonin"] * 0.34
+                - d["cortisol"] * 0.42
+                - max(0.0, d["melatonin"]) * 0.08
+            ),
+            "arousal": (
+                d["cortisol"] * 0.45
+                + d["dopamine"] * 0.34
+                + low_serotonin * 0.18
+                - max(0.0, d["melatonin"]) * 0.40
+            ),
+            "vulnerability": (
+                d["cortisol"] * 0.22
+                + low_serotonin * 0.16
+                + d["oxytocin"] * 0.08
+            ),
+            "recovery": max(0.0, d["serotonin"] * 0.18 - d["cortisol"] * 0.12),
+            "sleepiness": max(0.0, d["melatonin"]),
+        }
+
+    def get_emotion_effects(self) -> Dict[str, float]:
+        """Small per-turn deltas for the traditional EmotionalState fields."""
+        d = self._deviations()
+        low_serotonin = max(0.0, -d["serotonin"])
+        recovery = self.get_soul_effects()["recovery"]
+        return {
+            "valence": d["oxytocin"] * 0.06 + d["serotonin"] * 0.08 - d["cortisol"] * 0.10,
+            "arousal": d["cortisol"] * 0.09 + d["dopamine"] * 0.08 - max(0.0, d["melatonin"]) * 0.11,
+            "desire": d["dopamine"] * 0.08 + d["oxytocin"] * 0.04 - d["cortisol"] * 0.05 - max(0.0, d["melatonin"]) * 0.05,
+            "joy": d["oxytocin"] * 0.04 + max(0.0, d["serotonin"]) * 0.06 + d["dopamine"] * 0.03 - d["cortisol"] * 0.05,
+            "love": d["oxytocin"] * 0.07 + max(0.0, d["serotonin"]) * 0.03 - d["cortisol"] * 0.04,
+            "trust": d["oxytocin"] * 0.06 + d["serotonin"] * 0.04 - d["cortisol"] * 0.08,
+            "fear": d["cortisol"] * 0.10 + low_serotonin * 0.06 - d["oxytocin"] * 0.04 - recovery * 0.05,
+            "sadness": low_serotonin * 0.08 + d["cortisol"] * 0.03 - recovery * 0.06,
+            "anger": d["cortisol"] * 0.05 - max(0.0, d["serotonin"]) * 0.04,
+            "anticipation": d["dopamine"] * 0.09 + d["cortisol"] * 0.02 - max(0.0, d["melatonin"]) * 0.04,
+            "boredom": max(0.0, -d["dopamine"]) * 0.04 + max(0.0, d["melatonin"]) * 0.03 - max(0.0, d["dopamine"]) * 0.05,
+        }
+
+    def get_somatic_effects(self) -> Dict[str, float]:
+        """Hormonal deltas for body-state variables in SomaticFeedbackSystem."""
+        d = self._deviations()
+        recovery = self.get_soul_effects()["recovery"]
+        return {
+            "heart_rate": d["cortisol"] * 0.12 + d["dopamine"] * 0.08 - max(0.0, d["melatonin"]) * 0.08,
+            "breath_quality": -d["cortisol"] * 0.10 + d["oxytocin"] * 0.04 + d["serotonin"] * 0.06 + recovery * 0.05,
+            "muscle_tension": d["cortisol"] * 0.12 + max(0.0, -d["serotonin"]) * 0.05 - recovery * 0.08,
+            "stomach_state": -d["cortisol"] * 0.08 + d["oxytocin"] * 0.05 + d["serotonin"] * 0.05,
+            "energy_level": d["dopamine"] * 0.10 - d["cortisol"] * 0.08 - max(0.0, d["melatonin"]) * 0.13 + recovery * 0.04,
+        }
+
+    def get_interoceptive_effects(self) -> Dict[str, float]:
+        """Hormonal deltas for the interoceptive body-state singleton."""
+        d = self._deviations()
+        recovery = self.get_soul_effects()["recovery"]
+        return {
+            "energy": d["dopamine"] * 0.08 - d["cortisol"] * 0.08 - max(0.0, d["melatonin"]) * 0.12,
+            "social_satiety": d["oxytocin"] * 0.10 + recovery * 0.03,
+            "emotional_valence": d["oxytocin"] * 0.06 + d["serotonin"] * 0.10 - d["cortisol"] * 0.12,
+            "certainty": d["serotonin"] * 0.08 - d["cortisol"] * 0.08 + recovery * 0.04,
+            "cognitive_load": d["cortisol"] * 0.10 + max(0.0, -d["serotonin"]) * 0.06 - recovery * 0.05,
+            "arousal": d["cortisol"] * 0.12 + d["dopamine"] * 0.08 - max(0.0, d["melatonin"]) * 0.12,
+            "connection_craving": -d["oxytocin"] * 0.10 + d["cortisol"] * 0.05 + max(0.0, -d["serotonin"]) * 0.04,
+        }
+
+    def get_impulse_effects(self) -> Dict[str, float]:
+        """Biases for the subconscious impulse generator."""
+        d = self._deviations()
+        chance_multiplier = 1.0 + d["dopamine"] * 0.45 + d["oxytocin"] * 0.30 - d["cortisol"] * 0.35 - max(0.0, d["melatonin"]) * 0.45
+        return {
+            "chance_multiplier": max(0.25, min(1.8, chance_multiplier)),
+            "connection_bias": max(-0.5, min(0.8, d["oxytocin"] * 1.5)),
+            "reward_bias": max(-0.5, min(0.8, d["dopamine"] * 1.4)),
+            "stress_bias": max(-0.4, min(0.9, d["cortisol"] * 1.3)),
+            "stability_bias": max(-0.6, min(0.7, d["serotonin"] * 1.4)),
+            "sleepy_bias": max(0.0, min(0.8, max(0.0, d["melatonin"]) * 1.5)),
+        }
+
+    def get_prompt_guidance(self) -> List[str]:
+        """Concrete prompt effects so hormonal state changes response style."""
+        guidance: List[str] = []
+        if self.cortisol > 0.65:
+            guidance.append("stress is high: sound more vigilant, concise, and protective")
+        elif self.cortisol > 0.45:
+            guidance.append("stress is elevated: let a little edge or urgency show")
+
+        if self.oxytocin > 0.62:
+            guidance.append("bonding is strong: lean warmer, more trusting, and connection-seeking")
+        if self.dopamine > 0.62:
+            guidance.append("reward anticipation is high: sound more eager and drawn toward action")
+        if self.serotonin < 0.38:
+            guidance.append("stability is low: be softer, less playful, and more easily unsettled")
+        elif self.serotonin > 0.68 and self.cortisol < 0.4:
+            guidance.append("recovery is active: sound steadier, calmer, and more emotionally regulated")
+        if self.melatonin > 0.55:
+            guidance.append("sleepiness is present: slow down, be more reflective, and use less intensity")
+
+        return guidance[:4]
 
     # --- Decay and Recovery ---
 
@@ -402,7 +539,15 @@ class HormonalModulationMatrix:
             "state_description": self.get_hormonal_state_description(),
             "dominant_hormone": self.get_dominant_hormone()[0],
             "metabolite_count": len(self.metabolites),
-            "emotional_coloring": self.get_emotional_coloring()
+            "emotional_coloring": self.get_emotional_coloring(),
+            "runtime_effects": {
+                "soul": self.get_soul_effects(),
+                "emotion": self.get_emotion_effects(),
+                "somatic": self.get_somatic_effects(),
+                "interoceptive": self.get_interoceptive_effects(),
+                "impulse": self.get_impulse_effects(),
+            },
+            "prompt_guidance": self.get_prompt_guidance()
         }
 
     def get_current_context(self) -> Dict:
@@ -416,6 +561,14 @@ class HormonalModulationMatrix:
                 "melatonin": self.melatonin
             },
             "coloring": self.get_emotional_coloring(),
+            "effects": {
+                "soul": self.get_soul_effects(),
+                "emotion": self.get_emotion_effects(),
+                "somatic": self.get_somatic_effects(),
+                "interoceptive": self.get_interoceptive_effects(),
+                "impulse": self.get_impulse_effects(),
+            },
+            "prompt_guidance": self.get_prompt_guidance(),
             "state_description": self.get_hormonal_state_description(),
             "metabolites": [
                 {"source": m.source_hormone, "intensity": m.intensity, "quality": m.quality}

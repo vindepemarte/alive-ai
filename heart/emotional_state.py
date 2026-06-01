@@ -18,6 +18,14 @@ DEFAULTS = {
 }
 
 
+def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+    """Keep persisted and computed emotion values in the normalized range."""
+    try:
+        return max(low, min(high, float(value)))
+    except (TypeError, ValueError):
+        return low
+
+
 class EmotionalState:
     """Current emotional state with persistence - extended for Soul Architecture"""
 
@@ -29,8 +37,11 @@ class EmotionalState:
             for key, val in DEFAULTS.items():
                 setattr(self, key, val)
         self.baseline = {"joy": 0.5, "love": 0.2, "trust": 0.5,
+                         "valence": 0.5, "dominance": 0.5,
                          "arousal": 0.3, "desire": 0.0,
-                         "anger": 0.0, "sadness": 0.1, "fear": 0.1}
+                         "anger": 0.0, "sadness": 0.1, "fear": 0.1,
+                         "boredom": 0.0}
+        self._clamp_all()
 
     def _load(self) -> bool:
         """Load state from file"""
@@ -38,7 +49,7 @@ class EmotionalState:
             if EMOTION_STATE_PATH.exists():
                 data = json.loads(EMOTION_STATE_PATH.read_text())
                 for key in DEFAULTS:
-                    setattr(self, key, data.get(key, DEFAULTS[key]))
+                    setattr(self, key, _clamp(data.get(key, DEFAULTS[key])))
                 return True
         except Exception as e:
             print(f"[Heart] Error loading state: {e}")
@@ -53,6 +64,100 @@ class EmotionalState:
             EMOTION_STATE_PATH.write_text(json.dumps(data, indent=2))
         except Exception as e:
             print(f"[Heart] Error saving state: {e}")
+
+    def _clamp_all(self):
+        for key in DEFAULTS:
+            setattr(self, key, _clamp(getattr(self, key, DEFAULTS[key])))
+
+    def nudge(self, key: str, amount: float):
+        """Adjust an emotion dimension and clamp it."""
+        if key not in DEFAULTS:
+            return
+        setattr(self, key, _clamp(getattr(self, key, DEFAULTS[key]) + amount))
+
+    def recompute_core_affect(self, soul_valence: float | None = None,
+                              soul_arousal: float | None = None):
+        """
+        Recompute the PAD-style core affect from active emotions.
+
+        Valence/arousal/dominance are the dimensions many other modules consume.
+        They must move whenever discrete emotions move, otherwise emotions become
+        labels that do not affect attachment, memory, interoception, or prompts.
+        """
+        self._clamp_all()
+
+        joy_up = max(0.0, self.joy - 0.5)
+        joy_down = max(0.0, 0.5 - self.joy)
+        love_up = max(0.0, self.love - 0.2)
+        trust_up = max(0.0, self.trust - 0.5)
+        trust_down = max(0.0, 0.5 - self.trust)
+        fear_up = max(0.0, self.fear - 0.1)
+        anger_up = max(0.0, self.anger - 0.1)
+        sadness_up = max(0.0, self.sadness - 0.1)
+        dread_up = max(0.0, self.dread - 0.1)
+        hope_up = max(0.0, self.hope - 0.5)
+        hope_down = max(0.0, 0.5 - self.hope)
+
+        positive = (
+            joy_up * 0.45 +
+            love_up * 0.30 +
+            trust_up * 0.30 +
+            self.pride * 0.12 +
+            hope_up * 0.16 +
+            self.anticipation * 0.04
+        )
+        negative = (
+            joy_down * 0.20 +
+            trust_down * 0.25 +
+            sadness_up * 0.29 +
+            anger_up * 0.23 +
+            fear_up * 0.30 +
+            self.guilt * 0.18 +
+            self.jealousy * 0.18 +
+            self.embarrassment * 0.10 +
+            self.boredom * 0.07 +
+            dread_up * 0.16 +
+            hope_down * 0.10
+        )
+        target_valence = _clamp(0.5 + positive - negative)
+
+        if soul_valence is not None:
+            # Soul valence is -1..1, while the classic emotion state is 0..1.
+            soul_as_01 = _clamp((soul_valence + 1.0) / 2.0)
+            target_valence = target_valence * 0.65 + soul_as_01 * 0.35
+
+        target_arousal = _clamp(
+            0.25 +
+            self.desire * 0.28 +
+            anger_up * 0.28 +
+            fear_up * 0.50 +
+            sadness_up * 0.08 +
+            self.anticipation * 0.20 +
+            joy_up * 0.14 +
+            self.jealousy * 0.18 +
+            self.embarrassment * 0.15 +
+            dread_up * 0.20 -
+            self.boredom * 0.08
+        )
+        if soul_arousal is not None:
+            target_arousal = target_arousal * 0.65 + _clamp(soul_arousal) * 0.35
+
+        target_dominance = _clamp(
+            0.5 +
+            trust_up * 0.24 +
+            self.pride * 0.24 +
+            anger_up * 0.06 -
+            trust_down * 0.18 -
+            fear_up * 0.32 -
+            sadness_up * 0.18 -
+            self.guilt * 0.16 -
+            self.embarrassment * 0.15 -
+            dread_up * 0.18
+        )
+
+        self.valence = _clamp(target_valence)
+        self.arousal = _clamp(self.arousal * 0.55 + target_arousal * 0.45)
+        self.dominance = _clamp(target_dominance)
 
     @property
     def is_high_desire(self) -> bool:
@@ -77,25 +182,78 @@ class EmotionalState:
 
     @property
     def _base_mood(self) -> str:
-        """Base mood without complex emotion modifiers"""
-        if self.is_high_desire: return "high_desire"
-        if self.is_in_love: return "in_love"
-        if self.desire > 0.5: return "excited"
-        if self.boredom > 0.6: return "bored"
-        if self.joy > 0.7: return "happy"
-        if self.sadness > 0.5: return "sad"
-        if self.anger > 0.5: return "angry"
+        """Base mood without complex emotion modifiers."""
+        if self.fear > 0.55 or self.dread > 0.55:
+            return "fearful" if self.arousal > 0.45 else "uneasy"
+        if self.anger > 0.55:
+            return "angry"
+        if self.jealousy > 0.55:
+            return "jealous"
+        if self.guilt > 0.55:
+            return "guilty"
+        if self.sadness > 0.55:
+            return "sad"
+        if self.embarrassment > 0.50:
+            return "embarrassed"
+        if self.is_high_desire and self.trust > 0.35 and self.valence >= 0.45:
+            return "high_desire"
+        if self.is_in_love and self.valence >= 0.45:
+            return "in_love"
+        if self.anticipation > 0.65:
+            return "eager" if self.valence >= 0.45 else "anxious"
+        if self.desire > 0.5 and self.valence >= 0.45:
+            return "excited"
+        if self.boredom > 0.65:
+            return "bored"
+        if self.pride > 0.55:
+            return "proud"
+        if self.joy > 0.7:
+            return "happy"
+        if self.trust > 0.70 and self.love > 0.45:
+            return "connected"
+        if self.valence < 0.35:
+            return "low"
+        if self.valence > 0.65:
+            return "content"
         return "neutral"
 
     @property
     def mood_description(self) -> str:
         base = self._base_mood
-        if self.jealousy > 0.5: return f"{base}_jealous"
-        if self.guilt > 0.5: return f"{base}_guilty"
-        if self.anticipation > 0.6: return f"{base}_eager"
-        if self.pride > 0.5: return f"{base}_proud"
-        if self.embarrassment > 0.4: return f"{base}_shy"
+        modifiers = []
+        if self.jealousy > 0.45 and base != "jealous":
+            modifiers.append("jealous")
+        if self.guilt > 0.45 and base != "guilty":
+            modifiers.append("guilty")
+        if (self.fear > 0.45 or self.dread > 0.45) and base not in ("fearful", "uneasy", "anxious"):
+            modifiers.append("anxious")
+        if self.anticipation > 0.55 and base not in ("eager", "anxious"):
+            modifiers.append("eager")
+        if self.pride > 0.45 and base != "proud":
+            modifiers.append("proud")
+        if self.embarrassment > 0.35 and base != "embarrassed":
+            modifiers.append("shy")
+        if modifiers:
+            return f"{base}_{'_'.join(modifiers[:2])}"
         return base
+
+    def to_dict(self) -> dict:
+        """Export the complete emotional state for UI, memory, and tests."""
+        data = {key: getattr(self, key) for key in DEFAULTS}
+        data.update({
+            "is_high_desire": self.is_high_desire,
+            "is_in_love": self.is_in_love,
+            "is_jealous": self.is_jealous,
+            "is_guilty": self.is_guilty,
+            "is_anticipating": self.is_anticipating,
+            "is_vulnerable": self.is_vulnerable,
+            "is_hopeful": self.is_hopeful,
+            "is_dreading": self.is_dreading,
+            "is_in_crisis": self.is_in_crisis,
+            "is_flourishing": self.is_flourishing,
+            "mood": self.mood_description,
+        })
+        return data
 
     # --- Soul Architecture Properties ---
 

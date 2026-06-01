@@ -211,14 +211,22 @@ class PredictiveEmotionalEngine:
 
         # Hormonal trajectory
         if self.hormonal:
-            if self.hormonal.cortisol > 0.6:
-                predicted -= 0.1  # High stress predicts decline
+            effects = self.hormonal.get_soul_effects()
+            levels = self.hormonal.get_current_context().get("levels", {})
+            if levels.get("cortisol", 0.2) > 0.6:
+                predicted += min(0.0, effects.get("valence", 0.0))
                 factors.append("high_cortisol")
                 confidence += 0.1
-            elif self.hormonal.oxytocin > 0.6:
-                predicted += 0.05  # High bonding predicts stability
+            elif levels.get("oxytocin", 0.3) > 0.6:
+                predicted += max(0.0, effects.get("valence", 0.0)) * 0.5
                 factors.append("high_oxytocin")
                 confidence += 0.05
+            if levels.get("serotonin", 0.5) > 0.65 and levels.get("cortisol", 0.2) < 0.4:
+                predicted += effects.get("recovery", 0.0)
+                factors.append("hormonal_recovery")
+            if levels.get("melatonin", 0.3) > 0.65:
+                predicted -= effects.get("sleepiness", 0.0) * 0.05
+                factors.append("sleepiness")
 
         # Clamp prediction
         predicted = max(0.1, min(0.95, predicted))
@@ -303,6 +311,8 @@ class PredictiveEmotionalEngine:
         if emotion in [PredictiveEmotion.FEAR, PredictiveEmotion.DREAD, PredictiveEmotion.ANXIETY]:
             if self.hormonal.cortisol > 0.5:
                 intensity *= 1 + (self.hormonal.cortisol - 0.5)
+            if self.hormonal.serotonin > 0.65:
+                intensity *= 1 - (self.hormonal.serotonin - 0.65) * 0.4
 
         # Oxytocin softens negative predictions
         if emotion in [PredictiveEmotion.FEAR, PredictiveEmotion.DREAD]:
@@ -313,6 +323,8 @@ class PredictiveEmotionalEngine:
         if emotion in [PredictiveEmotion.HOPE, PredictiveEmotion.EXCITEMENT]:
             if self.hormonal.dopamine > 0.6:
                 intensity *= 1 + (self.hormonal.dopamine - 0.6) * 0.5
+            if self.hormonal.melatonin > 0.6:
+                intensity *= 1 - (self.hormonal.melatonin - 0.6) * 0.35
 
         return min(1.0, intensity)
 

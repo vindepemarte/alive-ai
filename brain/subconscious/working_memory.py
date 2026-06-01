@@ -68,13 +68,21 @@ class WorkingMemory:
 
     def to_dict(self) -> dict:
         return {"thoughts": [t.to_dict() for t in self.thoughts], "current_mood": self.current_mood,
-                "last_action_time": self.last_action_time.isoformat() if self.last_action_time else None}
+                "last_action_time": self.last_action_time.isoformat() if self.last_action_time else None,
+                "last_action_type": self.last_action_type,
+                "relationship_context": self.relationship_context,
+                "current_goal": self.current_goal,
+                "recent_memories": self.recent_memories}
 
     @classmethod
     def from_dict(cls, data: dict) -> "WorkingMemory":
         m = cls()
         m.thoughts = deque([Thought.from_dict(t) for t in data.get("thoughts", [])], maxlen=50)
         m.current_mood = data.get("current_mood", "neutral")
+        m.last_action_type = data.get("last_action_type")
+        m.relationship_context = data.get("relationship_context", "")
+        m.current_goal = data.get("current_goal", "")
+        m.recent_memories = data.get("recent_memories", [])
         if data.get("last_action_time"):
             m.last_action_time = datetime.fromisoformat(data["last_action_time"])
         return m

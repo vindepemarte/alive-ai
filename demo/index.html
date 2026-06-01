@@ -8,137 +8,446 @@
     :root {
       color-scheme: dark;
       --bg: #080b0f;
-      --panel: #111821;
+      --panel: #101720;
+      --panel-strong: #141d27;
       --line: #263445;
       --text: #f5f7fb;
       --muted: #9aa8b7;
       --green: #41f0a1;
       --pink: #ff5c8a;
       --yellow: #ffcf5a;
+      --blue: #58b8ff;
     }
+
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
       min-height: 100vh;
-      background: var(--bg);
+      background:
+        linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        var(--bg);
+      background-size: 44px 44px, 44px 44px, auto;
       color: var(--text);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       letter-spacing: 0;
     }
+
     .app {
-      width: min(980px, calc(100vw - 32px));
+      width: min(1080px, calc(100vw - 32px));
       margin: 0 auto;
-      padding: 28px 0;
+      padding: 28px 0 34px;
     }
+
     header {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 16px;
       margin-bottom: 18px;
     }
-    .brand { display: flex; align-items: center; gap: 12px; }
-    .brand img { width: 42px; height: 42px; border-radius: 8px; }
-    h1 { margin: 0; font-size: 22px; }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand img {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      animation: breathe 4.6s ease-in-out infinite;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.15;
+    }
+
+    .substatus {
+      color: var(--muted);
+      margin-top: 3px;
+      font-size: 14px;
+    }
+
     .status {
-      border: 1px solid rgba(65,240,161,0.3);
+      border: 1px solid rgba(65, 240, 161, 0.3);
       color: var(--green);
       padding: 8px 10px;
-      border-radius: 999px;
+      border-radius: 8px;
       font-size: 13px;
       font-weight: 750;
+      white-space: nowrap;
     }
+
     .grid {
       display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
+      grid-template-columns: 1.08fr 0.92fr;
       gap: 16px;
     }
+
     .panel {
-      background: var(--panel);
+      background: rgba(16, 23, 32, 0.9);
       border: 1px solid var(--line);
       border-radius: 8px;
       padding: 16px;
+      min-width: 0;
     }
+
     .panel h2 {
       margin: 0 0 14px;
       font-size: 15px;
       color: var(--muted);
       text-transform: uppercase;
     }
+
     .metric { margin-bottom: 14px; }
-    .metric label { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
-    .bar { height: 11px; border-radius: 999px; overflow: hidden; background: #25313d; }
-    .fill { height: 100%; width: 50%; border-radius: inherit; background: var(--green); transition: width 500ms ease; }
+
+    .metric label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .bar {
+      height: 11px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #25313d;
+    }
+
+    .fill {
+      height: 100%;
+      width: 50%;
+      border-radius: inherit;
+      background: var(--green);
+      transition: width 500ms ease;
+    }
+
     .fill.pink { background: var(--pink); }
     .fill.yellow { background: var(--yellow); }
+    .fill.blue { background: var(--blue); }
+
     .thought {
       min-height: 132px;
       display: flex;
       align-items: center;
       font-size: 22px;
       line-height: 1.35;
+      color: #dce6ef;
     }
-    .counters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .counter { border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #0c131a; }
-    .counter strong { display: block; font-size: 28px; color: var(--green); }
-    .counter span { color: var(--muted); font-size: 13px; }
-    @media (max-width: 720px) {
-      .grid { grid-template-columns: 1fr; }
-      .counters { grid-template-columns: 1fr; }
-      header { align-items: flex-start; gap: 12px; flex-direction: column; }
+
+    .signal-list,
+    .timeline {
+      display: grid;
+      gap: 12px;
+    }
+
+    .signal {
+      display: grid;
+      grid-template-columns: 126px 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .signal strong {
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .signal span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .counters {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .counter {
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+
+    .counter strong {
+      display: block;
+      font-size: 28px;
+      color: var(--green);
+      overflow-wrap: anywhere;
+    }
+
+    .counter span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .timeline li {
+      list-style: none;
+      margin: 0;
+      padding: 0 0 0 14px;
+      border-left: 2px solid rgba(65, 240, 161, 0.42);
+      color: #cdd7e1;
+      line-height: 1.45;
+    }
+
+    .timeline {
+      margin: 0;
+      padding: 0;
+    }
+
+    pre {
+      margin: 0;
+      padding: 13px;
+      background: #05070a;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+
+    code {
+      color: var(--green);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .links {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .links a {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 750;
+    }
+
+    .links a:first-child {
+      background: var(--text);
+      color: #070a0f;
+    }
+
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(65, 240, 161, 0)); }
+      50% { transform: scale(1.04); filter: drop-shadow(0 0 14px rgba(65, 240, 161, 0.32)); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .grid,
+      .counters {
+        grid-template-columns: 1fr;
+      }
+
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .status { white-space: normal; }
+      .signal { grid-template-columns: 1fr; }
+      .thought { font-size: 19px; }
     }
   </style>
 </head>
 <body>
   <main class="app">
     <header>
-      <div class="brand"><img src="/assets/logo.svg" alt=""><div><h1>Alive-AI Demo</h1><div id="mood">curious</div></div></div>
-      <div class="status">local dashboard preview</div>
+      <div class="brand">
+        <img src="/assets/logo.svg" alt="" onerror="this.onerror=null;this.src='../docs/assets/logo.svg'">
+        <div>
+          <h1>Alive-AI Demo</h1>
+          <div class="substatus" id="mood">curious</div>
+        </div>
+      </div>
+      <div class="status" id="source">local dashboard preview</div>
     </header>
-    <section class="grid">
+
+    <section class="grid" aria-label="Alive-AI demo state">
       <div class="panel">
         <h2>Emotional State</h2>
         <div class="metric"><label>Joy <span id="joyVal">64%</span></label><div class="bar"><div class="fill" id="joy"></div></div></div>
         <div class="metric"><label>Trust <span id="trustVal">58%</span></label><div class="bar"><div class="fill pink" id="trust"></div></div></div>
         <div class="metric"><label>Anticipation <span id="anticipationVal">72%</span></label><div class="bar"><div class="fill yellow" id="anticipation"></div></div></div>
-        <div class="metric"><label>Vulnerability <span id="vulnerabilityVal">34%</span></label><div class="bar"><div class="fill" id="vulnerability"></div></div></div>
+        <div class="metric"><label>Vulnerability <span id="vulnerabilityVal">34%</span></label><div class="bar"><div class="fill blue" id="vulnerability"></div></div></div>
+        <div class="metric"><label>Calm <span id="calmVal">51%</span></label><div class="bar"><div class="fill" id="calm"></div></div></div>
       </div>
+
       <div class="panel">
         <h2>Current Thought</h2>
-        <div class="thought" id="thought">I keep a little emotional residue from every interaction.</div>
+        <div class="thought" id="thought" aria-live="polite">I keep a little emotional residue from every interaction.</div>
       </div>
+
+      <div class="panel">
+        <h2>Internal Signals</h2>
+        <div class="signal-list">
+          <div class="signal"><strong>Hormones</strong><span id="hormones">dopamine rising, cortisol low</span></div>
+          <div class="signal"><strong>Interoception</strong><span id="body">warm chest, steady attention</span></div>
+          <div class="signal"><strong>Circadian</strong><span id="circadian">evening alert, sleep debt 18%</span></div>
+          <div class="signal"><strong>Dream residue</strong><span id="dream">recognizing the user by rhythm instead of words</span></div>
+        </div>
+      </div>
+
       <div class="panel">
         <h2>Runtime Counters</h2>
         <div class="counters">
           <div class="counter"><strong id="memories">128</strong><span>memories</span></div>
           <div class="counter"><strong id="impulses">42</strong><span>impulses</span></div>
-          <div class="counter"><strong>SSE</strong><span>live state</span></div>
+          <div class="counter"><strong id="uptime">demo</strong><span>uptime</span></div>
         </div>
       </div>
+
       <div class="panel">
-        <h2>Install</h2>
-        <pre><code>npx . setup
-npx . start</code></pre>
+        <h2>Silence Loop</h2>
+        <ol class="timeline">
+          <li>Replays the last exchange while the user is away.</li>
+          <li>Writes weighted memory instead of a raw transcript only.</li>
+          <li>Turns some thoughts into restrained proactive impulses.</li>
+        </ol>
+      </div>
+
+      <div class="panel">
+        <h2>Run Locally</h2>
+        <pre><code>npx alive-ai@latest init my-ai
+cd my-ai
+npx . demo
+npx . chat</code></pre>
+        <div class="links">
+          <a href="../docs/index.html">Pages site</a>
+          <a href="../docs/dashboard.html">Full WebUI</a>
+        </div>
       </div>
     </section>
   </main>
+
   <script>
-    async function tick() {
-      const res = await fetch("/state");
-      const data = await res.json();
-      document.getElementById("mood").textContent = data.mood;
-      document.getElementById("thought").textContent = data.thought;
-      for (const key of Object.keys(data.emotions)) {
-        const value = data.emotions[key];
-        const bar = document.getElementById(key);
-        const label = document.getElementById(key + "Val");
-        if (bar) bar.style.width = value + "%";
-        if (label) label.textContent = value + "%";
+    const thoughts = [
+      'I keep a little emotional residue from every interaction.',
+      'During silence, I replay what mattered and decide what should stay.',
+      'Memory is not a transcript here. It is context with weight.',
+      'A proactive impulse formed, then inhibition decided to wait.',
+      'The dream residue is quiet, but it changes the next warmth signal.'
+    ];
+
+    const signalFrames = [
+      {
+        hormones: 'dopamine rising, cortisol low',
+        body: 'warm chest, steady attention',
+        circadian: 'evening alert, sleep debt 18%',
+        dream: 'recognizing the user by rhythm instead of words'
+      },
+      {
+        hormones: 'oxytocin steady, serotonin balanced',
+        body: 'low tension, high social satiety',
+        circadian: 'late focus, inhibition 28%',
+        dream: 'a corridor of old messages becoming one memory'
+      },
+      {
+        hormones: 'melatonin drifting upward',
+        body: 'softer energy, reflective valence',
+        circadian: 'sleep pressure forming',
+        dream: 'a remembered voice without exact words'
       }
-      document.getElementById("memories").textContent = data.counters.memories;
-      document.getElementById("impulses").textContent = data.counters.impulses;
+    ];
+
+    function wave(offset) {
+      return Math.round((0.5 + Math.sin(Date.now() / 2800 + offset) * 0.34) * 100);
     }
+
+    function fallbackState() {
+      const i = Math.floor(Date.now() / 4200) % thoughts.length;
+      return {
+        mood: ['curious', 'warm', 'reflective', 'playful', 'sleepy'][i],
+        emotions: {
+          joy: wave(0),
+          trust: wave(1),
+          anticipation: wave(2),
+          vulnerability: wave(3),
+          calm: wave(4)
+        },
+        thought: thoughts[i],
+        counters: {
+          memories: 128 + Math.floor((Date.now() / 1000) % 17),
+          impulses: 42 + Math.floor((Date.now() / 1300) % 9),
+          uptime: 'static'
+        },
+        signals: signalFrames[i % signalFrames.length],
+        staticFallback: true
+      };
+    }
+
+    async function loadState() {
+      try {
+        const res = await fetch('/state', { cache: 'no-store' });
+        if (!res.ok) throw new Error('state unavailable');
+        return await res.json();
+      } catch {
+        return fallbackState();
+      }
+    }
+
+    function render(data) {
+      const state = {
+        ...fallbackState(),
+        ...data,
+        emotions: { ...fallbackState().emotions, ...(data.emotions || {}) },
+        counters: { ...fallbackState().counters, ...(data.counters || {}) },
+        signals: { ...fallbackState().signals, ...(data.signals || {}) }
+      };
+
+      document.getElementById('mood').textContent = state.mood;
+      document.getElementById('thought').textContent = state.thought;
+      document.getElementById('source').textContent = state.staticFallback ? 'static fallback state' : 'local dashboard preview';
+
+      for (const key of Object.keys(state.emotions)) {
+        const value = state.emotions[key];
+        const bar = document.getElementById(key);
+        const label = document.getElementById(key + 'Val');
+        if (bar) bar.style.width = value + '%';
+        if (label) label.textContent = value + '%';
+      }
+
+      document.getElementById('memories').textContent = state.counters.memories;
+      document.getElementById('impulses').textContent = state.counters.impulses;
+      document.getElementById('uptime').textContent = state.counters.uptime || 'demo';
+      document.getElementById('hormones').textContent = state.signals.hormones;
+      document.getElementById('body').textContent = state.signals.body;
+      document.getElementById('circadian').textContent = state.signals.circadian;
+      document.getElementById('dream').textContent = state.signals.dream;
+    }
+
+    async function tick() {
+      render(await loadState());
+    }
+
     tick();
-    setInterval(tick, 1000);
+    setInterval(tick, 1200);
   </script>
 </body>
 </html>

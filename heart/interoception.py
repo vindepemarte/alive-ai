@@ -418,9 +418,11 @@ class InteroceptiveSystem:
 
                 # Load saved_at timestamp for decay calculation
                 saved_at = data.get("saved_at")
+                elapsed = 0.0
                 if saved_at:
                     elapsed = self._calculate_elapsed_seconds(saved_at)
                     logger.info(f"[Interoception] {elapsed:.0f} seconds since last save")
+                self.last_tick = data.get("last_tick", saved_at or self.last_tick)
 
                 # Load each state
                 for state_name, state_data in data.get("states", {}).items():
@@ -429,6 +431,11 @@ class InteroceptiveSystem:
                         self.states[state_name].last_updated = state_data.get("last_updated", datetime.now().isoformat())
                         self.states[state_name].predicted_value = state_data.get("predicted_value", self.states[state_name].baseline)
                         self.states[state_name].prediction_error = state_data.get("prediction_error", 0.0)
+
+                if elapsed > 1:
+                    for state in self.states.values():
+                        state.decay(elapsed_seconds=elapsed)
+                    self.last_tick = datetime.now().isoformat()
 
                 logger.info("[Interoception] Loaded saved interoceptive state")
                 return True
