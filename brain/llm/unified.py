@@ -76,7 +76,8 @@ class UnifiedLLM(BaseLLM):
         """
         # BaseLLM requires api_key and model - use placeholder values
         super().__init__("unified", "fallback-chain")
-        self.config = {**self.DEFAULT_CONFIG, **(config or {})}
+        self._explicit_config = config or {}
+        self.config = {**self.DEFAULT_CONFIG, **self._explicit_config}
         self._settings_getter = settings_getter
         self._providers: Dict[str, ProviderInfo] = {}
         self._active_provider: Optional[str] = None
@@ -88,21 +89,27 @@ class UnifiedLLM(BaseLLM):
 
     def _get_setting(self, key: str, default: Any = None) -> Any:
         """Get a setting from config or settings.json"""
-        # Try config first
-        if key in self.config:
-            return self.config[key]
+        # 1. Try explicit config first
+        if key in self._explicit_config:
+            return self._explicit_config[key]
 
-        # Try settings getter
+        # 2. Try settings getter (root level)
         if self._settings_getter:
             value = self._settings_getter(key)
             if value is not None:
                 return value
 
-        # Try LLM_FALLBACK nested config
+        # 3. Try LLM_FALLBACK nested config
         if self._settings_getter:
             all_settings = self._settings_getter("LLM_FALLBACK") or {}
             if key.upper() in all_settings:
                 return all_settings[key.upper()]
+            if key in all_settings:
+                return all_settings[key]
+
+        # 4. Fall back to DEFAULT_CONFIG
+        if key in self.DEFAULT_CONFIG:
+            return self.DEFAULT_CONFIG[key]
 
         return default
 

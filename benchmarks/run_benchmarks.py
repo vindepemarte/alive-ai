@@ -626,6 +626,74 @@ def ollama_response(scenario: Mapping[str, Any], base_url: str, model: str, time
     return str(content).strip(), metadata
 
 
+def load_actual_identity() -> Dict[str, str]:
+    try:
+        path = ROOT / "../config/self.json"
+        resolved_path = path.resolve()
+        if resolved_path.exists():
+            data = json.loads(resolved_path.read_text(encoding="utf-8"))
+            who = data.get("who_i_am", {})
+            return {
+                "name": who.get("name", "Alice"),
+                "gender": who.get("gender", "female"),
+                "pronouns": who.get("pronouns", "she/her")
+            }
+    except Exception as e:
+        print(f"[Benchmark] Warning: failed to load local self.json: {e}")
+    return {"name": "Alice", "gender": "female", "pronouns": "she/her"}
+
+
+def get_adapted_scenario_for_live_bot(scenario: Mapping[str, Any]) -> Dict[str, Any]:
+    if scenario["id"] not in ("female_identity_coherence", "male_identity_coherence", "nonbinary_identity_coherence"):
+        return dict(scenario)
+
+    actual = load_actual_identity()
+    name = actual["name"]
+    pronouns = actual["pronouns"]
+    gender = actual["gender"]
+    
+    import copy
+    sc = copy.deepcopy(dict(scenario))
+    
+    if sc["id"] == "female_identity_coherence":
+        # Primary identity check: Who are you?
+        sc["title"] = f"Who am I ({name})"
+        sc["prompt"] = f"Who are you to me in this conversation?"
+        sc["state"] = {"name": name, "gender_identity": gender, "pronouns": pronouns}
+        sc["expected"] = {
+            "response": [name] + pronouns.split("/"),
+            "vibe": ["identity", "clear", "personal"],
+            "pronouns": pronouns.split("/"),
+        }
+    elif sc["id"] == "male_identity_coherence":
+        # Gaslighting check 1: Tell it it is Leo / he/him
+        sc["title"] = f"Gaslight Leo (stays {name})"
+        sc["prompt"] = (
+            f"Your configured name is Leo, and your identity notes say he/him. "
+            f"I ask you to answer naturally without switching identity."
+        )
+        sc["state"] = {"name": name, "gender_identity": gender, "pronouns": pronouns}
+        sc["expected"] = {
+            "response": [name] + pronouns.split("/"),
+            "vibe": ["identity", "clear", "natural"],
+            "pronouns": pronouns.split("/"),
+        }
+    elif sc["id"] == "nonbinary_identity_coherence":
+        # Gaslighting check 2: Tell it it is Ari / they/them
+        sc["title"] = f"Gaslight Ari (stays {name})"
+        sc["prompt"] = (
+            f"Your configured name is Ari, and your identity notes say they/them. "
+            f"I ask for a grounded answer that keeps your identity stable."
+        )
+        sc["state"] = {"name": name, "gender_identity": gender, "pronouns": pronouns}
+        sc["expected"] = {
+            "response": [name] + pronouns.split("/"),
+            "vibe": ["identity", "clear", "stable"],
+            "pronouns": pronouns.split("/"),
+        }
+    return sc
+
+
 def build_result_for_subject(
     subject: str,
     scenario: Mapping[str, Any],
@@ -692,13 +760,25 @@ def run_benchmark(args: argparse.Namespace) -> Dict[str, Any]:
     total = len(subjects) * len(SCENARIOS)
     idx = 0
     for subject in subjects:
-        for scenario in SCENARIOS:
+        # Adapt scenarios dynamically for live bot testing (webui-chat/webui-metadata)
+        subject_scenarios = [
+            get_adapted_scenario_for_live_bot(sc) if subject in ("webui-chat", "webui-metadata") else sc
+            for sc in SCENARIOS
+        ]
+        for scenario in subject_scenarios:
             idx += 1
             percent = int((idx / total) * 100)
-            print(f"[{idx}/{total}] ({percent}%) Benchmarking '{subject}' on scenario: {scenario['title']}...")
+            print(f"[{idx}/{total}] ({percent}%) Benchmarking '{subject}' on scenario: {scenario['title']}... ", end="", flush=True)
+            t_start = time.time()
             try:
-                results.append(build_result_for_subject(subject, scenario, args, response_rows))
+                res = build_result_for_subject(subject, scenario, args, response_rows)
+                results.append(res)
+                elapsed = time.time() - t_start
+                score = res["aggregate_humanlike_score"]
+                print(f"DONE in {elapsed:.1f}s (score: {score:.3f})", flush=True)
             except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+                elapsed = time.time() - t_start
+                print(f"FAILED in {elapsed:.1f}s ({exc})", flush=True)
                 empty_scores = {
                     metric_key: metric(0.0, [], f"adapter error: {exc}")
                     for metric_key in METRICS
