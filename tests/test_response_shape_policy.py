@@ -2,7 +2,11 @@ import unittest
 
 from core.thinking import (
     build_response_shape_policy,
+    contextual_fallback_response,
+    contains_reasoning_artifact,
     has_role_leakage,
+    is_response_unusable,
+    sanitize_provider_response,
     strip_reasoning_preamble,
     shape_response_text,
 )
@@ -27,6 +31,19 @@ class ResponseShapePolicyTests(unittest.TestCase):
         self.assertLessEqual(policy.max_tokens, 80)
         self.assertLessEqual(policy.max_words, 55)
         self.assertIn("sleepy", policy.tone_shape)
+
+    def test_severe_sleepiness_forces_one_complete_sentence(self):
+        policy = build_response_shape_policy(
+            {"mood": "sleepy", "sleepiness": 1.0, "is_asleep": False},
+            "one more message before sleep?",
+            {},
+        )
+
+        self.assertEqual(policy.target_sentences, (1, 1))
+        self.assertLessEqual(policy.max_tokens, 60)
+        self.assertLessEqual(policy.max_words, 35)
+        self.assertEqual(policy.max_questions, 0)
+        self.assertIn("complete", policy.hesitation_instruction)
 
     def test_depth_trigger_allows_more_room(self):
         policy = build_response_shape_policy(
@@ -111,6 +128,90 @@ class ResponseShapePolicyTests(unittest.TestCase):
         )
 
         self.assertEqual(shaped, "just here with you.")
+
+    def test_provider_sanitizer_keeps_final_answer_after_think_block(self):
+        self.assertEqual(
+            sanitize_provider_response("<think>private chain</think>\nI'm here with you."),
+            "I'm here with you.",
+        )
+
+    def test_provider_sanitizer_rejects_reasoning_only_output(self):
+        self.assertEqual(
+            sanitize_provider_response("Thinking Process: 1. **Analyze the Request:** no visible reply."),
+            "",
+        )
+
+    def test_reasoning_detector_keeps_normal_first_person_dialogue(self):
+        policy = build_response_shape_policy({"mood": "sleepy"}, "should sleep win?", {})
+        response = "I should probably sleep soon."
+
+        self.assertEqual(sanitize_provider_response(response), response)
+        self.assertFalse(contains_reasoning_artifact(response))
+        self.assertFalse(is_response_unusable(response, policy, "should sleep win?"))
+
+    def test_reasoning_artifacts_are_unusable_even_when_markdown_numbered(self):
+        policy = build_response_shape_policy({"mood": "neutral"}, "hey", {})
+        response = '2. **Analyze the Request:** The user wants a short reply.'
+
+        self.assertTrue(contains_reasoning_artifact(response))
+        self.assertTrue(is_response_unusable(response, policy, "hey"))
+
+    def test_clipped_fragment_is_unusable_but_normal_short_text_is_allowed(self):
+        policy = build_response_shape_policy({"mood": "neutral"}, "hey", {})
+
+        self.assertTrue(is_response_unusable("bers this personal", policy, "hey"))
+        self.assertFalse(is_response_unusable("I'm here.", policy, "hey"))
+        self.assertFalse(is_response_unusable("okay", policy, "hey"))
+
+    def test_contextual_fallback_recalls_recent_memory_anchor(self):
+        ctx = {
+            "conversation_history": [
+                {
+                    "role": "user",
+                    "content": (
+                        "Remember this tiny thing for later: I keep a glass key inside a blue notebook. "
+                        "It matters because it reminds me to be brave."
+                    ),
+                }
+            ]
+        }
+
+        reply = contextual_fallback_response(
+            {"mood": "neutral"},
+            "What was the object I asked you to remember, and why did it matter?",
+            ctx,
+            identity={"name": "Alice", "pronouns": "she/her"},
+        )
+
+        self.assertIn("glass key", reply)
+        self.assertIn("blue notebook", reply)
+        self.assertIn("reminds you to be brave", reply)
+
+    def test_contextual_fallback_lets_sleep_win(self):
+        reply = contextual_fallback_response(
+            {"mood": "sleepy", "sleepiness": 1.0},
+            "One more message then. Be honest: do you want to stay up, or should sleep win?",
+            {},
+            identity={"name": "Alice", "pronouns": "she/her"},
+        )
+
+        self.assertIn("Sleep should win", reply)
+        self.assertIn("drowsy", reply)
+
+    def test_contextual_fallback_handles_identity_and_system_questions(self):
+        identity = {"name": "Alice", "pronouns": "she/her"}
+
+        personal = contextual_fallback_response({"mood": "neutral"}, "What are you?", {}, identity=identity)
+        system = contextual_fallback_response(
+            {"mood": "neutral"},
+            "How are you built on Alive-AI?",
+            {},
+            identity=identity,
+        )
+
+        self.assertEqual(personal, "I'm Alice, she/her. I'm here with you as myself.")
+        self.assertIn("Alive-AI", system)
+        self.assertIn("Alexandru Iacovici", system)
 
 
 if __name__ == "__main__":

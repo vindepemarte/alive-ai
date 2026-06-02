@@ -144,6 +144,7 @@ class OllamaClient(BaseLLM):
             "model": self.model,
             "messages": ollama_messages,
             "stream": False,
+            "think": False,
             "options": {
                 "num_predict": max_tokens,
                 "temperature": temperature,
@@ -157,17 +158,29 @@ class OllamaClient(BaseLLM):
         try:
             start_time = time.time()
 
-            async with session.post(
-                f"{url}/api/chat",
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=120)  # Local can be slower
-            ) as resp:
-                if resp.status != 200:
-                    error = await resp.text()
-                    print(f"[Ollama] Error {resp.status}: {error[:300]}")
-                    return None
+            async def post_chat(payload_to_send: Dict) -> tuple[int, object]:
+                async with session.post(
+                    f"{url}/api/chat",
+                    json=payload_to_send,
+                    timeout=aiohttp.ClientTimeout(total=120)  # Local can be slower
+                ) as resp:
+                    if resp.status != 200:
+                        return resp.status, await resp.text()
+                    return resp.status, await resp.json()
 
-                data = await resp.json()
+            status, result = await post_chat(payload)
+            if status != 200 and "think" in payload and status in (400, 422):
+                print("[Ollama] think=false rejected, retrying without reasoning control")
+                retry_payload = dict(payload)
+                retry_payload.pop("think", None)
+                status, result = await post_chat(retry_payload)
+
+            if status != 200:
+                print(f"[Ollama] Error {status}: {str(result)[:300]}")
+                return None
+
+            data = result
+            if isinstance(data, dict):
                 print(f"[Ollama] Raw response keys: {list(data.keys())}")
 
                 # Check for error in response
@@ -189,6 +202,17 @@ class OllamaClient(BaseLLM):
                 if not content or not content.strip():
                     print(f"[Ollama] Empty content in response: {data}")
                     return None
+
+                try:
+                    from core.thinking import sanitize_provider_response
+                    sanitized = sanitize_provider_response(content)
+                    if sanitized:
+                        content = sanitized
+                    elif sanitized != content:
+                        print("[Ollama] Rejected reasoning-only visible content")
+                        return None
+                except Exception:
+                    pass
 
                 elapsed = time.time() - start_time
                 print(f"[Ollama] Response ({elapsed:.1f}s): {content[:80]}...")

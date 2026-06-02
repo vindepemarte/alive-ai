@@ -2,6 +2,7 @@
 import asyncio
 from pathlib import Path
 from typing import Optional
+from core.thinking import explicit_memory_anchor_from_text
 from .working import WorkingMemory
 from .episodic import EpisodicMemory
 from .vector_store import VectorMemoryStore
@@ -82,6 +83,13 @@ class Memory:
         self.episodic.save(user_msg, ai_msg, emotion)
         self.working.add("user", user_msg)
         self.working.add("assistant", ai_msg)
+        anchor = explicit_memory_anchor_from_text(user_msg)
+        if anchor:
+            memory = f"{anchor['object']} inside {anchor['place']}"
+            if anchor.get("reason"):
+                memory += f"; matters because it {anchor['reason']}"
+            self.semantic.add_shared_memory(memory)
+            print(f"[Memory] Promoted explicit memory anchor: {memory[:80]}")
         print(f"[Memory] Saved to working memory (now {len(self.working)} items) | User: {user_msg[:30]}...")
         if self.vector_store:
             self.vector_store.store("user", user_msg, {"emotion": emotion})

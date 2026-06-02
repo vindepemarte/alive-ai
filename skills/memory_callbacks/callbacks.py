@@ -207,7 +207,11 @@ class MemoryCallbacks:
 
     def _on_message_received(self, data: dict):
         """Handle incoming message - track topics and people"""
-        message = data.get("message", "")
+        user_id = str(data.get("user_id") or data.get("webui_user_id") or "")
+        if user_id.startswith("benchmark_"):
+            return
+
+        message = data.get("text") or data.get("message", "")
         if not message:
             return
 

@@ -194,6 +194,8 @@ def _format_entry(row: Dict[str, Any]) -> Dict[str, Any]:
         "timestamp": timestamp,
         "status": row.get("status", "sent"),
         "source": row.get("source", "runtime"),
+        "metadata": row.get("metadata") or {},
+        "reply_to_message_id": (row.get("metadata") or {}).get("reply_to_message_id"),
     }
 
 

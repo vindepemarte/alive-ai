@@ -45,6 +45,23 @@ class WebUIPersistenceTests(unittest.TestCase):
         journal = Path(self.tmp.name) / "users" / "webui" / "webui_chat.jsonl"
         self.assertEqual(len(journal.read_text().strip().splitlines()), 2)
 
+    def test_reply_to_message_id_round_trips_from_metadata(self):
+        import webui.persistence as persistence
+        importlib.reload(persistence)
+
+        persistence.append_chat_message("webui", "user", "hello", message_id="user-1")
+        persistence.append_chat_message(
+            "webui",
+            "alive_ai",
+            "hi",
+            message_id="assistant-1",
+            metadata={"reply_to_message_id": "user-1"},
+        )
+
+        rows = persistence.load_chat_messages("webui")
+        self.assertEqual(rows[-1]["reply_to_message_id"], "user-1")
+        self.assertEqual(rows[-1]["metadata"]["reply_to_message_id"], "user-1")
+
     def test_legacy_episodic_history_is_used_when_journal_is_empty(self):
         import webui.persistence as persistence
         importlib.reload(persistence)

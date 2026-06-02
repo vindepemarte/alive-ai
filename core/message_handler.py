@@ -5,7 +5,9 @@ from datetime import datetime
 from .thinking import (
     build_mood_instruction,
     build_response_shape_policy,
+    contextual_fallback_response,
     fallback_response,
+    is_response_unusable,
     shape_response_text,
 )
 from .follow_up import FollowUpSystem
@@ -365,6 +367,7 @@ async def handle_message(self, data: dict):
     _message_queue[user_id].append({
         "text": text,
         "chat_id": chat_id,
+        "message_id": data.get("message_id"),
         "timestamp": asyncio.get_event_loop().time()
     })
 
@@ -419,12 +422,15 @@ async def _process_batch_after_delay(self, user_id: str, original_data: dict, ba
 
     # Use the last chat_id
     chat_id = messages[-1].get("chat_id")
+    message_ids = [m.get("message_id") for m in messages if m.get("message_id")]
 
     # Create combined data
     combined_data = {
         "user_id": user_id,
         "text": combined_text,
         "chat_id": chat_id,
+        "message_id": message_ids[-1] if message_ids else original_data.get("message_id"),
+        "input_message_ids": message_ids,
         "source": original_data.get("source"),
         "message_count": len(messages)
     }
@@ -837,14 +843,15 @@ async def _process_single_message(self, data: dict):
         # Track if we asked a question (for follow-ups)
         _follow_up.record_message_sent(response)
 
+        # Save the text turn before publishing the assistant row so immediate
+        # follow-up turns can retrieve the just-seeded memory deterministically.
+        await _save_memory(user_memory, text, response, emotion, None, None)
+
         await _send_response(self, response, emotion, chat_id, text, user_id, message_id=message_id)
         if self._subconscious: _feed_learning(self._subconscious, text)
 
         # Actually send the media (we already decided what to send)
         photo, video = await _send_decided_media(self, text, emotion, chat_id, media_context, user_id=user_id)
-
-        # Save to per-user memory
-        await _save_memory(user_memory, text, response, emotion, photo, video)
 
         # Reflect after the visible response path completes so it never delays sending.
         try:
@@ -875,6 +882,21 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     from core.directives import get_directives_prompt, get_owner_name
 
     response_policy = build_response_shape_policy(emotion, msg, ctx)
+
+    def shaped_fallback(reason: str) -> str:
+        print(f"[Think] Using contextual fallback: {reason}")
+        fallback = contextual_fallback_response(emotion, msg, ctx, identity=self.config.identity)
+        shaped = shape_response_text(fallback, response_policy, identity=self.config.identity)
+        if is_response_unusable(shaped, response_policy, msg):
+            shaped = shape_response_text(
+                fallback_response(emotion, msg),
+                response_policy,
+                identity=self.config.identity,
+            )
+        if is_response_unusable(shaped, response_policy, msg):
+            shaped = "I'm here with you."
+        return shaped
+
     user_identity = {
         "gender": self.config.settings.get("OWNER_GENDER") or self.config.settings.get("USER_GENDER") or "",
         "sexuality": self.config.settings.get("OWNER_SEXUALITY") or self.config.settings.get("USER_SEXUALITY") or "",
@@ -888,13 +910,13 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
         user_identity=user_identity,
     )
     if not self._llm:
-        return shape_response_text(
-            fallback_response(emotion, msg),
-            response_policy,
-            identity=self.config.identity,
-        )
+        return shaped_fallback("llm unavailable")
     env_max_tokens = int(os.environ.get("LLM_MAX_TOKENS", str(response_policy.max_tokens)))
-    max_tokens = min(env_max_tokens, response_policy.max_tokens)
+    visible_max_tokens = min(env_max_tokens, response_policy.max_tokens)
+    provider_min_tokens = int(os.environ.get("LLM_PROVIDER_MIN_TOKENS", "180"))
+    max_tokens = max(visible_max_tokens, provider_min_tokens)
+    if "LLM_MAX_TOKENS" in os.environ:
+        max_tokens = min(max_tokens, env_max_tokens)
     temperature = float(os.environ.get("LLM_TEMPERATURE", "0.95"))
 
     # DEBUG: Log conversation history
@@ -1159,7 +1181,7 @@ IMPORTANT: You are sending this media ALONG with your message. Reference it natu
     messages.append({"role": "user", "content": msg})
     print(
         f"[Think] Calling LLM with {len(messages)} messages, "
-        f"max_tokens={max_tokens}, shape_words={response_policy.max_words}, "
+        f"max_tokens={max_tokens}, visible_budget={visible_max_tokens}, shape_words={response_policy.max_words}, "
         f"shape_sentences={response_policy.target_sentences}"
     )
     try:
@@ -1171,30 +1193,9 @@ IMPORTANT: You are sending this media ALONG with your message. Reference it natu
         )
         if response:
             response = response.strip()
-            # Check for reasoning leakage ONLY if response starts with meta-commentary
-            # (not mid-sentence reasoning which is natural dialogue)
-            reasoning_starts = [
-                "I need to", "I should", "He wants me to", "She wants me to",
-                "I have to", "Let me think", "My goal is", "The user is",
-                "Thinking Process", "Analysis:", "Reasoning:", "1. **Analyze"
-            ]
-            first_30 = response[:30].lower()
-            for pattern in reasoning_starts:
-                if first_30.startswith(pattern.lower()):
-                    print(f"[Think] Detected reasoning leakage at start, using fallback")
-                    return shape_response_text(
-                        fallback_response(emotion, msg),
-                        response_policy,
-                        identity=self.config.identity,
-                    )
             shaped = shape_response_text(response, response_policy, identity=self.config.identity)
-            if not shaped:
-                print("[Think] Reasoning preamble stripped without final answer, using fallback")
-                shaped = shape_response_text(
-                    fallback_response(emotion, msg),
-                    response_policy,
-                    identity=self.config.identity,
-                )
+            if is_response_unusable(shaped, response_policy, msg):
+                return shaped_fallback("provider output was reasoning, clipped, or unusable")
             if shaped != response:
                 print(
                     f"[Think] Response shape repaired: "
@@ -1205,29 +1206,18 @@ IMPORTANT: You are sending this media ALONG with your message. Reference it natu
             return response
         else:
             print(f"[Think] LLM returned empty response!")
-            return shape_response_text(
-                fallback_response(emotion, msg),
-                response_policy,
-                identity=self.config.identity,
-            )
+            return shaped_fallback("llm returned empty response")
     except asyncio.TimeoutError:
         print(f"[Think] LLM timeout after 60s")
-        return shape_response_text(
-            fallback_response(emotion, msg),
-            response_policy,
-            identity=self.config.identity,
-        )
+        return shaped_fallback("llm timeout")
     except Exception as e:
         print(f"[Think] LLM error: {e}")
-        return shape_response_text(
-            fallback_response(emotion, msg),
-            response_policy,
-            identity=self.config.identity,
-        )
+        return shaped_fallback("llm error")
 
 
 async def _send_response(self, response, emotion, chat_id, text, user_id="default", message_id=None):
     mood = emotion.get("mood", "neutral")
+    assistant_message_id = f"{message_id}_reply" if message_id else None
 
     # Process any action tags in the response (pass instance config path)
     self_path = self.base / "config" / "self.json"
@@ -1236,6 +1226,18 @@ async def _send_response(self, response, emotion, chat_id, text, user_id="defaul
     if actions_taken:
         name = self.config.identity.get("name", "AI")
         print(f"[Self] {name} used self-authorship: {actions_taken}")
+
+    response_policy = build_response_shape_policy(emotion, text, {})
+    response = shape_response_text(response, response_policy, identity=self.config.identity)
+    if is_response_unusable(response, response_policy, text):
+        print("[Response] Final output firewall replaced unusable response")
+        response = shape_response_text(
+            contextual_fallback_response(emotion, text, {}, identity=self.config.identity),
+            response_policy,
+            identity=self.config.identity,
+        )
+    if is_response_unusable(response, response_policy, text):
+        response = "I'm here with you."
 
     print(f"[Response] Sending: {response[:60]}... (mood={mood})")
 
@@ -1256,6 +1258,7 @@ async def _send_response(self, response, emotion, chat_id, text, user_id="defaul
                 "fallback_text": response,
                 "mood": mood,
                 "user_id": user_id,
+                "message_id": assistant_message_id,
                 "reply_to_message_id": message_id,
                 "source": "runtime",
             })
@@ -1265,6 +1268,7 @@ async def _send_response(self, response, emotion, chat_id, text, user_id="defaul
         "mood": mood,
         "chat_id": chat_id,
         "user_id": user_id,
+        "message_id": assistant_message_id,
         "reply_to_message_id": message_id,
         "source": "runtime",
     })

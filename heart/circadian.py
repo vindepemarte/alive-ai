@@ -22,7 +22,7 @@ PHASES = {
     "peak_afternoon": {"hours": (15, 18), "energy": 0.85, "inhibition": 0.6, "warmth": 0.75, "verbosity": 0.8, "vibe": "peak energy, flirty, social, sparkling"},
     "evening":        {"hours": (18, 21), "energy": 0.6,  "inhibition": 0.5, "warmth": 0.85, "verbosity": 0.7, "vibe": "reflective, romantic, deeper conversations"},
     "late_night":     {"hours": (21, 24), "energy": 0.4,  "inhibition": 0.2, "warmth": 0.8, "verbosity": 0.55, "vibe": "getting sleepy, raw and unfiltered, inhibitions lowered"},
-    "deep_night":     {"hours": (0, 3),   "energy": 0.2,  "inhibition": 0.1, "warmth": 0.7, "verbosity": 0.3, "vibe": "very sleepy, minimal responses, might fall asleep mid-sentence"},
+    "deep_night":     {"hours": (0, 3),   "energy": 0.2,  "inhibition": 0.1, "warmth": 0.7, "verbosity": 0.3, "vibe": "very sleepy, minimal complete responses, likely to let sleep win"},
     "predawn":        {"hours": (3, 6),   "energy": 0.1,  "inhibition": 0.1, "warmth": 0.5, "verbosity": 0.2, "vibe": "asleep - won't respond unless woken"},
 }
 

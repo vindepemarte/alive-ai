@@ -304,7 +304,19 @@ class UnifiedLLM(BaseLLM):
                 timeout=timeout
             )
 
-            # Check for empty response
+            # Check for empty or non-dialogue response
+            if response and response.strip():
+                try:
+                    from core.thinking import sanitize_provider_response
+                    sanitized = sanitize_provider_response(response)
+                    if sanitized:
+                        response = sanitized
+                    elif sanitized != response:
+                        print(f"[UnifiedLLM] Reasoning-only response from {provider_name}, treating as failure")
+                        response = None
+                except Exception:
+                    pass
+
             if not response or not response.strip():
                 if retry_on_empty:
                     print(f"[UnifiedLLM] Empty response from {provider_name}, retrying...")
@@ -313,6 +325,17 @@ class UnifiedLLM(BaseLLM):
                         client.chat(messages, max_tokens=max_tokens, temperature=0.7),
                         timeout=timeout
                     )
+                    if response and response.strip():
+                        try:
+                            from core.thinking import sanitize_provider_response
+                            sanitized = sanitize_provider_response(response)
+                            if sanitized:
+                                response = sanitized
+                            elif sanitized != response:
+                                print(f"[UnifiedLLM] Reasoning-only response from {provider_name} retry, treating as failure")
+                                response = None
+                        except Exception:
+                            pass
 
             if response and response.strip():
                 # Success!

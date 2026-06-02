@@ -68,6 +68,12 @@ class SemanticMemory:
         self.save()
 
     def add_shared_memory(self, memory: str):
+        memory = str(memory or "").strip()
+        if not memory:
+            return
+        existing = [str(item.get("memory", "")).strip().lower() for item in self.facts.get("shared_memories", [])]
+        if memory.lower() in existing:
+            return
         self.facts["shared_memories"].append({
             "memory": memory, "timestamp": datetime.now().isoformat()})
         self.facts["shared_memories"] = self.facts["shared_memories"][-50:]

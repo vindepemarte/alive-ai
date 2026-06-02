@@ -148,6 +148,17 @@ class ZAIClient(BaseLLM):
                             print(f"[ZAI] Empty content after retry")
                             return None
 
+                    try:
+                        from core.thinking import sanitize_provider_response
+                        sanitized = sanitize_provider_response(content)
+                        if sanitized:
+                            content = sanitized
+                        elif sanitized != content:
+                            print("[ZAI] Rejected reasoning-only visible content")
+                            return None
+                    except Exception:
+                        pass
+
                     print(f"[ZAI] Response: {content[:80]}...")
                     # Mark as available since we got a response
                     self._available = True

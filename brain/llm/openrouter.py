@@ -96,22 +96,38 @@ class OpenRouterClient(BaseLLM):
             "temperature": temperature,
             "frequency_penalty": 0.8,  # Penalize repeated phrases - increased from 0.5
             "presence_penalty": 0.6,   # Encourage topic diversity - increased from 0.3
+            "reasoning": {
+                "effort": "low",
+                "exclude": True,
+            },
         }
 
         try:
-            async with session.post(
-                f"{self.BASE_URL}/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=60)
-            ) as resp:
-                if resp.status != 200:
-                    error = await resp.text()
-                    print(f"[OpenRouter] Error {resp.status}: {error[:300]}")
-                    self._available = False
-                    return None
+            async def post_chat(payload_to_send: dict) -> tuple[int, object]:
+                async with session.post(
+                    f"{self.BASE_URL}/chat/completions",
+                    headers=headers,
+                    json=payload_to_send,
+                    timeout=aiohttp.ClientTimeout(total=60)
+                ) as resp:
+                    if resp.status != 200:
+                        return resp.status, await resp.text()
+                    return resp.status, await resp.json()
 
-                data = await resp.json()
+            status, result = await post_chat(payload)
+            if status != 200 and "reasoning" in payload and status in (400, 422):
+                print("[OpenRouter] reasoning.exclude rejected, retrying without reasoning control")
+                retry_payload = dict(payload)
+                retry_payload.pop("reasoning", None)
+                status, result = await post_chat(retry_payload)
+
+            if status != 200:
+                print(f"[OpenRouter] Error {status}: {str(result)[:300]}")
+                self._available = False
+                return None
+
+            data = result
+            if isinstance(data, dict):
                 # Check for error response
                 if "error" in data:
                     print(f"[OpenRouter] API Error: {data['error']}")
@@ -130,6 +146,17 @@ class OpenRouterClient(BaseLLM):
                 if not content or not content.strip():
                     print(f"[OpenRouter] Empty content! Raw response data: {data}")
                     return None
+
+                try:
+                    from core.thinking import sanitize_provider_response
+                    sanitized = sanitize_provider_response(content)
+                    if sanitized:
+                        content = sanitized
+                    elif sanitized != content:
+                        print("[OpenRouter] Rejected reasoning-only visible content")
+                        return None
+                except Exception:
+                    pass
 
                 print(f"[OpenRouter] Response: {content[:100]}...")
 

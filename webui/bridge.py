@@ -65,8 +65,10 @@ def init_bridge(nervous, ai=None):
         text = data.get("text") or data.get("fallback_text", "")
         user_id = resolve_active_user_id(data.get("user_id"), dashboard_state=alive_ai_state)
         message_id = data.get("message_id") or new_message_id("alive_ai")
+        reply_to_message_id = data.get("reply_to_message_id")
         append_chat_message(user_id, "alive_ai", text, message_id=message_id,
-                            status="sent", source=data.get("source", "runtime"))
+                            status="sent", source=data.get("source", "runtime"),
+                            metadata={"reply_to_message_id": reply_to_message_id} if reply_to_message_id else None)
         add_conversation("alive_ai", text, message_id=message_id, user_id=user_id,
                          source=data.get("source", "runtime"))
         alive_ai_state["stats"]["messages"] = alive_ai_state["stats"].get("messages", 0) + 1

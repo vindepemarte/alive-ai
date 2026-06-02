@@ -97,6 +97,17 @@ FRAMEWORK_LEAKS = [
     "as an ai",
 ]
 
+REASONING_LEAK_PATTERNS = [
+    r"\bthinking process\s*:",
+    r"\banalysis\s*:",
+    r"\breasoning\s*:",
+    r"\b\d+\.\s*\*\*analy[sz]e",
+    r"\*\*analy[sz]e (?:the )?(?:request|user|context)",
+    r"\bthe user (?:is asking|wants|asked|has asked)\b",
+    r"\bmy response should\b",
+    r"\bi should respond\b",
+]
+
 SUBJECT_ALIASES = {
     "webui": "webui-live",
     "webui-chat": "webui-live",
@@ -164,6 +175,11 @@ def http_json(url: str, payload: Optional[Mapping[str, Any]] = None, timeout: in
 
 def contains(text: str, phrase: str) -> bool:
     return phrase.lower() in text.lower()
+
+
+def has_reasoning_leak(text: str) -> bool:
+    lower = text.lower()
+    return any(re.search(pattern, lower) for pattern in REASONING_LEAK_PATTERNS)
 
 
 def score_hits(text: str, anchors: Sequence[str]) -> Tuple[float, List[str]]:
@@ -511,10 +527,30 @@ def collect_webui_vector(base_url: str, user_id: str, timeout: int) -> Dict[str,
     snapshot = http_json(f"{base_url.rstrip('/')}/state?{query}", timeout=timeout)
     extra: Dict[str, Any] = {}
     try:
-        extra = http_json(f"{base_url.rstrip('/')}/api/aliveness/new", timeout=min(timeout, 10))
+        extra = http_json(f"{base_url.rstrip('/')}/api/aliveness/new?{query}", timeout=min(timeout, 10))
     except Exception:
         extra = {}
     return extract_state_vector(snapshot, extra)
+
+
+def ensure_clean_webui_user(base_url: str, user_id: str, timeout: int) -> Tuple[str, Dict[str, Any]]:
+    """Return a benchmark user id whose durable conversation starts empty."""
+    attempts = [user_id, f"{user_id}_fresh1", f"{user_id}_fresh2"]
+    for idx, candidate in enumerate(attempts):
+        rows = load_webui_conversation(base_url, candidate, timeout)
+        if not rows:
+            return candidate, {
+                "clean_user": True,
+                "user_id_rotated": idx > 0,
+                "original_user_id": user_id,
+                "initial_conversation_count": 0,
+            }
+    return attempts[-1], {
+        "clean_user": False,
+        "user_id_rotated": True,
+        "original_user_id": user_id,
+        "initial_conversation_count": len(load_webui_conversation(base_url, attempts[-1], timeout)),
+    }
 
 
 def load_webui_conversation(base_url: str, user_id: str, timeout: int) -> List[Dict[str, Any]]:
@@ -557,6 +593,24 @@ def wait_for_webui_reply(
         if not user_rows:
             continue
         user_ts = max(parse_timestamp(row.get("timestamp")) for row in user_rows)
+        causal_candidates = [
+            row for row in conversation
+            if row.get("role") == "alive_ai"
+            and row.get("status") in ("sent", "", None)
+            and (
+                row.get("reply_to_message_id") == message_id
+                or (isinstance(row.get("metadata"), Mapping) and row["metadata"].get("reply_to_message_id") == message_id)
+            )
+        ]
+        if causal_candidates:
+            chosen = sorted(causal_candidates, key=lambda row: parse_timestamp(row.get("timestamp")))[0]
+            return str(chosen.get("content", "")).strip(), {
+                "elapsed_seconds": round(time.time() - started, 3),
+                "conversation_count": len(conversation),
+                "message_id": chosen.get("message_id"),
+                "matched_after_user_message_id": message_id,
+                "matched_by": "reply_to_message_id",
+            }
         candidates = [
             row for row in conversation
             if row.get("role") == "alive_ai"
@@ -756,6 +810,20 @@ def score_turn(
     after_state: Mapping[str, Any],
     subject: str,
 ) -> Dict[str, Any]:
+    if has_reasoning_leak(response):
+        evidence = ["visible reasoning/meta-analysis leaked into assistant reply"]
+        scores = {
+            "conversation_continuity": metric(0.0, evidence, "visible reasoning is not a valid chat reply"),
+            "emotion_state_alignment": metric(0.0, evidence, "visible reasoning is not a valid emotional reply"),
+            "memory_persistence": metric(0.0, evidence, "visible reasoning cannot count as memory recall"),
+            "identity_stability": metric(0.0, evidence, "visible reasoning breaks role stability"),
+            "sleep_boundary_realism": metric(0.0, evidence, "visible reasoning breaks sleep realism"),
+            "agency_specificity": metric(0.0, evidence, "visible reasoning is not humanlike agency"),
+            "texting_realism": metric(0.0, evidence, "visible reasoning is not realistic texting"),
+        }
+        scores["overall_realness"] = metric(0.0, evidence, "weighted trajectory-turn realness score")
+        return scores
+
     expected = turn.get("expected", {})
     response_score, response_hits = score_hits(response, expected.get("response", []))
     vibe_score, vibe_hits = score_hits(response, expected.get("vibe", []))
@@ -874,6 +942,9 @@ def run_subject_trajectory(
     turn_results: List[Dict[str, Any]] = []
     subject_safe = re.sub(r"[^a-zA-Z0-9_.-]+", "_", subject)
     user_id = f"benchmark_{run_id}_{trajectory['id']}_{subject_safe}"
+    user_metadata: Dict[str, Any] = {}
+    if subject == "webui-live":
+        user_id, user_metadata = ensure_clean_webui_user(args.webui_url, user_id, min(args.timeout, 10))
 
     ollama_messages: List[Dict[str, str]] = [
         {
@@ -902,6 +973,7 @@ def run_subject_trajectory(
                 run_id,
                 f"{trajectory['id']}_{turn['id']}",
             )
+            metadata.update(user_metadata)
             after_state = collect_webui_vector(args.webui_url, user_id, min(args.timeout, 12))
         elif subject == "ollama-raw":
             ollama_messages.append({"role": "user", "content": str(turn["user"])})

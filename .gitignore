@@ -19,6 +19,13 @@ myvids/*
 benchmarks/report.html
 benchmarks/results/
 
+# Local AI scout/context tooling
+.ai-context-prompt.md
+.ai-instructions.md
+.ai-skeleton.md
+.cursorrules
+context_pack.py
+
 # Python
 __pycache__/
 *.py[cod]

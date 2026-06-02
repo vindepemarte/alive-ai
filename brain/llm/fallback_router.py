@@ -148,6 +148,18 @@ class FallbackRouter:
 
             latency_ms = (time.time() - start_time) * 1000
 
+            if response and response.strip():
+                try:
+                    from core.thinking import sanitize_provider_response
+                    sanitized = sanitize_provider_response(response)
+                    if sanitized:
+                        response = sanitized
+                    elif sanitized != response:
+                        print(f"[FallbackRouter] Reasoning-only response from {name}, treating as empty")
+                        response = None
+                except Exception:
+                    pass
+
             if not response or not response.strip():
                 # Empty response - retry once if configured
                 if self.retry_on_empty:
@@ -156,6 +168,17 @@ class FallbackRouter:
                         client.chat(messages, max_tokens=max_tokens, temperature=0.7),
                         timeout=self.timeout_seconds
                     )
+                    if response and response.strip():
+                        try:
+                            from core.thinking import sanitize_provider_response
+                            sanitized = sanitize_provider_response(response)
+                            if sanitized:
+                                response = sanitized
+                            elif sanitized != response:
+                                print(f"[FallbackRouter] Reasoning-only response from {name} retry, treating as empty")
+                                response = None
+                        except Exception:
+                            pass
 
                 if not response or not response.strip():
                     self._log_attempt(FallbackLog(
