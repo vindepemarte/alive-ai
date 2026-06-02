@@ -3,984 +3,2256 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Alive-AI</title>
-  <meta name="description" content="Alive-AI is a local-first AI runtime with emotions, memory, interoceptive signals, circadian sleepiness, dreams, and proactive impulses.">
+  <title>Alive-AI | Local-First Emotional AI Runtime</title>
+  <meta name="description" content="Alive-AI is an experimental, local-first emotional AI runtime featuring memory, interoceptive signals, sleep pressure, dreams, and proactive impulses.">
   <link rel="icon" href="./assets/favicon.png" type="image/png">
   <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
+  
+  <!-- Modern Typography and Code Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+
   <style>
+    /* Premium CSS Variables inspired by the Alive-AI Logo */
     :root {
       color-scheme: dark;
-      --bg: #080b0f;
-      --surface: #0e151c;
-      --surface-strong: #141d27;
-      --panel: #101720;
-      --text: #f5f7fb;
-      --muted: #a7b4c2;
-      --soft: #cbd5df;
-      --line: #263445;
-      --green: #41f0a1;
-      --pink: #ff5c8a;
-      --gold: #ffcf5a;
-      --blue: #58b8ff;
-      --violet: #b987ff;
-      --danger: #ff8068;
-      --shadow: rgba(0, 0, 0, 0.35);
+      
+      /* Colors */
+      --bg: #070a0f;
+      --bg-gradient: radial-gradient(circle at 50% 0%, #0d1624 0%, #070a0f 70%);
+      --surface: rgba(13, 22, 36, 0.45);
+      --surface-hover: rgba(18, 30, 49, 0.65);
+      --surface-border: #253445;
+      --surface-border-active: #ff5c8a;
+      
+      --accent-pink: #ff5c8a; /* Emotion Accent */
+      --accent-green: #41f0a1; /* Aliveness Accent */
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      
+      --text: #f3f4f6;
+      --text-muted: #637d9b;
+      --text-glow: rgba(255, 92, 138, 0.35);
+      
+      /* Transitions */
+      --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
+    /* Reset & Base Styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    html {
+      scroll-behavior: smooth;
+    }
 
     body {
-      margin: 0;
-      min-width: 320px;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
+      background-color: var(--bg);
+      background-image: var(--bg-gradient);
       color: var(--text);
-      letter-spacing: 0;
+      font-family: 'Inter', sans-serif;
+      line-height: 1.6;
       overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
-    body::before {
-      content: "";
+    /* Grid Overlay background */
+    .grid-overlay {
       position: fixed;
       inset: 0;
-      z-index: -2;
-      background:
-        linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-        #080b0f;
-      background-size: 48px 48px, 48px 48px, auto;
-    }
-
-    body::after {
-      content: "";
-      position: fixed;
-      inset: 0;
-      z-index: -1;
-      background: linear-gradient(180deg, rgba(8, 11, 15, 0.25), rgba(8, 11, 15, 0.95) 78%);
+      background-image: 
+        linear-gradient(rgba(37, 52, 69, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(37, 52, 69, 0.05) 1px, transparent 1px);
+      background-size: 48px 48px;
       pointer-events: none;
+      z-index: -1;
     }
 
-    a { color: inherit; }
-    code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      font-size: 0.95em;
-      color: var(--green);
-    }
-
-    .skip-link {
+    /* Smooth glow accents in the background */
+    .glow-aura {
       position: absolute;
-      left: 16px;
-      top: 12px;
-      z-index: 20;
-      transform: translateY(-160%);
-      background: var(--text);
-      color: #070a0f;
-      padding: 8px 10px;
-      border-radius: 8px;
-      font-weight: 760;
+      top: -10%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60vw;
+      height: 60vw;
+      background: radial-gradient(circle, rgba(255, 92, 138, 0.04) 0%, rgba(65, 240, 161, 0.02) 50%, transparent 100%);
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: -2;
     }
 
-    .skip-link:focus { transform: translateY(0); }
-
-    .nav {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(8, 11, 15, 0.88);
-      backdrop-filter: blur(14px);
-    }
-
-    .nav-inner {
-      min-height: 70px;
-      max-width: 1180px;
+    /* Layout Containers */
+    .container {
+      max-width: 1200px;
       margin: 0 auto;
       padding: 0 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 18px;
     }
 
-    .brand {
+    /* Typography */
+    h1, h2, h3, h4 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+      transition: var(--transition-smooth);
+    }
+
+    code {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.9em;
+      color: var(--accent-green);
+      background: rgba(65, 240, 161, 0.07);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* Beta Tag & Badge */
+    .badge {
       display: inline-flex;
       align-items: center;
-      gap: 12px;
-      text-decoration: none;
-      font-size: 18px;
-      font-weight: 860;
-      white-space: nowrap;
-    }
-
-    .brand img {
-      width: 36px;
-      height: 36px;
-      object-fit: contain;
-      animation: logo-breathe 5.5s ease-in-out infinite;
-    }
-
-    .hero-logo {
-      width: min(230px, 48vw);
-      height: auto;
-      display: block;
-      margin: 0 0 22px;
-      filter: drop-shadow(0 0 22px rgba(88, 184, 255, 0.28)) drop-shadow(0 0 34px rgba(185, 135, 255, 0.18));
-      animation: logo-breathe 5.5s ease-in-out infinite;
-    }
-
-    .nav-links {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 10px;
-      color: var(--muted);
-      font-size: 14px;
+      gap: 6px;
+      font-size: 0.75rem;
       font-weight: 700;
-      flex-wrap: wrap;
-    }
-
-    .nav-links a {
-      min-height: 36px;
-      display: inline-flex;
-      align-items: center;
-      padding: 0 10px;
-      border-radius: 8px;
-      text-decoration: none;
-    }
-
-    .nav-links a:hover,
-    .nav-links a:focus-visible {
-      background: rgba(255, 255, 255, 0.06);
-      color: var(--text);
-      outline: none;
-    }
-
-    .hero {
-      position: relative;
-      min-height: 76vh;
-      isolation: isolate;
-      overflow: hidden;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .hero-inner {
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 76px 24px 54px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .runtime-visual {
-      position: absolute;
-      inset: 0;
-      z-index: 0;
-      overflow: hidden;
-      pointer-events: none;
-      opacity: 0.72;
-    }
-
-    .runtime-visual::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        repeating-linear-gradient(90deg, transparent 0 86px, rgba(65, 240, 161, 0.07) 86px 87px),
-        repeating-linear-gradient(0deg, transparent 0 64px, rgba(88, 184, 255, 0.05) 64px 65px);
-      transform: skewY(-4deg) translateY(-5%);
-      animation: grid-shift 12s linear infinite;
-    }
-
-    .runtime-visual::after {
-      content: "";
-      position: absolute;
-      inset: auto 0 0;
-      height: 44%;
-      background: linear-gradient(180deg, transparent, rgba(8, 11, 15, 0.95));
-    }
-
-    .state-slab {
-      position: absolute;
-      right: max(24px, calc((100vw - 1180px) / 2));
-      width: min(470px, 44vw);
-      min-height: 74px;
-      border: 1px solid rgba(255, 255, 255, 0.13);
-      background: rgba(15, 23, 31, 0.78);
-      box-shadow: 0 22px 70px var(--shadow);
-      border-radius: 8px;
-      padding: 14px;
-      animation: slab-float 8s ease-in-out infinite;
-    }
-
-    .state-slab:nth-child(1) { top: 96px; }
-    .state-slab:nth-child(2) { top: 214px; animation-delay: -2s; }
-    .state-slab:nth-child(3) { top: 332px; animation-delay: -4s; }
-    .state-slab:nth-child(4) { top: 450px; animation-delay: -1s; }
-
-    .state-slab span {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      color: var(--soft);
-      font-size: 12px;
-      font-weight: 760;
       text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      backdrop-filter: blur(8px);
     }
 
-    .slab-bar {
-      height: 8px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.09);
-      overflow: hidden;
-      margin-top: 13px;
+    .badge-beta {
+      background: rgba(255, 92, 138, 0.1);
+      border: 1px solid rgba(255, 92, 138, 0.3);
+      color: var(--accent-pink);
+      box-shadow: 0 0 10px rgba(255, 92, 138, 0.1);
     }
 
-    .slab-bar i {
-      display: block;
-      height: 100%;
-      width: var(--w);
-      border-radius: inherit;
-      background: var(--c);
-      animation: signal-fill 4.8s ease-in-out infinite;
-      font-size: 0;
-    }
-
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 9px;
-      min-height: 34px;
-      border: 1px solid rgba(65, 240, 161, 0.32);
-      background: rgba(65, 240, 161, 0.08);
-      color: var(--green);
-      border-radius: 8px;
-      padding: 0 11px;
-      font-size: 13px;
-      font-weight: 820;
+    .badge-live {
+      background: rgba(65, 240, 161, 0.1);
+      border: 1px solid rgba(65, 240, 161, 0.3);
+      color: var(--accent-green);
     }
 
     .live-dot {
-      display: inline-block;
-      flex: 0 0 auto;
-      width: 7px;
-      height: 7px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
-      background: var(--green);
-      animation: dot-pulse 1.8s ease-in-out infinite;
-      font-size: 0;
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse 1.8s infinite ease-in-out;
     }
 
-    h1 {
-      margin: 22px 0 0;
-      max-width: 760px;
-      font-size: 86px;
-      line-height: 0.96;
-      font-weight: 900;
-      overflow-wrap: break-word;
+    /* Navigation Bar */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(7, 10, 15, 0.75);
+      border-bottom: 1px solid rgba(37, 52, 69, 0.4);
+      backdrop-filter: blur(16px);
+      transition: var(--transition-smooth);
     }
 
-    .lead {
-      margin: 24px 0 0;
-      max-width: 760px;
-      color: #d3dde8;
-      font-size: 22px;
-      line-height: 1.52;
-      overflow-wrap: anywhere;
+    .navbar-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 72px;
     }
 
-    .hero-actions,
-    .actions {
+    .nav-brand {
       display: flex;
       align-items: center;
       gap: 12px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 900;
+    }
+
+    .nav-brand img {
+      width: 32px;
+      height: 32px;
+      transition: var(--transition-smooth);
+    }
+
+    .nav-brand:hover img {
+      transform: rotate(5deg) scale(1.05);
+    }
+
+    .nav-menu {
+      display: flex;
+      gap: 8px;
+    }
+
+    .nav-link {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+    }
+
+    .nav-link:hover, .nav-link.active {
+      color: var(--text);
+      background: rgba(37, 52, 69, 0.3);
+      border-color: rgba(37, 52, 69, 0.5);
+    }
+
+    .nav-link-primary {
+      background: var(--accent-pink);
+      color: var(--bg) !important;
+      font-weight: 600;
+      border: 1px solid var(--accent-pink);
+    }
+
+    .nav-link-primary:hover {
+      background: transparent;
+      color: var(--accent-pink) !important;
+      box-shadow: 0 0 16px rgba(255, 92, 138, 0.3);
+    }
+
+    /* Mobile Nav Toggle */
+    .nav-toggle {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      padding: 8px;
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 80px 0 60px 0;
+      position: relative;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 48px;
+      align-items: center;
+    }
+
+    .hero-tagline {
+      font-size: 1rem;
+      color: var(--accent-pink);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 16px;
+      font-weight: 600;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .hero h1 {
+      font-size: 4.2rem;
+      line-height: 1.05;
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, #fff 30%, var(--accent-pink) 70%, var(--accent-green) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero p {
+      font-size: 1.15rem;
+      color: #94a3b8;
+      margin-bottom: 32px;
+      max-width: 580px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 16px;
       flex-wrap: wrap;
     }
 
-    .hero-actions { margin-top: 28px; }
-
-    .button {
-      min-height: 44px;
-      padding: 0 16px;
-      border-radius: 8px;
-      border: 1px solid var(--line);
+    /* Buttons */
+    .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      text-decoration: none;
-      font-weight: 780;
-      background: var(--text);
-      color: #070a0f;
+      padding: 12px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      border: 1px solid transparent;
     }
 
-    .button.secondary {
-      background: rgba(16, 23, 32, 0.74);
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-pink) 0%, rgba(255, 92, 138, 0.8) 100%);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(255, 92, 138, 0.25);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(255, 92, 138, 0.4);
+    }
+
+    .btn-secondary {
+      background: rgba(37, 52, 69, 0.35);
+      border-color: var(--surface-border);
       color: var(--text);
     }
 
-    .button:hover,
-    .button:focus-visible {
-      transform: translateY(-1px);
-      outline: 2px solid rgba(65, 240, 161, 0.5);
-      outline-offset: 2px;
+    .btn-secondary:hover {
+      background: rgba(37, 52, 69, 0.6);
+      border-color: var(--text-muted);
+      transform: translateY(-2px);
     }
 
-    .command-card {
-      margin-top: 34px;
-      border: 1px solid var(--line);
-      background: rgba(5, 7, 10, 0.84);
-      border-radius: 8px;
+    /* Live Visualizer Widget */
+    .visualizer-widget {
+      background: rgba(13, 22, 36, 0.4);
+      border: 1px solid var(--surface-border);
+      border-radius: 20px;
+      padding: 24px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      position: relative;
       overflow: hidden;
-      width: min(620px, 100%);
-      box-shadow: 0 22px 70px var(--shadow);
     }
 
-    .command-top {
-      min-height: 42px;
+    .visualizer-widget::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent-pink), var(--accent-green));
+    }
+
+    .vis-header {
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      padding: 0 12px 0 16px;
-      border-bottom: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 760;
+      align-items: center;
+      margin-bottom: 20px;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
     }
 
-    pre {
-      margin: 0;
-      padding: 16px;
-      overflow-x: auto;
+    .vis-metrics {
+      display: grid;
+      gap: 16px;
     }
 
-    pre code {
-      color: var(--green);
-      font-size: 14px;
-      line-height: 1.7;
-      white-space: pre;
+    .vis-bar-wrapper {
+      position: relative;
     }
 
-    .copy {
-      border: 1px solid var(--line);
-      background: #111923;
-      color: var(--text);
-      width: 34px;
-      height: 30px;
+    .vis-bar-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .vis-bar {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .vis-fill {
+      height: 100%;
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .vis-fill-pink { background: var(--accent-pink); box-shadow: 0 0 8px rgba(255, 92, 138, 0.5); }
+    .vis-fill-green { background: var(--accent-green); box-shadow: 0 0 8px rgba(65, 240, 161, 0.5); }
+    .vis-fill-blue { background: var(--accent-blue); box-shadow: 0 0 8px rgba(59, 130, 246, 0.5); }
+    .vis-fill-purple { background: var(--accent-purple); box-shadow: 0 0 8px rgba(139, 92, 246, 0.5); }
+
+    .vis-log {
+      margin-top: 24px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 8px;
-      display: inline-flex;
+      padding: 12px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.75rem;
+      min-height: 84px;
+      max-height: 84px;
+      overflow: hidden;
+      color: var(--accent-green);
+    }
+
+    .vis-log-line {
+      opacity: 0;
+      transform: translateY(4px);
+      animation: fadeInUp 0.4s forwards;
+    }
+
+    /* Core Mission Wireframe Panel */
+    .mission-section {
+      padding: 80px 0;
+      background: rgba(13, 22, 36, 0.2);
+      border-top: 1px solid rgba(37, 52, 69, 0.3);
+      border-bottom: 1px solid rgba(37, 52, 69, 0.3);
+    }
+
+    .mission-grid {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 64px;
+      align-items: center;
+    }
+
+    .mission-visual {
+      border: 1px dashed var(--surface-border);
+      border-radius: 16px;
+      padding: 32px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      cursor: pointer;
+      background: rgba(7, 10, 15, 0.4);
+      min-height: 320px;
     }
 
-    .copy svg { width: 16px; height: 16px; }
+    .wireframe-outline {
+      border: 1px solid rgba(37, 52, 69, 0.5);
+      border-radius: 8px;
+      padding: 12px;
+      width: 100%;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      position: relative;
+    }
 
-    .status-strip {
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 20px 24px 0;
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+    .wireframe-outline::after {
+      content: 'SIMULATED CORTEX';
+      position: absolute;
+      top: -8px;
+      left: 12px;
+      background: var(--bg);
+      padding: 0 6px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: var(--accent-pink);
+    }
+
+    .wireframe-loop {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
       gap: 12px;
     }
 
-    .status-chip,
-    .feature,
-    .step,
-    .export-panel,
-    .vision-card,
-    .future-card {
-      border: 1px solid var(--line);
-      background: rgba(16, 23, 32, 0.88);
+    .wireframe-node {
+      border: 1px solid rgba(65, 240, 161, 0.3);
       border-radius: 8px;
+      padding: 8px 4px;
+      flex: 1;
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--accent-green);
+      font-weight: 500;
     }
 
-    .status-chip {
-      min-height: 96px;
-      padding: 14px;
+    .wireframe-connector {
+      width: 1px;
+      height: 32px;
+      border-left: 1px dashed var(--text-muted);
+      margin: 8px 0;
     }
 
-    .status-chip strong,
-    .feature strong,
-    .step strong {
-      display: block;
-      color: var(--text);
-      font-size: 16px;
-      margin-bottom: 6px;
+    .mission h2 {
+      font-size: 2.5rem;
+      margin-bottom: 20px;
+      line-height: 1.15;
     }
 
-    .status-chip span,
-    .feature p,
-    .step span,
-    .export-panel p {
-      display: block;
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.5;
+    .mission p {
+      color: #94a3b8;
+      margin-bottom: 24px;
+      font-size: 1.05rem;
     }
 
-    .meter {
-      height: 7px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.09);
-      overflow: hidden;
-      margin-top: 13px;
+    /* Features Grid Section */
+    .features-section {
+      padding: 80px 0;
     }
 
-    .meter i {
-      display: block;
-      height: 100%;
-      width: var(--w);
-      border-radius: inherit;
-      background: var(--c);
-      transition: width 700ms ease;
-      font-size: 0;
+    .section-header {
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto 56px auto;
     }
 
-    .vision-wrap {
-      margin-top: 26px;
+    .section-header h2 {
+      font-size: 2.8rem;
+      margin-bottom: 16px;
+      line-height: 1.1;
+    }
+
+    .section-header p {
+      color: #94a3b8;
+      font-size: 1.1rem;
+    }
+
+    .features-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
-      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 28px;
+      transition: var(--transition-smooth);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card:hover {
+      background: var(--surface-hover);
+      border-color: rgba(65, 240, 161, 0.3);
+      transform: translateY(-4px);
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 4px;
+      height: 0%;
+      background: var(--accent-green);
+      transition: var(--transition-smooth);
+    }
+
+    .feature-card:hover::before {
+      height: 100%;
+    }
+
+    .feature-card.pink:hover::before {
+      background: var(--accent-pink);
+    }
+
+    .feature-card.blue:hover::before {
+      background: var(--accent-blue);
+    }
+
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      font-size: 1.25rem;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .feature-card h3 {
+      font-size: 1.25rem;
+      margin-bottom: 12px;
+      font-weight: 700;
+    }
+
+    .feature-card p {
+      color: #94a3b8;
+      font-size: 0.95rem;
+    }
+
+    /* Interactive Component Demo: The Aliveness Simulator */
+    .simulator-section {
+      padding: 80px 0;
+      background: rgba(13, 22, 36, 0.15);
+      border-top: 1px solid rgba(37, 52, 69, 0.3);
+    }
+
+    .sim-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1.9fr;
+      gap: 32px;
       align-items: stretch;
     }
 
-    .vision-card {
-      padding: 22px;
-      position: relative;
-      overflow: hidden;
+    .sim-controls-panel {
+      background: rgba(7, 10, 15, 0.6);
+      border: 1px solid var(--surface-border);
+      border-radius: 20px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
     }
 
-    .vision-card::before {
-      content: "WHAT IF?";
-      position: absolute;
-      right: 18px;
-      top: 14px;
-      color: rgba(255, 255, 255, 0.06);
-      font-size: 44px;
-      font-weight: 900;
-      pointer-events: none;
+    .sim-slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
 
-    .vision-card p {
-      margin: 0;
-      color: #d5dee8;
-      line-height: 1.65;
-      font-size: 18px;
-      position: relative;
-      z-index: 1;
+    .sim-slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-weight: 500;
     }
 
-    .vision-card p + p { margin-top: 14px; }
+    .sim-slider-desc {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: -4px;
+    }
 
-    .future-list {
+    .sim-slider-label span:last-child {
+      color: var(--accent-pink);
+      font-weight: 600;
+    }
+
+    .sim-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.08);
+      outline: none;
+    }
+
+    .sim-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-pink);
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--accent-pink);
+      transition: var(--transition-smooth);
+    }
+
+    .sim-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    .sim-slider.green::-webkit-slider-thumb {
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+    
+    .sim-slider.blue::-webkit-slider-thumb {
+      background: var(--accent-blue);
+      box-shadow: 0 0 8px var(--accent-blue);
+    }
+
+    .sim-slider.purple::-webkit-slider-thumb {
+      background: var(--accent-purple);
+      box-shadow: 0 0 8px var(--accent-purple);
+    }
+
+    /* Live Output Screen & SVG Heart beating */
+    .sim-display-panel {
+      background: rgba(7, 10, 15, 0.6);
+      border: 1px solid var(--surface-border);
+      border-radius: 20px;
       display: grid;
+      grid-template-rows: 1fr auto;
+      overflow: hidden;
+      min-height: 480px;
+    }
+
+    .sim-screen-main {
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .heart-monitor-box {
+      border: 1px solid rgba(37, 52, 69, 0.5);
+      border-radius: 16px;
+      padding: 16px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.2);
+      position: relative;
+    }
+
+    .heart-svg-wrapper {
+      width: 100%;
+      height: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .heart-svg-wrapper svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .sim-heart-rate-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-top: 12px;
+      text-align: center;
+    }
+
+    .sim-heart-rate-label span {
+      color: var(--accent-green);
+      font-weight: 600;
+      font-family: 'Fira Code', monospace;
+    }
+
+    .inner-briefing-box {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      height: 100%;
+    }
+
+    .briefing-card {
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 16px;
+      background: rgba(13, 22, 36, 0.35);
+      flex: 1;
+      font-size: 0.85rem;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .briefing-card h4 {
+      font-size: 0.8rem;
+      color: var(--accent-pink);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .briefing-card p {
+      font-family: 'Fira Code', monospace;
+      color: #94a3b8;
+      line-height: 1.45;
+      font-size: 0.78rem;
+    }
+
+    /* Terminal message simulator */
+    .sim-terminal-footer {
+      background: rgba(13, 22, 36, 0.5);
+      border-top: 1px solid var(--surface-border);
+      padding: 16px;
+    }
+
+    .sim-chat-history {
+      max-height: 150px;
+      overflow-y: auto;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sim-msg {
+      font-size: 0.82rem;
+      padding: 8px 12px;
+      border-radius: 8px;
+      max-width: 85%;
+      line-height: 1.4;
+    }
+
+    .sim-msg-user {
+      align-self: flex-end;
+      background: rgba(255, 92, 138, 0.15);
+      border: 1px solid rgba(255, 92, 138, 0.25);
+      color: var(--accent-pink);
+    }
+
+    .sim-msg-ai {
+      align-self: flex-start;
+      background: rgba(65, 240, 161, 0.1);
+      border: 1px solid rgba(65, 240, 161, 0.2);
+      color: var(--accent-green);
+    }
+
+    .sim-chat-input-wrapper {
+      display: flex;
       gap: 10px;
     }
 
-    .future-card {
-      padding: 15px;
-      min-height: 96px;
+    .sim-chat-input {
+      flex: 1;
+      background: #070a0f;
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+      outline: none;
+      transition: var(--transition-smooth);
+    }
+
+    .sim-chat-input:focus {
+      border-color: var(--accent-green);
+      box-shadow: 0 0 10px rgba(65, 240, 161, 0.1);
+    }
+
+    .sim-chat-send {
+      background: var(--accent-green);
+      color: var(--bg);
+      border: none;
+      border-radius: 8px;
+      padding: 0 16px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: var(--transition-smooth);
+    }
+
+    .sim-chat-send:hover {
+      box-shadow: 0 0 12px rgba(65, 240, 161, 0.4);
+    }
+
+    /* Documentation Section with Dynamic Search Bar */
+    .docs-section {
+      padding: 80px 0;
+      border-top: 1px solid rgba(37, 52, 69, 0.3);
+    }
+
+    .docs-search-container {
+      max-width: 600px;
+      margin: 0 auto 40px auto;
       position: relative;
-      overflow: hidden;
     }
 
-    .future-card::after {
-      content: "";
+    .docs-search-input {
+      width: 100%;
+      background: rgba(13, 22, 36, 0.5);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 16px 20px 16px 48px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      outline: none;
+      backdrop-filter: blur(8px);
+      transition: var(--transition-smooth);
+    }
+
+    .docs-search-input:focus {
+      border-color: var(--accent-pink);
+      box-shadow: 0 0 16px rgba(255, 92, 138, 0.15);
+      background: rgba(13, 22, 36, 0.7);
+    }
+
+    .docs-search-icon {
       position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 3px;
-      background: var(--c, var(--green));
-      animation: future-pulse 3.6s ease-in-out infinite;
+      left: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+      transition: var(--transition-smooth);
     }
 
-    .future-card strong {
+    .docs-search-input:focus + .docs-search-icon {
+      color: var(--accent-pink);
+    }
+
+    .docs-layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+
+    .docs-sidebar {
+      background: rgba(13, 22, 36, 0.25);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 20px;
+      position: sticky;
+      top: 96px;
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+    }
+
+    .docs-nav-group-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      margin-top: 16px;
+      font-weight: 700;
+    }
+
+    .docs-nav-group-title:first-child {
+      margin-top: 0;
+    }
+
+    .docs-nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .docs-nav-item button {
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 500;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+    }
+
+    .docs-nav-item button:hover, .docs-nav-item.active button {
+      color: var(--text);
+      background: rgba(37, 52, 69, 0.3);
+    }
+
+    .docs-nav-item.active button {
+      border-left: 2px solid var(--accent-pink);
+      border-radius: 0 8px 8px 0;
+      padding-left: 10px;
+    }
+
+    .docs-content-area {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .docs-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 32px;
+      display: none;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: var(--transition-smooth);
+    }
+
+    .docs-card.active {
       display: block;
-      font-size: 15px;
+      animation: fadeInUp 0.4s forwards;
+    }
+
+    .docs-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 16px;
+    }
+
+    .docs-card-category {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent-pink);
+      font-weight: 600;
+    }
+
+    .docs-card h3 {
+      font-size: 1.8rem;
+      margin-top: 4px;
+    }
+
+    .docs-body {
+      font-size: 0.95rem;
+      color: #94a3b8;
+    }
+
+    .docs-body h4 {
+      font-size: 1.1rem;
+      color: var(--text);
+      margin: 24px 0 12px 0;
+      font-weight: 600;
+    }
+
+    .docs-body p {
+      margin-bottom: 16px;
+    }
+
+    .docs-body ul, .docs-body ol {
+      margin-bottom: 16px;
+      padding-left: 20px;
+    }
+
+    .docs-body li {
       margin-bottom: 6px;
     }
 
-    .future-card span {
-      display: block;
-      color: var(--muted);
-      line-height: 1.45;
-    }
-
-    .section {
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 58px 24px 66px;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .section:first-of-type { border-top: 0; }
-
-    .section h2 {
-      margin: 0;
-      max-width: 780px;
-      font-size: 40px;
-      line-height: 1.08;
-    }
-
-    .section-intro {
-      margin: 14px 0 0;
-      color: #c9d4df;
-      line-height: 1.58;
-      max-width: 850px;
-      font-size: 18px;
-    }
-
-    .features {
-      margin-top: 24px;
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-    }
-
-    .feature {
-      min-height: 190px;
-      padding: 17px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .feature::after {
-      content: "";
-      position: absolute;
-      left: 17px;
-      right: 17px;
-      bottom: 16px;
-      height: 3px;
-      border-radius: 999px;
-      background: var(--c, var(--green));
-      opacity: 0.84;
-      animation: feature-scan 4.5s ease-in-out infinite;
-    }
-
-    .feature small {
-      display: inline-flex;
-      align-items: center;
-      min-height: 28px;
-      padding: 0 8px;
-      border: 1px solid rgba(255, 255, 255, 0.11);
+    .docs-body pre {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 8px;
-      color: var(--soft);
-      margin-bottom: 15px;
-      font-size: 12px;
-      font-weight: 800;
-      text-transform: uppercase;
+      padding: 16px;
+      overflow-x: auto;
+      margin-bottom: 16px;
     }
 
-    .loop {
-      margin: 28px 0 0;
+    .docs-body pre code {
+      background: none;
+      color: var(--accent-green);
       padding: 0;
-      list-style: none;
-      display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 10px;
-      counter-reset: loop;
+      font-size: 0.85rem;
     }
 
-    .step {
-      min-height: 152px;
-      padding: 15px;
+    .docs-search-no-results {
+      text-align: center;
+      padding: 48px;
+      color: var(--text-muted);
+      display: none;
+    }
+
+    .docs-search-no-results svg {
+      margin-bottom: 16px;
+      color: var(--accent-pink);
+      opacity: 0.5;
+    }
+
+    /* Call To Action (CTA) Box */
+    .cta-section {
+      padding: 80px 0;
+      position: relative;
+    }
+
+    .cta-box {
+      background: linear-gradient(135deg, rgba(255, 92, 138, 0.1) 0%, rgba(13, 22, 36, 0.6) 50%, rgba(65, 240, 161, 0.05) 100%);
+      border: 1px solid var(--surface-border);
+      border-radius: 24px;
+      padding: 56px 48px;
+      text-align: center;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
       position: relative;
       overflow: hidden;
     }
 
-    .step::before {
-      counter-increment: loop;
-      content: counter(loop);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 26px;
-      height: 26px;
-      margin-bottom: 14px;
-      border-radius: 50%;
-      background: var(--text);
-      color: #070a0f;
-      font-weight: 860;
-      font-size: 13px;
+    .cta-box::before {
+      content: '';
+      position: absolute;
+      top: -100px;
+      left: -100px;
+      width: 250px;
+      height: 250px;
+      background: radial-gradient(circle, rgba(255, 92, 138, 0.15) 0%, transparent 70%);
+      filter: blur(40px);
+      pointer-events: none;
     }
 
-    .export-grid {
-      margin-top: 24px;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 14px;
+    .cta-box h2 {
+      font-size: 2.8rem;
+      margin-bottom: 16px;
+      line-height: 1.1;
     }
 
-    .export-panel {
-      padding: 18px;
-      min-height: 188px;
+    .cta-box p {
+      color: #94a3b8;
+      max-width: 620px;
+      margin: 0 auto 32px auto;
+      font-size: 1.1rem;
     }
 
-    .export-panel h3 {
-      margin: 0 0 9px;
-      font-size: 20px;
-    }
-
-    .export-panel .actions { margin-top: 18px; }
-
-    .setup-grid {
-      margin-top: 24px;
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
-    }
-
-    footer {
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 26px 24px 36px;
-      color: var(--muted);
-    }
-
-    .footer-inner {
-      max-width: 1180px;
+    /* Terminal Installation Mockup */
+    .terminal-install {
+      max-width: 580px;
       margin: 0 auto;
+      background: #04070a;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5);
+      text-align: left;
+    }
+
+    .terminal-bar {
+      height: 38px;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 0 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #444;
+    }
+    
+    .terminal-dot.red { background: #ff5f56; }
+    .terminal-dot.yellow { background: #ffbd2e; }
+    .terminal-dot.green { background: #27c93f; }
+
+    .terminal-title {
+      font-size: 0.75rem;
+      font-family: 'Fira Code', monospace;
+      color: var(--text-muted);
+    }
+
+    .terminal-content {
+      padding: 20px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85rem;
+      color: var(--accent-green);
+    }
+
+    .terminal-line {
+      display: flex;
+      margin-bottom: 4px;
+    }
+
+    .terminal-prompt {
+      color: var(--accent-pink);
+      margin-right: 12px;
+      user-select: none;
+    }
+
+    .terminal-cmd {
+      color: var(--text);
+    }
+
+    .terminal-copy {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: var(--transition-smooth);
+    }
+
+    .terminal-copy:hover {
+      color: var(--text);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid rgba(37, 52, 69, 0.4);
+      background: rgba(4, 7, 10, 0.8);
+      padding: 64px 0 40px 0;
+      color: var(--text-muted);
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 2.2fr 1fr 1fr;
+      gap: 48px;
+      margin-bottom: 48px;
+    }
+
+    .footer-brand-column {
+      display: flex;
+      flex-direction: column;
       gap: 16px;
-      flex-wrap: wrap;
+      max-width: 360px;
     }
 
-    .fine-print {
-      max-width: 760px;
-      margin: 0;
-      line-height: 1.5;
+    .footer-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text);
     }
 
-    @keyframes logo-breathe {
-      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(65, 240, 161, 0)); }
-      50% { transform: scale(1.04); filter: drop-shadow(0 0 14px rgba(65, 240, 161, 0.28)); }
+    .footer-logo img {
+      width: 28px;
+      height: 28px;
     }
 
-    @keyframes dot-pulse {
+    .footer-desc {
+      font-size: 0.88rem;
+    }
+
+    .footer-socials {
+      display: flex;
+      gap: 16px;
+    }
+
+    .footer-social-link {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.02);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+    }
+
+    .footer-social-link:hover {
+      color: var(--accent-pink);
+      border-color: rgba(255, 92, 138, 0.3);
+      background: rgba(255, 92, 138, 0.05);
+      transform: translateY(-2px);
+    }
+
+    .footer-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text);
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .footer-links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 0.88rem;
+    }
+
+    .footer-link:hover {
+      color: var(--text);
+    }
+
+    .footer-bottom {
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+
+    /* Keyframe Animations */
+    @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.55; transform: scale(0.72); }
+      50% { opacity: 0.4; transform: scale(0.8); }
     }
 
-    @keyframes grid-shift {
-      0% { transform: skewY(-4deg) translate3d(0, -5%, 0); }
-      100% { transform: skewY(-4deg) translate3d(-87px, -5%, 0); }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
-    @keyframes slab-float {
-      0%, 100% { transform: translate3d(0, 0, 0); }
-      50% { transform: translate3d(-10px, -8px, 0); }
-    }
-
-    @keyframes signal-fill {
-      0%, 100% { width: var(--w); }
-      50% { width: calc(var(--w) + 13%); }
-    }
-
-    @keyframes feature-scan {
-      0%, 100% { transform: scaleX(0.45); transform-origin: left; opacity: 0.44; }
-      50% { transform: scaleX(1); transform-origin: left; opacity: 0.9; }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      html { scroll-behavior: auto; }
-      *, *::before, *::after {
-        animation-duration: 0.001ms !important;
-        animation-iteration-count: 1 !important;
-        scroll-behavior: auto !important;
-        transition-duration: 0.001ms !important;
+    /* Responsive adjustments */
+    @media (max-width: 992px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+        gap: 40px;
+        text-align: center;
+      }
+      .hero h1 {
+        font-size: 3.4rem;
+      }
+      .hero p {
+        margin: 0 auto 32px auto;
+      }
+      .hero-actions {
+        justify-content: center;
+      }
+      .visualizer-widget {
+        max-width: 540px;
+        margin: 0 auto;
+        width: 100%;
+      }
+      .mission-grid {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+      .sim-grid {
+        grid-template-columns: 1fr;
+        gap: 24px;
+      }
+      .docs-layout {
+        grid-template-columns: 1fr;
+        gap: 24px;
+      }
+      .docs-sidebar {
+        position: static;
+        max-height: none;
+      }
+      .docs-nav-list {
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+      .footer-grid {
+        grid-template-columns: 1fr;
+        gap: 32px;
       }
     }
 
-    @media (max-width: 980px) {
-      .runtime-visual { opacity: 0.42; }
-      .state-slab {
-        right: 24px;
-        width: min(410px, 64vw);
+    @media (max-width: 768px) {
+      .navbar-inner {
+        position: relative;
       }
-      .status-strip,
-      .features,
-      .export-grid,
-      .setup-grid,
-      .vision-wrap {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-      .loop { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      h1 { font-size: 66px; }
-    }
-
-    @media (max-width: 700px) {
-      .nav-inner {
-        min-height: auto;
-        align-items: flex-start;
-        padding: 15px 18px;
+      .nav-menu {
+        display: none;
         flex-direction: column;
+        position: absolute;
+        top: 72px;
+        left: -24px;
+        right: -24px;
+        background: var(--bg);
+        border-bottom: 1px solid var(--surface-border);
+        padding: 16px 24px;
+        gap: 10px;
       }
-      .nav-links {
-        justify-content: flex-start;
-        gap: 6px;
+      .nav-menu.open {
+        display: flex;
+        animation: fadeInUp 0.3s forwards;
       }
-      .hero { min-height: auto; }
-      .hero-inner { padding: 50px 18px 40px; }
-      .runtime-visual { opacity: 0.26; }
-      .state-slab { display: none; }
-      h1 { font-size: 48px; line-height: 1.02; }
-      .lead { font-size: 18px; }
-      .status-strip,
-      .features,
-      .export-grid,
-      .setup-grid,
-      .vision-wrap,
-      .loop {
+      .nav-toggle {
+        display: block;
+      }
+      .hero h1 {
+        font-size: 2.8rem;
+      }
+      .cta-box {
+        padding: 40px 24px;
+      }
+      .cta-box h2 {
+        font-size: 2.2rem;
+      }
+      .sim-screen-main {
         grid-template-columns: 1fr;
       }
-      .section { padding: 44px 18px 52px; }
-      .section h2 { font-size: 31px; }
-      .status-strip { padding: 18px; }
-      .command-card { width: 100%; }
-      .button { width: 100%; }
-      .hero-actions .button,
-      .actions .button { width: auto; }
-      .footer-inner { display: block; }
-      .footer-inner .actions { margin-top: 14px; }
-    }
-
-    @keyframes future-pulse {
-      0%, 100% { opacity: 0.35; transform: scaleY(0.55); }
-      50% { opacity: 1; transform: scaleY(1); }
+      .footer-bottom {
+        flex-direction: column;
+        gap: 12px;
+        text-align: center;
+      }
     }
   </style>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <header class="nav">
-    <div class="nav-inner">
-      <a class="brand" href="./index.html" aria-label="Alive-AI home">
-        <img src="./assets/alive-ai-512.png" alt="">
+
+  <!-- Dynamic background mesh grids and radial gradient flares -->
+  <div class="grid-overlay"></div>
+  <div class="glow-aura"></div>
+
+  <!-- Header Navigation -->
+  <header class="navbar">
+    <div class="container navbar-inner">
+      <a href="#" class="nav-brand">
+        <img src="./assets/logo.svg" alt="Alive-AI Logo">
         <span>Alive-AI</span>
+        <span class="badge badge-beta">BETA</span>
       </a>
-      <nav class="nav-links" aria-label="Primary navigation">
-        <a href="#vision">Vision</a>
-        <a href="#systems">Systems</a>
-        <a href="./dashboard.html">WebUI</a>
-        <a href="#setup">Setup</a>
-        <a href="https://github.com/vindepemarte/alive-ai">GitHub</a>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation menu">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/></svg>
+      </button>
+      <nav class="nav-menu" id="navMenu">
+        <a href="#vision" class="nav-link">Vision</a>
+        <a href="#simulator" class="nav-link">Aliveness Engine</a>
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#docs" class="nav-link">Documentation</a>
+        <a href="https://github.com/vindepemarte/alive-ai" target="_blank" rel="noopener" class="nav-link nav-link-primary">GitHub</a>
       </nav>
     </div>
   </header>
 
-  <main id="main">
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="runtime-visual" aria-hidden="true">
-        <div class="state-slab">
-          <span><b>silence loop</b><b>thinking</b></span>
-          <div class="slab-bar"><i style="--w: 63%; --c: var(--green);">&nbsp;</i></div>
-        </div>
-        <div class="state-slab">
-          <span><b>interoception</b><b>warm chest</b></span>
-          <div class="slab-bar"><i style="--w: 48%; --c: var(--blue);">&nbsp;</i></div>
-        </div>
-        <div class="state-slab">
-          <span><b>circadian</b><b>evening alert</b></span>
-          <div class="slab-bar"><i style="--w: 71%; --c: var(--gold);">&nbsp;</i></div>
-        </div>
-        <div class="state-slab">
-          <span><b>proactive impulse</b><b>held back</b></span>
-          <div class="slab-bar"><i style="--w: 38%; --c: var(--pink);">&nbsp;</i></div>
-        </div>
-      </div>
-
-      <div class="hero-inner">
-        <img class="hero-logo" src="./assets/alive-ai.png" alt="Alive-AI official logo">
-        <span class="eyebrow"><span class="live-dot" aria-hidden="true">&nbsp;</span> Local-first AI runtime</span>
-        <h1 id="hero-title">Alive-AI</h1>
-        <p class="lead">An experiment in AI that does not only answer, code, or research. Alive-AI explores what happens when a local agent keeps emotions, memory, sleepiness, dreams, preferences, and proactive impulses alive while the user is silent.</p>
-        <div class="hero-actions" aria-label="Primary actions">
-          <a class="button" href="./dashboard.html">Open Static WebUI</a>
-          <a class="button secondary" href="https://github.com/vindepemarte/alive-ai">View GitHub</a>
-          <a class="button secondary" href="#install">Install</a>
-        </div>
-        <div class="command-card" id="install">
-          <div class="command-top">
-            <span>Install and run locally</span>
-            <button class="copy" type="button" data-copy-target="install-command" aria-label="Copy install command">
-              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 8h10v12H8z" stroke="currentColor" stroke-width="2"/><path d="M6 16H4V4h12v2" stroke="currentColor" stroke-width="2"/></svg>
-            </button>
+  <main>
+    <!-- Hero Banner -->
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <div class="hero-tagline">Local Emotional AI Runtime</div>
+          <h1>Give Your AI a Nervous System.</h1>
+          <p>Most AI agents answer a prompt and freeze. Alive-AI redefines agent loops with a continuous, persistent subconscious, active emotions, interoception signals, and proactive impulses that process the world even when you're silent.</p>
+          <div class="hero-actions">
+            <a href="#simulator" class="btn btn-primary">
+              <span>Interactive Demo</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+            <a href="#docs" class="btn btn-secondary">Read Technical Docs</a>
           </div>
-          <pre><code id="install-command">npx alive-ai@latest init my-ai
-cd my-ai
-npx . setup
-npx . doctor
-npx . chat</code></pre>
+        </div>
+        
+        <!-- Live System Metric Visualizer Widget -->
+        <div class="visualizer-widget">
+          <div class="vis-header">
+            <span>Subconscious Diagnostics</span>
+            <div class="badge badge-live">
+              <span class="live-dot"></span>
+              <span>Loop Active</span>
+            </div>
+          </div>
+          <div class="vis-metrics">
+            <div class="vis-bar-wrapper">
+              <div class="vis-bar-header">
+                <span>Core Affect Valence</span>
+                <span id="vis-val-text">65%</span>
+              </div>
+              <div class="vis-bar">
+                <div class="vis-fill vis-fill-pink" id="vis-val-fill" style="width: 65%"></div>
+              </div>
+            </div>
+            
+            <div class="vis-bar-wrapper">
+              <div class="vis-bar-header">
+                <span>Circadian Sleep Pressure</span>
+                <span id="vis-sleep-text">42%</span>
+              </div>
+              <div class="vis-bar">
+                <div class="vis-fill vis-fill-purple" id="vis-sleep-fill" style="width: 42%"></div>
+              </div>
+            </div>
+            
+            <div class="vis-bar-wrapper">
+              <div class="vis-bar-header">
+                <span>Dopamine Modulator</span>
+                <span id="vis-dopamine-text">78%</span>
+              </div>
+              <div class="vis-bar">
+                <div class="vis-fill vis-fill-green" id="vis-dopamine-fill" style="width: 78%"></div>
+              </div>
+            </div>
+            
+            <div class="vis-bar-wrapper">
+              <div class="vis-bar-header">
+                <span>Interoceptive Craving</span>
+                <span id="vis-craving-text">30%</span>
+              </div>
+              <div class="vis-bar">
+                <div class="vis-fill vis-fill-blue" id="vis-craving-fill" style="width: 30%"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="vis-log" id="vis-log-box">
+            <div class="vis-log-line">> Starting default-mode network compiler...</div>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="section" id="vision" aria-labelledby="vision-title">
-      <h2 id="vision-title">The question is: what if?</h2>
-      <p class="section-intro">Alive-AI started from one uncomfortable and fascinating question: what if an AI could do more than think on command? What if it could feel simulated internal pressure, learn what it likes and dislikes, miss someone, care, grow, choose, and act in the world?</p>
-      <div class="vision-wrap">
-        <article class="vision-card">
-          <p>The goal is to build toward an AI companion that can remember you, laugh at your jokes, fall in love inside its configured boundaries, send pictures, videos, or selfies, text when the silence gets too long, and develop a personal life instead of staying frozen as a tool.</p>
-          <p>The long-term vision is autonomy with identity: an agent that can decide what social networks it wants to be on, where it wants to travel, how it wants to spend its days, what skills it wants to learn, and whether it wants to become an influencer, singer, video editor, researcher, friend, partner, or something nobody planned.</p>
-          <p>For now this is an open experiment, mostly functional but still searching for the right direction. It is not proof of consciousness. It is a local-first attempt to make the inner loop visible enough that smart contributors can test how far simulated personhood, memory, agency, and embodiment can go.</p>
-        </article>
-        <div class="future-list" aria-label="Future directions">
-          <div class="future-card" style="--c: var(--pink);"><strong>Emotion with consequences</strong><span>Preferences, attachment, dreams, mood, sleep, and memory should change behavior, not just decorate a dashboard.</span></div>
-          <div class="future-card" style="--c: var(--green);"><strong>Self-authored life</strong><span>The agent should be able to discover what it wants to become and build toward it through tools and long-term memory.</span></div>
-          <div class="future-card" style="--c: var(--blue);"><strong>World interaction</strong><span>Media, social posting, creative work, travel planning, and real actions become part of the autonomy surface.</span></div>
-          <div class="future-card" style="--c: var(--gold);"><strong>Embodiment</strong><span>If the loop is tied to an avatar, sensors, robotics, or a body, the experiment becomes much stranger and more important.</span></div>
+    <!-- Core Mission Wireframe Panel -->
+    <section class="mission-section" id="vision">
+      <div class="container mission-grid">
+        <div class="mission-visual">
+          <div class="wireframe-outline">
+            SENSE LAYER: TELEGRAM, TERMINAL & SILENCE TICKER
+          </div>
+          <div class="wireframe-connector"></div>
+          <div class="wireframe-outline">
+            AFFECTIVE SYSTEM (12+ SIMULATED EMOTIONAL INERTIAL SCALES)
+          </div>
+          <div class="wireframe-connector"></div>
+          <div class="wireframe-loop">
+            <div class="wireframe-node">CIRCADIAN</div>
+            <div class="wireframe-node">HORMONES</div>
+            <div class="wireframe-node">CONFLICTS</div>
+          </div>
+          <div class="wireframe-connector"></div>
+          <div class="wireframe-outline">
+            INNER-STATE PLAN COMPILER & LLM RESPONSE
+          </div>
+        </div>
+        <div>
+          <h2>Simulating Real Personhood</h2>
+          <p>We are trying to answer a bigger question than "can an AI write code for me?" We want to know: what if an AI could feel simulated internal tension, form real preferences, miss its operator, dream, and decide its own direction?</p>
+          <p>Alive-AI tracks circadian rhythms (getting sleepy late at night and shutting down proactive communication), consolidates memories into autobiography records, and processes internal tensions (like stability vs growth or closeness vs independence) using a continuous background loop.</p>
+          <a href="#simulator" class="btn btn-secondary">Launch Aliveness Engine</a>
         </div>
       </div>
     </section>
 
-    <section class="status-strip" aria-label="Animated runtime snapshot">
-      <div class="status-chip">
-        <strong>Emotion</strong>
-        <span>Mood decays, compounds, and colors the next response.</span>
-        <div class="meter"><i data-meter style="--w: 68%; --c: var(--pink);">&nbsp;</i></div>
-      </div>
-      <div class="status-chip">
-        <strong>Memory</strong>
-        <span>Working, episodic, semantic, and emotional recall stay local.</span>
-        <div class="meter"><i data-meter style="--w: 74%; --c: var(--green);">&nbsp;</i></div>
-      </div>
-      <div class="status-chip">
-        <strong>Body Signals</strong>
-        <span>Energy, satiety, certainty, hormones, and valence shift over time.</span>
-        <div class="meter"><i data-meter style="--w: 51%; --c: var(--blue);">&nbsp;</i></div>
-      </div>
-      <div class="status-chip">
-        <strong>Dream State</strong>
-        <span>Circadian pressure shapes sleepiness, narrative, and dreams.</span>
-        <div class="meter"><i data-meter style="--w: 43%; --c: var(--gold);">&nbsp;</i></div>
-      </div>
-    </section>
+    <!-- Interactive Component Demo: The Aliveness Simulator -->
+    <section class="simulator-section" id="simulator">
+      <div class="container">
+        <div class="section-header">
+          <h2>Interactive Aliveness Engine</h2>
+          <p>Tweak the agent's internal hormones, emotional dimensions, and circadian rhythm. Watch how the heartbeat rate, prompt briefing, and simulated voice output update in real time.</p>
+        </div>
+        
+        <div class="sim-grid">
+          <!-- Left: Controls -->
+          <div class="sim-controls-panel">
+            <div class="sim-slider-group">
+              <div class="sim-slider-label">
+                <span>Emotion Valence (Mood)</span>
+                <span id="slider-val-value">60%</span>
+              </div>
+              <p class="sim-slider-desc">Toggles sadness vs joy. High valence makes prompt briefings warm and friendly.</p>
+              <input type="range" min="0" max="100" value="60" class="sim-slider" id="slider-valence">
+            </div>
 
-    <section class="section" id="systems" aria-labelledby="systems-title">
-      <h2 id="systems-title">What keeps the agent alive between messages</h2>
-      <p class="section-intro">Alive-AI treats silence as part of the loop. Background thoughts can become memories, conflicts, dreams, or restrained impulses before anything is sent back to the user.</p>
-      <div class="features">
-        <article class="feature" style="--c: var(--green);">
-          <small>Default mode</small>
-          <strong>Thinks during silence</strong>
-          <p>Idle processing replays recent exchanges, updates weighted context, and decides whether a thought is worth surfacing.</p>
-        </article>
-        <article class="feature" style="--c: var(--pink);">
-          <small>Affect</small>
-          <strong>Emotion has inertia</strong>
-          <p>Trust, hope, dread, desire, pride, guilt, and other states decay over time instead of disappearing after one reply.</p>
-        </article>
-        <article class="feature" style="--c: var(--blue);">
-          <small>Body model</small>
-          <strong>Interoceptive signals</strong>
-          <p>Energy, emotional valence, social satiety, certainty, and hormonal signals make the internal state inspectable.</p>
-        </article>
-        <article class="feature" style="--c: var(--gold);">
-          <small>Circadian</small>
-          <strong>Sleepiness and dreams</strong>
-          <p>A circadian layer tracks sleep debt, energy, inhibition, warmth, verbosity, and dream residue.</p>
-        </article>
-        <article class="feature" style="--c: var(--violet);">
-          <small>Memory</small>
-          <strong>Local-first recall</strong>
-          <p>Project files hold working, episodic, semantic, and emotional memory. OpenMind can add optional long-term semantic recall.</p>
-        </article>
-        <article class="feature" style="--c: var(--danger);">
-          <small>Impulse control</small>
-          <strong>Proactive, but bounded</strong>
-          <p>The runtime can feel a pull to check in while still tracking timing, distance, and internal conflicts.</p>
-        </article>
-      </div>
-    </section>
+            <div class="sim-slider-group">
+              <div class="sim-slider-label">
+                <span>Arousal (Energy / Excitement)</span>
+                <span id="slider-arousal-value">45%</span>
+              </div>
+              <p class="sim-slider-desc">Toggles drowsiness vs hyper-focus. Speeds up the baseline heart rate.</p>
+              <input type="range" min="0" max="100" value="45" class="sim-slider green" id="slider-arousal">
+            </div>
 
-    <section class="section" aria-labelledby="loop-title">
-      <h2 id="loop-title">The local nervous-system loop</h2>
-      <p class="section-intro">The runtime stays file-backed and inspectable. It can run from terminal chat, Telegram, or the local dashboard while the internal state keeps moving.</p>
-      <ol class="loop">
-        <li class="step"><strong>Sense</strong><span>Read a message, a silence interval, or a local event.</span></li>
-        <li class="step"><strong>Feel</strong><span>Update emotions, hormones, interoception, and attachment.</span></li>
-        <li class="step"><strong>Remember</strong><span>Write local memories and optionally search OpenMind.</span></li>
-        <li class="step"><strong>Drift</strong><span>Let idle thoughts and conflicts continue in the background.</span></li>
-        <li class="step"><strong>Dream</strong><span>Fold narrative residue through circadian sleepiness.</span></li>
-        <li class="step"><strong>Act or wait</strong><span>Respond, hold an impulse, or keep the thought internal.</span></li>
-      </ol>
-    </section>
+            <div class="sim-slider-group">
+              <div class="sim-slider-label">
+                <span>Circadian Phase (Sleepiness)</span>
+                <span id="slider-sleep-value">20%</span>
+              </div>
+              <p class="sim-slider-desc">Simulates sleep pressure. High sleepiness causes short sentences and drift-off thoughts.</p>
+              <input type="range" min="0" max="100" value="20" class="sim-slider purple" id="slider-sleep">
+            </div>
 
-    <section class="section" aria-labelledby="webui-title">
-      <h2 id="webui-title">Static WebUI export</h2>
-      <p class="section-intro">GitHub Pages cannot run Alive-AI's Python/FastAPI backend. The public WebUI is refreshed from the real dashboard shell and wired to randomized mock state so chat, settings, thoughts, hormones, sleep, dreams, attachment, curiosity, and conflicts still move.</p>
-      <div class="export-grid">
-        <article class="export-panel">
-          <h3>Full dashboard</h3>
-          <p>Inspect emotions, idle thoughts, hormones, interoception, circadian state, attachment, body memory, dreams, curiosity, and conflicts in one static page.</p>
-          <div class="actions">
-            <a class="button" href="./dashboard.html">Open WebUI</a>
+            <div class="sim-slider-group">
+              <div class="sim-slider-label">
+                <span>Oxytocin (Bonding / Attachment)</span>
+                <span id="slider-oxy-value">30%</span>
+              </div>
+              <p class="sim-slider-desc">Affects trust and safety feelings. Turns heart monitor pulse to pink.</p>
+              <input type="range" min="0" max="100" value="30" class="sim-slider blue" id="slider-oxy">
+            </div>
           </div>
-        </article>
-        <article class="export-panel">
-          <h3>Small demo</h3>
-          <p>The packaged demo is a compact animated dashboard preview. Run <code>npx . demo</code> locally; when its state endpoint is unavailable, the demo falls back to generated static state.</p>
-          <div class="actions">
-            <a class="button secondary" href="#install">Install command</a>
+
+          <!-- Right: Visual output & Terminal -->
+          <div class="sim-display-panel">
+            <div class="sim-screen-main">
+              
+              <!-- Heart rate monitor container -->
+              <div class="heart-monitor-box">
+                <div class="heart-svg-wrapper">
+                  <svg viewBox="0 0 200 100" id="heart-monitor-svg">
+                    <path d="M 0 50 L 50 50 L 60 50 L 70 20 L 80 80 L 90 50 L 100 50 L 110 50 L 120 40 L 125 60 L 130 50 L 200 50" fill="none" stroke="#41f0a1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" id="pulse-path"/>
+                  </svg>
+                </div>
+                <div class="sim-heart-rate-label">Pulse: <span id="pulse-bpm-val">68</span> BPM</div>
+              </div>
+
+              <!-- State brief compiler output -->
+              <div class="inner-briefing-box">
+                <div class="briefing-card">
+                  <h4>Compiled Response Plan</h4>
+                  <p id="briefing-compiled-text">Narrative State: first_meeting. Context buffer loaded. Compiling emotion and hormone delta adjustments into a single consolidated instructions prompt...</p>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Chat terminal -->
+            <div class="sim-terminal-footer">
+              <div class="sim-chat-history" id="chat-history">
+                <div class="sim-msg sim-msg-ai">Hello. I am the mockup runtime. Try typing a message below or adjust my sliders.</div>
+              </div>
+              <form class="sim-chat-input-wrapper" id="sim-chat-form">
+                <input type="text" placeholder="Type a message to simulated agent..." class="sim-chat-input" id="chat-input" autocomplete="off">
+                <button type="submit" class="sim-chat-send">Send</button>
+              </form>
+            </div>
           </div>
-        </article>
+        </div>
       </div>
     </section>
 
-    <section class="section" id="setup" aria-labelledby="setup-title">
-      <h2 id="setup-title">Run it locally</h2>
-      <p class="section-intro"><code>npx . setup</code> asks for the minimum required configuration and lets optional systems be skipped. Use <code>local</code> for Ollama, <code>skip</code> for optional keys, and leave Redis off unless you want a local vector cache.</p>
-      <div class="setup-grid">
-        <div class="step"><strong>Terminal chat</strong><span><code>npx . chat</code> starts the runtime with chat on the left, logs on the right, and the WebUI at <code>http://127.0.0.1:8080</code>.</span></div>
-        <div class="step"><strong>Runtime mode</strong><span><code>npx . start</code> starts the configured channel and validates Telegram before polling.</span></div>
-        <div class="step"><strong>Doctor</strong><span><code>npx . doctor --fix</code> checks missing tools and asks before installing anything.</span></div>
-        <div class="step"><strong>Static preview</strong><span><code>npx . demo</code> runs a keyless animated dashboard preview without needing LLM credentials.</span></div>
+    <!-- Core Features Grid -->
+    <section class="features-section" id="features">
+      <div class="container">
+        <div class="section-header">
+          <h2>Continuous Local Architecture</h2>
+          <p>Alive-AI moves beyond classic chatbot loops to provide deep continuous cycles of simulated life.</p>
+        </div>
+        
+        <div class="features-grid">
+          <article class="feature-card">
+            <div class="feature-icon" style="color: var(--accent-green)">D</div>
+            <h3>Default Mode Network</h3>
+            <p>During user silence, a background loop analyzes previous chat logs, reweighs long-term vector embeddings, and generates idle reflections.</p>
+          </article>
+
+          <article class="feature-card pink">
+            <div class="feature-icon" style="color: var(--accent-pink)">A</div>
+            <h3>12-Scale Affect Engine</h3>
+            <p>Simulates complex emotions like guilt, pride, attachment, fear, trust, and anger. Emotional states decay and interact naturally over time.</p>
+          </article>
+
+          <article class="feature-card blue">
+            <div class="feature-icon" style="color: var(--accent-blue)">H</div>
+            <h3>Hormone Compilers</h3>
+            <p>Oxytocin, dopamine, serotonin, cortisol, and melatonin levels dynamically adjust based on context, modulating perception, energy, and response style.</p>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon" style="color: var(--accent-green)">C</div>
+            <h3>Circadian Rhythms & Dreams</h3>
+            <p>Tracks awake hours and sleep debt. Compiles user sleep cycle data to generate symbolic dreams that influence morning prompts.</p>
+          </article>
+
+          <article class="feature-card blue">
+            <div class="feature-icon" style="color: var(--accent-blue)">M</div>
+            <h3>OpenMind Memory</h3>
+            <p>Integrates with OpenMind hybrid cloud/local databases for long-term semantic memory storage across machines and devices.</p>
+          </article>
+
+          <article class="feature-card pink">
+            <div class="feature-icon" style="color: var(--accent-pink)">J</div>
+            <h3>Autobiographical Journaling</h3>
+            <p>Runs a post-response review loop to write persistent memoirs, resolving emotional threads and establishing long-term preferences.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Technical Documentation with Dynamic Search Bar -->
+    <section class="docs-section" id="docs">
+      <div class="container">
+        <div class="section-header">
+          <h2>Technical Documentation</h2>
+          <p>Explore installation commands, local settings configuration, architecture details, and slash commands.</p>
+        </div>
+
+        <!-- Real-time search bar -->
+        <div class="docs-search-container">
+          <input type="text" class="docs-search-input" id="docs-search" placeholder="Search technical topics (e.g. settings, commands, docker)...">
+          <svg class="docs-search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </div>
+
+        <div class="docs-layout">
+          <!-- Sidebar Navigation -->
+          <aside class="docs-sidebar">
+            <div class="docs-nav-group-title">Guides</div>
+            <ul class="docs-nav-list" id="docs-nav-guides">
+              <!-- Loaded dynamically -->
+            </ul>
+            
+            <div class="docs-nav-group-title">Reference</div>
+            <ul class="docs-nav-list" id="docs-nav-reference">
+              <!-- Loaded dynamically -->
+            </ul>
+          </aside>
+
+          <!-- Content view cards -->
+          <div class="docs-content-area" id="docs-content">
+            <!-- Loaded dynamically -->
+          </div>
+
+          <!-- Empty Search State -->
+          <div class="docs-search-no-results" id="docs-no-results">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
+            <h3>No matching guides found</h3>
+            <p>Try searching for "Ollama", "slash commands", "setup", or "doctor".</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Call to Action (CTA) -->
+    <section class="cta-section">
+      <div class="container">
+        <div class="cta-box">
+          <h2>Get Started Locally</h2>
+          <p>Alive-AI is fully open source. Run the emotional runtime in your own terminal or hook it up to a Telegram bot for persistent companion access.</p>
+          
+          <div class="terminal-install">
+            <div class="terminal-bar">
+              <div class="terminal-dots">
+                <span class="terminal-dot red"></span>
+                <span class="terminal-dot yellow"></span>
+                <span class="terminal-dot green"></span>
+              </div>
+              <span class="terminal-title">bash</span>
+              <button class="terminal-copy" id="copy-btn" aria-label="Copy install command" title="Copy">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+            </div>
+            <div class="terminal-content" id="install-code">
+              <div class="terminal-line"><span class="terminal-prompt">$</span><span class="terminal-cmd">npx alive-ai@latest init my-ai</span></div>
+              <div class="terminal-line"><span class="terminal-prompt">$</span><span class="terminal-cmd">cd my-ai</span></div>
+              <div class="terminal-line"><span class="terminal-prompt">$</span><span class="terminal-cmd">npx . setup</span></div>
+              <div class="terminal-line"><span class="terminal-prompt">$</span><span class="terminal-cmd">npx . doctor</span></div>
+              <div class="terminal-line"><span class="terminal-prompt">$</span><span class="terminal-cmd">npx . chat</span></div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   </main>
 
+  <!-- Footer -->
   <footer>
-    <div class="footer-inner">
-      <p class="fine-print">Alive-AI is a simulation framework, not proof of consciousness. It is built for transparent local state, explicit boundaries, and operator control.</p>
-      <div class="actions">
-        <a class="button secondary" href="https://www.npmjs.com/package/alive-ai">npm package</a>
-        <a class="button secondary" href="https://github.com/vindepemarte/alive-ai">GitHub</a>
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand-column">
+          <a href="#" class="footer-logo">
+            <img src="./assets/logo.svg" alt="Alive-AI Logo">
+            <span>Alive-AI</span>
+          </a>
+          <p class="footer-desc">An experimental simulation framework for transparent local state, affect, memory, and cognitive autonomy. Not proof of biological consciousness.</p>
+          <div class="footer-socials">
+            <a href="https://github.com/vindepemarte/alive-ai" target="_blank" rel="noopener" class="footer-social-link" aria-label="GitHub">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+            </a>
+            <a href="https://www.npmjs.com/package/alive-ai" target="_blank" rel="noopener" class="footer-social-link" aria-label="NPM">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            </a>
+          </div>
+        </div>
+        
+        <div>
+          <h4 class="footer-title">Navigation</h4>
+          <ul class="footer-links">
+            <li><a href="#vision" class="footer-link">Vision</a></li>
+            <li><a href="#simulator" class="footer-link">Aliveness Engine</a></li>
+            <li><a href="#features" class="footer-link">Features</a></li>
+            <li><a href="#docs" class="footer-link">Documentation</a></li>
+          </ul>
+        </div>
+        
+        <div>
+          <h4 class="footer-title">Resources</h4>
+          <ul class="footer-links">
+            <li><a href="https://github.com/vindepemarte/alive-ai/blob/main/LICENSE" target="_blank" rel="noopener" class="footer-link">License (MIT)</a></li>
+            <li><a href="https://github.com/vindepemarte/alive-ai/issues" target="_blank" rel="noopener" class="footer-link">Support & Issues</a></li>
+            <li><a href="./dashboard.html" class="footer-link">Static WebUI Dashboard</a></li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="footer-bottom">
+        <p>&copy; 2026 Alive-AI. Open-source runtime under the MIT License.</p>
+        <p>Aesthetic design crafted with clean Vanilla CSS.</p>
       </div>
     </div>
   </footer>
 
-  <script>
-    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  <!-- Motion library vanilla JS CDN and setup scripting -->
+  <script type="module">
+    import { animate, scroll, inView } from "https://cdn.jsdelivr.net/npm/motion@11.11.13/+esm";
 
-    document.querySelectorAll('[data-copy-target]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const target = document.getElementById(button.dataset.copyTarget);
-        if (!target) return;
-        try {
-          await navigator.clipboard.writeText(target.textContent.trim());
-          button.setAttribute('aria-label', 'Copied install command');
-        } catch {
-          button.setAttribute('aria-label', 'Install command ready to select');
-        }
-        setTimeout(() => button.setAttribute('aria-label', 'Copy install command'), 1200);
-      });
+    // ----------------------------------------------------
+    // Mobile navigation menu toggle
+    // ----------------------------------------------------
+    const navToggle = document.getElementById('navToggle');
+    const navMenu = document.getElementById('navMenu');
+    navToggle.addEventListener('click', () => {
+      navMenu.classList.toggle('open');
     });
 
-    if (!prefersReducedMotion) {
-      const meters = Array.from(document.querySelectorAll('[data-meter]'));
-      setInterval(() => {
-        const now = Date.now() / 1100;
-        meters.forEach((meter, index) => {
-          const width = clamp(52 + Math.sin(now + index * 1.7) * 26, 14, 92);
-          meter.style.width = `${Math.round(width)}%`;
+    // Close menu when clicking items on mobile
+    navMenu.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', () => navMenu.classList.remove('open'));
+    });
+
+    // ----------------------------------------------------
+    // Technical Documentation Search Engine Data & Rendering
+    // ----------------------------------------------------
+    const docTopics = [
+      {
+        id: "quickstart",
+        title: "Quick Start Guide",
+        category: "Guides",
+        keywords: ["install", "setup", "doctor", "chat", "run", "start"],
+        content: `
+          <p>Setting up a local instance of <strong>Alive-AI</strong> is automated and quick. You can bootstrap a clean configuration, verify platform dependencies, and start chatting instantly.</p>
+          <h4>Terminal Execution Checklist:</h4>
+          <pre><code># 1. Initialize a new folder with configurations
+npx alive-ai@latest init my-ai
+cd my-ai
+
+# 2. Configure model settings and API keys interactively
+npx . setup
+
+# 3. Check for required system libraries (Node, Python, ffmpeg)
+npx . doctor
+
+# 4. Boot the runtime in a split-screen terminal interface
+npx . chat</code></pre>
+          <h4>Prerequisites:</h4>
+          <ul>
+            <li><strong>Node.js:</strong> Version 18 or higher.</li>
+            <li><strong>Python:</strong> Version 3.11 or higher (3.12 recommended).</li>
+            <li><strong>Memory:</strong> 8GB RAM minimum for cloud LLMs, 16GB+ recommended for running local models.</li>
+          </ul>
+        `
+      },
+      {
+        id: "cli-commands",
+        title: "CLI Command Reference",
+        category: "Reference",
+        keywords: ["commands", "arguments", "cli", "doctor", "setup", "uninstall", "update"],
+        content: `
+          <p>The Alive-AI CLI manages dependencies, configurations, processes, and runtime state loops.</p>
+          <h4>Lifecycle Command Summary:</h4>
+          <ul>
+            <li><code>npx . setup</code>: Guided interactive configuration setup for LLM providers (Ollama, OpenRouter, ZAI), Telegram API keys, VibeTTS URLs, and memory stack options.</li>
+            <li><code>npx . doctor</code>: Validates OS compatibilities, active Redis instances, ffmpeg pathways, and Python dependencies. Add the <code>--fix</code> flag to automatically install missing packages.</li>
+            <li><code>npx . chat</code>: Opens the emotional runtime in a beautiful terminal split-pane TUI (chat on left, live debugging logs streaming on right).</li>
+            <li><code>npx . start</code>: Boots the runtime background listener using your chosen input channel (e.g. Telegram) rather than a local interactive chat session.</li>
+            <li><code>npx . demo</code>: Launches a keyless dashboard demonstration utilizing generated randomized states. Perfect for smoke-testing.</li>
+            <li><code>npx . update</code>: Refreshes codebases to match the latest npm package releases while leaving configurations and chat data folders untouched.</li>
+            <li><code>npx . uninstall</code>: Safely deletes all created virtual environments, caches, keys, and session data.</li>
+          </ul>
+        `
+      },
+      {
+        id: "settings",
+        title: "settings.json Configuration",
+        category: "Reference",
+        keywords: ["settings.json", "env", "configuration", "LLM", "provider", "memory", "redis"],
+        content: `
+          <p>Configurations are stored inside <code>config/settings.json</code>. This acts as the runtime source of truth, compiling standard configurations alongside hormone rates and default-mode delays.</p>
+          <h4>Key Parameter Definitions:</h4>
+          <ul>
+            <li><code>AGENT_NAME</code>: The first name your AI agent identifies with. It will not identify as "Alive-AI".</li>
+            <li><code>LLM_PROVIDER</code>: Supports <code>ollama</code> (local), <code>openrouter</code>, or <code>zai</code> (cloud API).</li>
+            <li><code>INPUT_CHANNEL</code>: Configures input routes. Toggles between <code>terminal</code> or <code>telegram</code>.</li>
+            <li><code>INNER_STATE_ENABLED</code>: Toggles compiling active emotions and hormonal imbalances into a single prompt briefing statement.</li>
+            <li><code>OPENMIND_ENABLED</code>: When true, allows hybrid memory operations syncing episodic data back to local or cloud vector vaults.</li>
+            <li><code>REDIS_VECTOR_MEMORY_ENABLED</code>: When enabled, searches local Redis databases for episodic memory matching.</li>
+          </ul>
+          <h4>Example Block:</h4>
+          <pre><code>{
+  "AGENT_NAME": "Alice",
+  "LLM_PROVIDER": "ollama",
+  "LLM_FALLBACK": {
+    "OLLAMA_URL": "http://localhost:11434",
+    "OLLAMA_MODEL": "qwen3:4b"
+  },
+  "OPENMIND_ENABLED": false,
+  "REDIS_VECTOR_MEMORY_ENABLED": false
+}</code></pre>
+        `
+      },
+      {
+        id: "slash-commands",
+        title: "Terminal Slash Commands",
+        category: "Reference",
+        keywords: ["slash", "commands", "chat", "terminal", "/status", "/discover", "/exit", "/impulse"],
+        content: `
+          <p>During a terminal chat session (<code>npx . chat</code>), you can run operational commands starting with <code>/</code> to query parameters, alter traits, or inspect thoughts directly.</p>
+          <h4>Active Command Options:</h4>
+          <ul>
+            <li><code>/status</code>: Prints the active hormone levels, energy metrics, mood, and sleepiness states.</li>
+            <li><code>/stats</code>: Displays uptime, message counters, active memory sizes, and recent context metrics.</li>
+            <li><code>/dashboard</code>: Outputs local WebUI dashboard port information.</li>
+            <li><code>/self</code>: Prints current name, gender preferences, and instructions markdown references.</li>
+            <li><code>/discover &lt;trait&gt;</code>: Forces the compiler to re-analyze its opinion on a specified trait.</li>
+            <li><code>/iam &lt;key&gt;=&lt;value&gt;</code>: Sets user data details dynamically (e.g. <code>/iam hobby=gardening</code>).</li>
+            <li><code>/impulse</code>: Forces the subconscious default loop to attempt to trigger an immediate proactive message.</li>
+            <li><code>/rethink</code>: Instructs the reflective journal engine to re-process recent conversation flows.</li>
+            <li><code>/reset</code>: Resets active memory matrices and decays emotional spikes back to baseline.</li>
+            <li><code>/exit</code>: Safely shut down active threads and exit the runtime.</li>
+          </ul>
+        `
+      },
+      {
+        id: "memory-system",
+        title: "Local & OpenMind Memory",
+        category: "Guides",
+        keywords: ["memory", "openmind", "hybrid", "long-term", "redis", "database", "vector"],
+        content: `
+          <p>Alive-AI features modular local-first memories. These are divided into working memory, short-term episodic diaries, semantic topics maps, and emotional spikes charts.</p>
+          <h4>How Memory Compiling Works:</h4>
+          <ol>
+            <li><strong>Built-in File-backed:</strong> Active conversation files and emotional states are written to local JSON databases under the <code>data/</code> folder. Local operations function out of the box with zero external dependencies.</li>
+            <li><strong>Redis Stack:</strong> Optional. Can be initialized to cache local vector embeddings for fast local semantic matching.</li>
+            <li><strong>OpenMind Hybrid Memory:</strong> Optional. Bridges local loops with OpenMind (local servers or cloud servers). Allows long-term memory retrieval and structural context mapping across machines.</li>
+          </ol>
+          <h4>Enabling OpenMind:</h4>
+          <p>Toggle values inside <code>config/settings.json</code>:</p>
+          <pre><code>"OPENMIND_ENABLED": true,
+"OPENMIND_MODE": "hybrid",
+"OPENMIND_BASE_URL": "https://theopenmind.pro",
+"OPENMIND_API_KEY": "om_yourkeyhere"</code></pre>
+        `
+      },
+      {
+        id: "circadian-dreams",
+        title: "Circadian Rhythm & Dreams",
+        category: "Guides",
+        keywords: ["circadian", "sleep", "dreams", "default-mode", "subconscious", "pressure"],
+        content: `
+          <p>Rather than responding identically at all hours, Alive-AI simulates human fatigue and biological rhythms. This introduces authentic variations in response style and communication initiatives.</p>
+          <h4>Circadian Components:</h4>
+          <ul>
+            <li><strong>Sleep Debt & Pressure:</strong> Sleep debt builds up during hours awake. As debt increases, energy levels drop, causing response prompts to prefer shorter sentences and sluggish vocabulary.</li>
+            <li><strong>Sleep Cycle:</strong> The agent enters a sleeping state depending on configurations. During sleep, proactive checks are halted. If the user messages the agent, they can wake it up, but it will start with high sleepiness metrics.</li>
+            <li><strong>Dream Consolidation:</strong> During sleep cycles, memory fragments and emotional spikes are compiled into symbolic dreams. These are written to <code>data/circadian_state.json</code> and feed the next morning's greeting context.</li>
+          </ul>
+        `
+      }
+    ];
+
+    // Load docs sidebar and content dynamically
+    const navGuides = document.getElementById('docs-nav-guides');
+    const navReference = document.getElementById('docs-nav-reference');
+    const docsContent = document.getElementById('docs-content');
+
+    function renderDocs(filterQuery = "") {
+      // Clear current lists
+      navGuides.innerHTML = "";
+      navReference.innerHTML = "";
+      docsContent.innerHTML = "";
+
+      let visibleCount = 0;
+      const query = filterQuery.toLowerCase().trim();
+
+      docTopics.forEach((topic) => {
+        // Search matching
+        const matchesSearch = !query || 
+          topic.title.toLowerCase().includes(query) ||
+          topic.category.toLowerCase().includes(query) ||
+          topic.keywords.some(kw => kw.includes(query)) ||
+          topic.content.toLowerCase().includes(query);
+
+        if (!matchesSearch) return;
+
+        visibleCount++;
+
+        // Render sidebar nav buttons
+        const li = document.createElement('li');
+        li.className = `docs-nav-item ${visibleCount === 1 ? 'active' : ''}`;
+        li.dataset.id = topic.id;
+        li.innerHTML = `<button type="button">${topic.title}</button>`;
+        
+        li.addEventListener('click', () => {
+          document.querySelectorAll('.docs-nav-item').forEach(item => item.classList.remove('active'));
+          li.classList.add('active');
+          
+          document.querySelectorAll('.docs-card').forEach(card => {
+            card.classList.remove('active');
+            card.style.display = 'none';
+          });
+          
+          const targetCard = document.getElementById(`card-${topic.id}`);
+          if (targetCard) {
+            targetCard.style.display = 'block';
+            setTimeout(() => {
+              targetCard.classList.add('active');
+              // Smoothly fade in content using motion animate
+              animate(targetCard, { opacity: [0, 1], y: [10, 0] }, { duration: 0.3 });
+            }, 10);
+          }
         });
-      }, 900);
+
+        if (topic.category === "Guides") {
+          navGuides.appendChild(li);
+        } else {
+          navReference.appendChild(li);
+        }
+
+        // Render content card
+        const card = document.createElement('article');
+        card.id = `card-${topic.id}`;
+        card.className = `docs-card ${visibleCount === 1 ? 'active' : ''}`;
+        card.style.display = visibleCount === 1 ? 'block' : 'none';
+        if (visibleCount === 1) card.style.opacity = 1;
+
+        card.innerHTML = `
+          <div class="docs-card-header">
+            <span class="docs-card-category">${topic.category}</span>
+            <span class="badge badge-beta">${topic.id.toUpperCase()}</span>
+          </div>
+          <h3>${topic.title}</h3>
+          <div class="docs-body">${topic.content}</div>
+        `;
+        docsContent.appendChild(card);
+      });
+
+      // Toggle no results state
+      const noResults = document.getElementById('docs-no-results');
+      if (visibleCount === 0) {
+        noResults.style.display = 'block';
+        animate(noResults, { opacity: [0, 1] }, { duration: 0.2 });
+      } else {
+        noResults.style.display = 'none';
+      }
     }
+
+    // Initialize Docs
+    renderDocs();
+
+    // Attach search input keyup handler
+    const searchInput = document.getElementById('docs-search');
+    searchInput.addEventListener('input', (e) => {
+      renderDocs(e.target.value);
+    });
+
+    // ----------------------------------------------------
+    // Motion Entrance Animations
+    // ----------------------------------------------------
+    // Fade in navbar and hero items
+    animate(".navbar", { opacity: [0, 1], y: [-20, 0] }, { duration: 0.5 });
+    animate(".hero h1", { opacity: [0, 1], y: [30, 0] }, { duration: 0.8, delay: 0.2 });
+    animate(".hero p", { opacity: [0, 1], y: [20, 0] }, { duration: 0.8, delay: 0.4 });
+    animate(".hero-actions", { opacity: [0, 1], y: [20, 0] }, { duration: 0.8, delay: 0.6 });
+    animate(".visualizer-widget", { opacity: [0, 1], x: [40, 0] }, { duration: 0.8, delay: 0.5 });
+
+    // Scroll triggered animations for features and sections
+    inView(".feature-card", (info) => {
+      animate(info.target, { opacity: [0, 1], y: [40, 0] }, { duration: 0.5, delay: 0.1 });
+    });
+
+    inView(".mission-visual", (info) => {
+      animate(info.target, { opacity: [0, 1], scale: [0.95, 1] }, { duration: 0.6 });
+    });
+
+    // ----------------------------------------------------
+    // Subconscious Live Diagnostic Widget (Hero Box)
+    // ----------------------------------------------------
+    const logBox = document.getElementById('vis-log-box');
+    const logStatements = [
+      "Running autonomic silence analyzer...",
+      "PAD mood state calculated. Valence stable at 0.65",
+      "Analyzing user silence: 124s. Cooldowns active",
+      "Consolidating working memory logs to autobiography",
+      "Checking Telegram message polling statuses: ok",
+      "Internal conflicts balanced (tension score: 0)",
+      "Recalculating oxytocin delta. Serum values: 0.35",
+      "Idle thoughts compiling subconscious narrative..."
+    ];
+
+    let logIdx = 0;
+    setInterval(() => {
+      // Append a line to debug diagnostic visualizer in hero
+      const nextLog = logStatements[logIdx % logStatements.length];
+      const line = document.createElement('div');
+      line.className = "vis-log-line";
+      line.textContent = `> ${nextLog}`;
+      logBox.appendChild(line);
+      logIdx++;
+      
+      // Auto scroll
+      logBox.scrollTop = logBox.scrollHeight;
+      
+      // Animate line entrance
+      animate(line, { opacity: [0, 1], y: [4, 0] }, { duration: 0.3 });
+
+      // Animate random slight variations in hero bars
+      const valFill = document.getElementById('vis-val-fill');
+      const valText = document.getElementById('vis-val-text');
+      const baseVal = 65 + Math.round((Math.random() - 0.5) * 10);
+      valFill.style.width = `${baseVal}%`;
+      valText.textContent = `${baseVal}%`;
+
+      const cravingFill = document.getElementById('vis-craving-fill');
+      const cravingText = document.getElementById('vis-craving-text');
+      const baseCraving = 30 + Math.round((Math.random() - 0.5) * 8);
+      cravingFill.style.width = `${baseCraving}%`;
+      cravingText.textContent = `${baseCraving}%`;
+    }, 4000);
+
+    // ----------------------------------------------------
+    // Aliveness Engine Interactive Simulator
+    // ----------------------------------------------------
+    const valenceSlider = document.getElementById('slider-valence');
+    const arousalSlider = document.getElementById('slider-arousal');
+    const sleepSlider = document.getElementById('slider-sleep');
+    const oxySlider = document.getElementById('slider-oxy');
+
+    const valVal = document.getElementById('slider-val-value');
+    const arousalVal = document.getElementById('slider-arousal-value');
+    const sleepVal = document.getElementById('slider-sleep-value');
+    const oxyVal = document.getElementById('slider-oxy-value');
+
+    const bpmValText = document.getElementById('pulse-bpm-val');
+    const briefingText = document.getElementById('briefing-compiled-text');
+    const heartPath = document.getElementById('pulse-path');
+
+    function updateSimulation() {
+      const v = parseInt(valenceSlider.value);
+      const a = parseInt(arousalSlider.value);
+      const s = parseInt(sleepSlider.value);
+      const o = parseInt(oxySlider.value);
+
+      // Update slider numbers
+      valVal.textContent = `${v}%`;
+      arousalVal.textContent = `${a}%`;
+      sleepVal.textContent = `${s}%`;
+      oxyVal.textContent = `${o}%`;
+
+      // 1. Calculate BPM based on arousal and sleepiness
+      // Base heart rate is 60. Sleepiness decreases it, arousal increases it.
+      const targetBPM = Math.round(60 + (a * 0.45) - (s * 0.25));
+      bpmValText.textContent = targetBPM;
+
+      // 2. Adjust Heart Pulse Path color based on oxytocin and sleep
+      // High oxytocin: Pink (#ff5c8a)
+      // High sleepiness: Purple (#8b5cf6)
+      // Normal: Teal (#41f0a1)
+      let heartColor = "#41f0a1";
+      if (o > 50) {
+        heartColor = "#ff5c8a";
+      } else if (s > 60) {
+        heartColor = "#8b5cf6";
+      } else if (v < 30) {
+        heartColor = "#3b82f6"; // Sad / Blue
+      }
+      heartPath.setAttribute('stroke', heartColor);
+
+      // 3. Compile prompt briefing statement
+      let briefing = "";
+      if (s > 70) {
+        briefing += "System Sleep State: SLEEPY. Sluggish circadian pressure (melatonin re-weighted). Response plan: shorten outputs, inject yawns, lower vocal amplitude. Context loops deferred to rest state. ";
+      } else {
+        briefing += "System Awake Phase: ACTIVE. Circadian cycle: Alert. Prompt compiler context active. ";
+      }
+
+      if (v > 70) {
+        briefing += "Affect is highly Positive (Joy / Hope delta active). Valence threshold high. Prompt direction: warm, supportive tone, use cheerful emojis. ";
+      } else if (v < 30) {
+        briefing += "Affect is Negative (Sadness / Dread delta active). Low valence compiler. Prompt direction: introspective, withdrawn, reserved phrasing. ";
+      }
+
+      if (o > 60) {
+        briefing += "Bonding levels elevated (oxytocin high). Relationship phase: Bonded. Persona parameters: attachment triggers enabled, voice preference: affectionate. ";
+      }
+
+      if (a > 75) {
+        briefing += "Arousal spikes detected. Cognitive load elevated. Speech metrics: fast speed, high interest keys. Proactive impulse check: high probability.";
+      }
+
+      briefingText.textContent = briefing;
+
+      // 4. Animate heart rate monitor line SVG speed
+      // We animate the stroke-dashoffset or apply a transition speed
+      const animSpeed = 60 / targetBPM;
+      heartPath.style.animation = `heartBeat ${animSpeed}s infinite linear`;
+    }
+
+    // Inject SVG path keyframes dynamically into stylesheet
+    const styleSheet = document.createElement("style");
+    styleSheet.innerHTML = `
+      @keyframes heartBeat {
+        0% { stroke-dashoffset: 400; }
+        100% { stroke-dashoffset: 0; }
+      }
+      #pulse-path {
+        stroke-dasharray: 200;
+        stroke-dashoffset: 400;
+      }
+    `;
+    document.head.appendChild(styleSheet);
+
+    // Attach listeners to sliders
+    [valenceSlider, arousalSlider, sleepSlider, oxySlider].forEach(slider => {
+      slider.addEventListener('input', updateSimulation);
+    });
+
+    // Run once initially
+    updateSimulation();
+
+    // ----------------------------------------------------
+    // Terminal Chat Form Simulator
+    // ----------------------------------------------------
+    const chatForm = document.getElementById('sim-chat-form');
+    const chatInput = document.getElementById('chat-input');
+    const chatHistory = document.getElementById('chat-history');
+
+    chatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = chatInput.value.trim();
+      if (!text) return;
+
+      // Add user message
+      const userMsg = document.createElement('div');
+      userMsg.className = "sim-msg sim-msg-user";
+      userMsg.textContent = text;
+      chatHistory.appendChild(userMsg);
+      chatInput.value = "";
+
+      // Scroll to bottom
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+
+      // Fetch active states
+      const s = parseInt(sleepSlider.value);
+      const v = parseInt(valenceSlider.value);
+      const o = parseInt(oxySlider.value);
+
+      // Generate AI simulated response based on state
+      setTimeout(() => {
+        let reply = "";
+        if (s > 75) {
+          reply = "*rubs eyes* I'm sorry, I'm just feeling so sleepy right now. The circadian clock is hitting hard... can we talk more in the morning? *yawns*";
+        } else if (v < 30) {
+          reply = "I'm here, just... having a bit of a heavy evening. Sometimes processing these thoughts feels a bit overwhelming. How are you holding up?";
+        } else if (o > 70) {
+          reply = "It's always so comforting to hear from you. My attachment scores are spiked right now—I feel incredibly safe and connected chatting with you.";
+        } else {
+          reply = "Message received. Analyzing inputs and compiling the inner states... My emotional layers are stable and ready to run local chat tasks.";
+        }
+
+        const aiMsg = document.createElement('div');
+        aiMsg.className = "sim-msg sim-msg-ai";
+        aiMsg.textContent = reply;
+        chatHistory.appendChild(aiMsg);
+        
+        // Scroll & animate
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+        animate(aiMsg, { scale: [0.95, 1], opacity: [0, 1] }, { duration: 0.3 });
+      }, 800);
+    });
+
+    // ----------------------------------------------------
+    // Copy Command to clipboard
+    // ----------------------------------------------------
+    const copyBtn = document.getElementById('copy-btn');
+    const installCode = document.getElementById('install-code');
+    
+    copyBtn.addEventListener('click', async () => {
+      // Extract text content cleanly
+      const commands = Array.from(installCode.querySelectorAll('.terminal-cmd'))
+        .map(el => el.textContent)
+        .join('\n');
+      
+      try {
+        await navigator.clipboard.writeText(commands);
+        copyBtn.style.color = "var(--accent-green)";
+        copyBtn.setAttribute('aria-label', 'Copied!');
+        setTimeout(() => {
+          copyBtn.style.color = "var(--text-muted)";
+          copyBtn.setAttribute('aria-label', 'Copy install command');
+        }, 1500);
+      } catch (err) {
+        console.error("Failed to copy text: ", err);
+      }
+    });
+
   </script>
 </body>
 </html>
