@@ -689,8 +689,13 @@ def run_benchmark(args: argparse.Namespace) -> Dict[str, Any]:
     run_id = f"{slug_time()}-{run_hash}"
 
     results: List[Dict[str, Any]] = []
+    total = len(subjects) * len(SCENARIOS)
+    idx = 0
     for subject in subjects:
         for scenario in SCENARIOS:
+            idx += 1
+            percent = int((idx / total) * 100)
+            print(f"[{idx}/{total}] ({percent}%) Benchmarking '{subject}' on scenario: {scenario['title']}...")
             try:
                 results.append(build_result_for_subject(subject, scenario, args, response_rows))
             except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:

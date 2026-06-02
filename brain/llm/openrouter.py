@@ -125,10 +125,10 @@ class OpenRouterClient(BaseLLM):
                     print(f"[OpenRouter] No choices in response: {list(data.keys())}")
                     return None
 
-                content = data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"].get("content")
 
                 if not content or not content.strip():
-                    print(f"[OpenRouter] Empty content!")
+                    print(f"[OpenRouter] Empty content! Raw response data: {data}")
                     return None
 
                 print(f"[OpenRouter] Response: {content[:100]}...")
