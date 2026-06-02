@@ -786,6 +786,11 @@ async def _process_single_message(self, data: dict):
         # Track the opening of this response to prevent future repetition
         if response:
             _track_opening(user_id, response)
+            try:
+                if user_memory.mark_profile_curiosity_asked(response, context.get("profile_curiosity")):
+                    print("[ProfileCuriosity] Marked natural profile question as asked")
+            except Exception as e:
+                print(f"[ProfileCuriosity] Mark-as-asked skipped: {e}")
 
         # ============================================================
         # CHECK IF BIDS WERE ADDRESSED
@@ -1136,6 +1141,9 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     )
     ctx["response_plan"] = response_plan
     system_parts.append(response_plan.to_prompt())
+    profile_curiosity = ctx.get("profile_curiosity")
+    if profile_curiosity and profile_curiosity.get("prompt"):
+        system_parts.append(profile_curiosity["prompt"])
     system_parts.append(response_policy.to_prompt())
 
     # Opening variety hint (positive framing)

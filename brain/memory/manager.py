@@ -9,6 +9,7 @@ from .vector_store import VectorMemoryStore
 from .fact_extractor import FactExtractor
 from .summarizer import ConversationSummarizer
 from .index import MemoryIndex
+from .profile_curiosity import ProfileCuriosity
 
 
 class Memory:
@@ -37,6 +38,7 @@ class Memory:
         self.semantic = SemanticMemory(self.data_path, user_id=user_id)
         self.agent_name = str(bot_id or "AI")
         self.fact_extractor = FactExtractor(self.data_path / "facts.json", agent_name=self.agent_name)
+        self.profile_curiosity = ProfileCuriosity(self.data_path)
         self.summarizer = ConversationSummarizer(self.data_path, agent_name=self.agent_name)
         self.vector_store = None
         self.openmind = None
@@ -95,6 +97,10 @@ class Memory:
             self.vector_store.store("user", user_msg, {"emotion": emotion})
             self.vector_store.store("assistant", ai_msg, {"emotion": emotion})
         self.fact_extractor.add_turn(user_msg, ai_msg)
+        captured = self.profile_curiosity.capture_obvious_answer(user_msg)
+        if captured:
+            self.semantic.facts = self.semantic._load()
+            print(f"[ProfileCuriosity] Captured direct profile facts: {list(captured.keys())}")
         self.summarizer.add_turn(user_msg, ai_msg)
         if self.fact_extractor.should_extract():
             asyncio.ensure_future(self._run_extraction())
@@ -173,4 +179,10 @@ class Memory:
             "conversation_history": history,
             "related_memories": related,
         }
+        curiosity_prompt = self.profile_curiosity.next_prompt(current_message, history)
+        if curiosity_prompt:
+            context["profile_curiosity"] = curiosity_prompt
         return context, self.semantic.get_random_pet_name()
+
+    def mark_profile_curiosity_asked(self, response: str, prompt_info: dict | None) -> bool:
+        return self.profile_curiosity.mark_if_asked(response, prompt_info)
