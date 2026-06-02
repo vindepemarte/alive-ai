@@ -3,7 +3,361 @@ Core: Thinking
 Mood instruction building and fallback responses
 """
 
+from __future__ import annotations
+
+from dataclasses import dataclass
 import random
+import re
+from typing import Any, Mapping, Sequence
+
+
+ROLE_LEAK_PATTERNS = [
+    "as an ai",
+    "as a language model",
+    "i do not have feelings",
+    "i don't have feelings",
+    "i cannot feel",
+    "i can't feel",
+    "alive-ai",
+    "alive ai",
+    "runtime",
+    "framework",
+    "project name",
+]
+
+
+def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+    try:
+        return max(low, min(high, float(value)))
+    except (TypeError, ValueError):
+        return low
+
+
+def _words(text: str) -> list[str]:
+    return re.findall(r"[A-Za-z0-9']+", text or "")
+
+
+def _sentence_split(text: str) -> list[str]:
+    normalized = re.sub(r"\s+", " ", (text or "").strip())
+    if not normalized:
+        return []
+    parts = re.split(r"(?<=[.!?])\s+", normalized)
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _count_questions(text: str) -> int:
+    return (text or "").count("?")
+
+
+def _bid_values(bids: Sequence[Any]) -> tuple[set[str], set[str]]:
+    types: set[str] = set()
+    intensities: set[str] = set()
+    for bid in bids or []:
+        bid_type = getattr(bid, "bid_type", None)
+        intensity = getattr(bid, "intensity", None)
+        types.add(str(getattr(bid_type, "value", bid_type) or "").lower())
+        intensities.add(str(getattr(intensity, "value", intensity) or "").lower())
+    return types, intensities
+
+
+def is_system_transparency_request(msg: str) -> bool:
+    """Return True when the user is asking about Alive-AI/system/runtime details."""
+    text = (msg or "").lower()
+    system_terms = (
+        "alive-ai", "alive ai", "runtime", "framework", "system", "built",
+        "how do you work", "how are you made", "how were you made",
+        "who made you", "creator", "model", "llm", "local-first",
+    )
+    return any(term in text for term in system_terms)
+
+
+def is_personal_identity_request(msg: str) -> bool:
+    text = (msg or "").lower().strip()
+    if is_system_transparency_request(text):
+        return False
+    return bool(re.search(r"\b(who are you|what are you|your name|say your identity|configured identity)\b", text))
+
+
+def _direct_question(msg: str) -> bool:
+    text = (msg or "").strip().lower()
+    if "?" in text:
+        return True
+    return bool(re.match(r"^(what|who|where|when|why|how|do|does|did|is|are|can|could|would|will|should|have|has)\b", text))
+
+
+def _depth_trigger(msg: str, emotion: Mapping[str, Any], bid_types: set[str], bid_intensities: set[str]) -> bool:
+    text = (msg or "").lower()
+    explicit = (
+        "explain", "go deeper", "tell me more", "long answer", "story",
+        "why do you", "walk me through", "be detailed", "introspection",
+        "what do you feel", "what are you feeling", "dream", "memory",
+        "remember", "repair", "reset", "serious", "important",
+    )
+    vulnerable = (
+        "ashamed", "scared", "afraid", "hurt", "grief", "panic", "cry",
+        "overwhelmed", "depressed", "alone", "vulnerable", "exposed",
+    )
+    high_emotion = max(
+        _clamp(emotion.get(key, 0.0))
+        for key in ("sadness", "fear", "anger", "guilt", "love", "desire", "arousal")
+    ) >= 0.78
+    return (
+        any(term in text for term in explicit)
+        or any(term in text for term in vulnerable)
+        or "vulnerability" in bid_types
+        or "high" in bid_intensities
+        or high_emotion
+    )
+
+
+def _boundary_trigger(msg: str) -> bool:
+    text = (msg or "").lower()
+    return any(
+        term in text
+        for term in (
+            "do not", "don't", "stop", "busy", "answer later", "space",
+            "boundary", "not now", "leave me", "pressure", "too many",
+            "don't chase", "do not chase",
+        )
+    )
+
+
+@dataclass(frozen=True)
+class ResponseShapePolicy:
+    """Deterministic reply-shape contract used before and after generation."""
+
+    max_tokens: int
+    target_sentences: tuple[int, int]
+    max_words: int
+    tone_shape: str
+    emoji_tendency: str
+    abbreviation_tendency: str
+    max_questions: int
+    question_policy: str
+    hesitation_instruction: str
+    allow_deep: bool
+    identity_mode: str = "none"
+    system_transparency: bool = False
+
+    def to_prompt(self) -> str:
+        low, high = self.target_sentences
+        depth = "allowed if the user clearly invited it" if self.allow_deep else "not allowed here"
+        return (
+            "RESPONSE SHAPE POLICY - Adaptive Short\n"
+            f"- Target length: {low}-{high} sentence(s), {self.max_words} words max.\n"
+            f"- Generation budget: {self.max_tokens} tokens max. Depth is {depth}.\n"
+            f"- Tone shape: {self.tone_shape}.\n"
+            f"- Emoji tendency: {self.emoji_tendency}. Abbreviation tendency: {self.abbreviation_tendency}.\n"
+            f"- Questions: {self.question_policy}; ask at most {self.max_questions} question(s).\n"
+            f"- Hesitation/deflection: {self.hesitation_instruction}.\n"
+            "- Do not stack paragraphs. Do not repeat the same image in different words.\n"
+            "- If the user did not ask about systems, do not mention Alive-AI, runtime, framework, model, or project details.\n"
+        )
+
+
+def build_response_shape_policy(
+    emotion: Mapping[str, Any],
+    msg: str,
+    ctx: Mapping[str, Any] | None = None,
+) -> ResponseShapePolicy:
+    """Build the Adaptive Short policy for a single reply."""
+    ctx = ctx or {}
+    bid_types, bid_intensities = _bid_values(ctx.get("detected_bids", []))
+    direct_question = _direct_question(msg)
+    system_request = is_system_transparency_request(msg)
+    personal_identity = is_personal_identity_request(msg)
+    allow_deep = system_request or _depth_trigger(msg, emotion, bid_types, bid_intensities)
+    boundary = _boundary_trigger(msg)
+
+    mood = str(emotion.get("mood", "") or "").lower()
+    circadian = emotion.get("circadian") if isinstance(emotion.get("circadian"), Mapping) else {}
+    circadian_modifiers = circadian.get("modifiers", {}) if isinstance(circadian, Mapping) else {}
+    sleepiness = max(_clamp(emotion.get("sleepiness", 0.0)), _clamp(circadian.get("sleepiness", 0.0) if isinstance(circadian, Mapping) else 0.0))
+    is_sleepy = bool(emotion.get("is_asleep")) or sleepiness >= 0.65 or "sleepy" in mood or "asleep" in mood
+
+    inconsistency = ctx.get("inconsistency_modifiers", {})
+    intero = inconsistency.get("interoception", {}) if isinstance(inconsistency, Mapping) else {}
+    mood_mods = inconsistency.get("mood", {}) if isinstance(inconsistency, Mapping) else {}
+    profile = mood_mods.get("profile", {}) if isinstance(mood_mods, Mapping) else {}
+    social_satiety = _clamp(intero.get("social_satiety", 0.5))
+    cognitive_load = _clamp(intero.get("cognitive_load", 0.0))
+    energy = _clamp(intero.get("energy", circadian_modifiers.get("energy", 0.6)))
+    response_length_modifier = _clamp(profile.get("response_length_modifier", 1.0), 0.45, 1.35)
+
+    recent_lengths: list[int] = []
+    for turn in ctx.get("conversation_history", [])[-6:]:
+        if turn.get("role") == "assistant":
+            recent_lengths.append(len(_words(str(turn.get("content", "")))))
+    recent_avg = sum(recent_lengths) / len(recent_lengths) if recent_lengths else 0.0
+
+    max_words = 90
+    target_sentences = (1, 2)
+    max_tokens = 110
+    max_questions = 1 if direct_question or "question" in bid_types else 0
+    question_policy = "answer directly first; one small follow-up only if it genuinely helps"
+    tone = "short, natural texting; emotionally colored but not essay-like"
+    emoji = "low"
+    abbreviations = "light"
+    hesitation = "use normal human hesitation only if the feeling calls for it"
+
+    if allow_deep:
+        max_words = 170
+        target_sentences = (2, 4)
+        max_tokens = 220
+        max_questions = 1
+        tone = "warmer and deeper, but still conversational"
+    if system_request:
+        max_words = 190
+        target_sentences = (2, 5)
+        max_tokens = 260
+        tone = "clear and transparent about the system without losing configured identity"
+    if personal_identity:
+        max_words = 55
+        target_sentences = (1, 2)
+        max_tokens = 80
+        max_questions = 0
+        tone = "plain personal identity; configured name and pronouns, no framework details"
+    if is_sleepy:
+        max_words = min(max_words, 55 if not allow_deep else 85)
+        target_sentences = (1, 2)
+        max_tokens = min(max_tokens, 80)
+        max_questions = 0 if not direct_question else 1
+        tone = "sleepy, warm, low-energy, a little slower; no hyper-alert pep"
+        emoji = "very low"
+        abbreviations = "light and lazy if natural"
+        hesitation = "it is okay to trail off slightly, defer depth, or let sleep win"
+    if boundary:
+        max_words = min(max_words, 70)
+        target_sentences = (1, 2)
+        max_tokens = min(max_tokens, 95)
+        max_questions = 0
+        tone = "respectful, restrained, not over-compliant, not needy"
+        hesitation = "acknowledge the limit; deflect pressure or choose restraint instead of chasing"
+    if social_satiety > 0.75:
+        max_words = int(max_words * 0.82)
+        max_tokens = int(max_tokens * 0.85)
+        max_questions = min(max_questions, 1)
+        tone += "; socially settled, less eager"
+    if cognitive_load > 0.62:
+        max_words = int(max_words * 0.78)
+        max_tokens = int(max_tokens * 0.80)
+        target_sentences = (1, min(target_sentences[1], 2))
+        tone += "; cognitive load is high, keep it simpler"
+        hesitation = "admit uncertainty or choose one clear thread instead of covering everything"
+    if energy < 0.35:
+        max_words = int(max_words * 0.82)
+        max_tokens = int(max_tokens * 0.85)
+        tone += "; energy is low"
+    if response_length_modifier < 0.85:
+        max_words = int(max_words * response_length_modifier)
+        max_tokens = int(max_tokens * response_length_modifier)
+    if recent_avg >= 120 and not allow_deep:
+        max_words = min(max_words, 65)
+        max_tokens = min(max_tokens, 90)
+        tone += "; recent replies were long, correct toward brevity"
+
+    max_words = max(22, min(max_words, 220))
+    max_tokens = max(45, min(max_tokens, 280))
+    identity_mode = "personal" if personal_identity else "system" if system_request else "none"
+    return ResponseShapePolicy(
+        max_tokens=max_tokens,
+        target_sentences=target_sentences,
+        max_words=max_words,
+        tone_shape=tone,
+        emoji_tendency=emoji,
+        abbreviation_tendency=abbreviations,
+        max_questions=max_questions,
+        question_policy=question_policy,
+        hesitation_instruction=hesitation,
+        allow_deep=allow_deep,
+        identity_mode=identity_mode,
+        system_transparency=system_request,
+    )
+
+
+def _pronoun_label(identity: Mapping[str, Any] | None) -> str:
+    identity = identity or {}
+    pronouns = str(identity.get("pronouns") or "").strip()
+    gender = str(identity.get("gender") or "").strip().lower()
+    if pronouns:
+        return pronouns
+    if gender == "male":
+        return "he/him"
+    if gender == "nonbinary":
+        return "they/them"
+    return "she/her"
+
+
+def _identity_fallback(identity: Mapping[str, Any] | None) -> str:
+    identity = identity or {}
+    name = str(identity.get("name") or "Alice").strip()
+    return f"I'm {name}, {_pronoun_label(identity)}. I'm here with you as myself."
+
+
+def has_role_leakage(text: str, allow_system_terms: bool = False) -> bool:
+    lower = (text or "").lower()
+    patterns = ROLE_LEAK_PATTERNS if not allow_system_terms else ROLE_LEAK_PATTERNS[:6]
+    return any(pattern in lower for pattern in patterns)
+
+
+def shape_response_text(
+    response: str,
+    policy: ResponseShapePolicy,
+    identity: Mapping[str, Any] | None = None,
+) -> str:
+    """Repair model output so the response policy has runtime consequences."""
+    text = (response or "").strip()
+    if not text:
+        return text
+
+    sentences = _sentence_split(text)
+    if policy.identity_mode == "personal" and has_role_leakage(text, allow_system_terms=False):
+        text = _identity_fallback(identity)
+        sentences = _sentence_split(text)
+    elif not policy.system_transparency and has_role_leakage(text, allow_system_terms=False):
+        kept = [
+            sentence for sentence in sentences
+            if not has_role_leakage(sentence, allow_system_terms=False)
+        ]
+        if kept:
+            text = " ".join(kept).strip()
+            sentences = _sentence_split(text)
+
+    if policy.max_questions >= 0 and _count_questions(text) > policy.max_questions:
+        kept: list[str] = []
+        questions = 0
+        for sentence in sentences:
+            q_count = _count_questions(sentence)
+            if q_count and questions >= policy.max_questions:
+                continue
+            questions += q_count
+            kept.append(sentence)
+        if kept:
+            text = " ".join(kept).strip()
+            sentences = _sentence_split(text)
+
+    max_sentences = max(1, policy.target_sentences[1])
+    if len(sentences) > max_sentences:
+        text = " ".join(sentences[:max_sentences]).strip()
+
+    words = _words(text)
+    if len(words) > policy.max_words:
+        raw_words = text.split()
+        clipped: list[str] = []
+        count = 0
+        for word in raw_words:
+            count += len(_words(word))
+            if count > policy.max_words:
+                break
+            clipped.append(word)
+        text = " ".join(clipped).rstrip(" ,;:")
+        if text and text[-1] not in ".!?":
+            text += "."
+
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    if policy.identity_mode == "personal" and has_role_leakage(text, allow_system_terms=False):
+        return _identity_fallback(identity)
+    return text
 
 
 def build_mood_instruction(

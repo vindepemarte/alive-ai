@@ -516,9 +516,13 @@ async def sse_events(request: Request):
 
 
 @app.get("/state")
-async def get_state():
-    """Get current state (for polling fallback)"""
-    return build_snapshot()
+async def get_state(user_id: Optional[str] = None):
+    """Get current state (for polling fallback).
+
+    Passing user_id lets local diagnostic tools follow an isolated WebUI
+    conversation without being polluted by whichever real user is active.
+    """
+    return build_snapshot(user_id)
 
 
 @app.get("/avatar")

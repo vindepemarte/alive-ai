@@ -2,7 +2,12 @@
 import asyncio, os, random
 from pathlib import Path
 from datetime import datetime
-from .thinking import build_mood_instruction, fallback_response
+from .thinking import (
+    build_mood_instruction,
+    build_response_shape_policy,
+    fallback_response,
+    shape_response_text,
+)
 from .follow_up import FollowUpSystem
 from .user_manager import get_user_manager, is_advanced_enabled
 from .user_tracker import get_user_tracker
@@ -868,6 +873,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     import os
     from core.directives import get_directives_prompt, get_owner_name
 
+    response_policy = build_response_shape_policy(emotion, msg, ctx)
     user_identity = {
         "gender": self.config.settings.get("OWNER_GENDER") or self.config.settings.get("USER_GENDER") or "",
         "sexuality": self.config.settings.get("OWNER_SEXUALITY") or self.config.settings.get("USER_SEXUALITY") or "",
@@ -880,8 +886,14 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
         include_humanizer=False,
         user_identity=user_identity,
     )
-    if not self._llm: return fallback_response(emotion, msg)
-    max_tokens = int(os.environ.get("LLM_MAX_TOKENS", "150"))
+    if not self._llm:
+        return shape_response_text(
+            fallback_response(emotion, msg),
+            response_policy,
+            identity=self.config.identity,
+        )
+    env_max_tokens = int(os.environ.get("LLM_MAX_TOKENS", str(response_policy.max_tokens)))
+    max_tokens = min(env_max_tokens, response_policy.max_tokens)
     temperature = float(os.environ.get("LLM_TEMPERATURE", "0.95"))
 
     # DEBUG: Log conversation history
@@ -1091,6 +1103,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     )
     ctx["response_plan"] = response_plan
     system_parts.append(response_plan.to_prompt())
+    system_parts.append(response_policy.to_prompt())
 
     # Opening variety hint (positive framing)
     recent_openings = _get_recent_openings(user_id)
@@ -1143,7 +1156,11 @@ IMPORTANT: You are sending this media ALONG with your message. Reference it natu
         role = turn.get("role", "user")
         if role in ("user", "assistant"): messages.append({"role": role, "content": turn["content"]})
     messages.append({"role": "user", "content": msg})
-    print(f"[Think] Calling LLM with {len(messages)} messages, max_tokens={max_tokens}")
+    print(
+        f"[Think] Calling LLM with {len(messages)} messages, "
+        f"max_tokens={max_tokens}, shape_words={response_policy.max_words}, "
+        f"shape_sentences={response_policy.target_sentences}"
+    )
     try:
         # Timeout must be longer than per-provider timeout (60s) × number of providers
         # so the fallback chain can actually try all providers before giving up
@@ -1163,18 +1180,41 @@ IMPORTANT: You are sending this media ALONG with your message. Reference it natu
             for pattern in reasoning_starts:
                 if first_30.startswith(pattern.lower()):
                     print(f"[Think] Detected reasoning leakage at start, using fallback")
-                    return fallback_response(emotion, msg)
+                    return shape_response_text(
+                        fallback_response(emotion, msg),
+                        response_policy,
+                        identity=self.config.identity,
+                    )
+            shaped = shape_response_text(response, response_policy, identity=self.config.identity)
+            if shaped != response:
+                print(
+                    f"[Think] Response shape repaired: "
+                    f"{len(response.split())}w -> {len(shaped.split())}w"
+                )
+                response = shaped
             print(f"[Think] LLM response: {response[:80]}...")
             return response
         else:
             print(f"[Think] LLM returned empty response!")
-            return fallback_response(emotion, msg)
+            return shape_response_text(
+                fallback_response(emotion, msg),
+                response_policy,
+                identity=self.config.identity,
+            )
     except asyncio.TimeoutError:
         print(f"[Think] LLM timeout after 60s")
-        return fallback_response(emotion, msg)
+        return shape_response_text(
+            fallback_response(emotion, msg),
+            response_policy,
+            identity=self.config.identity,
+        )
     except Exception as e:
         print(f"[Think] LLM error: {e}")
-        return fallback_response(emotion, msg)
+        return shape_response_text(
+            fallback_response(emotion, msg),
+            response_policy,
+            identity=self.config.identity,
+        )
 
 
 async def _send_response(self, response, emotion, chat_id, text, user_id="default", message_id=None):

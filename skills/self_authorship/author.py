@@ -246,7 +246,8 @@ def get_self_prompt_section(config_path: Path = None) -> str:
     if who.get("name"):
         lines.append(f"Name: {who['name']}, {who.get('age', 23)}yo from {who.get('location', 'Milan')}")
         if who.get("origin"):
-            lines.append(f"Origin: {who['origin']}")
+            lines.append(f"Framework/origin metadata (only mention when asked about the system/runtime/how I am built): {who['origin']}")
+        lines.append("Normal identity answers should use my configured name/pronouns/personality, not framework metadata.")
         lines.append("")
 
     # Personality

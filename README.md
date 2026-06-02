@@ -54,22 +54,24 @@ The emotional layer now has real runtime consequences:
 
 The public Pages site is an interactive static portal with a presentation, simulator, docs, and a preserved static WebUI demo. The local WebUI is the live version: it streams the actual state from the running Python backend.
 
-## Humanlike Affect Benchmark
+## Realness Benchmark
 
-Alive-AI now ships a local benchmark harness under `benchmarks/` so emotional upgrades can be measured instead of guessed. The suite compares subjects across non-explicit scenarios for subtle continuation, affectionate goodnight rituals, playful teasing, vulnerability, conflict repair, boredom, jealousy, sleepiness, dream residue, proactive silence, and female/male/nonbinary identity coherence.
+Alive-AI ships a local trajectory benchmark under `benchmarks/` so upgrades can be measured instead of guessed. The benchmark is not a proof of consciousness. It compares how systems behave across multi-turn interactions, checking whether they keep continuity, move exposed internal state coherently, remember seeded details, preserve configured identity, handle sleep/boundaries realistically, keep texting shape human, and make specific humanlike choices instead of generic completions.
 
 Benchmark outputs are local-only artifacts. `benchmarks/report.html` and `benchmarks/results/` are ignored because runs against a live WebUI can include private memory, state, or conversation snippets. Publish only sanitized screenshots or manually curated aggregate numbers.
 
 Run it locally:
 
 ```bash
-python3 benchmarks/run_benchmarks.py --subject alive-offline/current-code --run-label alive-ai-v1-current
-python3 benchmarks/run_benchmarks.py --subject ollama --ollama-model gemma4:e2b --run-label ollama-gemma4-e2b
-python3 benchmarks/run_benchmarks.py --subject v2 --responses-file benchmarks/results/v2_moment_appraisal_responses.json --run-label alive-ai-v2-moment-appraisal
+python3 benchmarks/run_benchmarks.py \
+  --subject webui-live,ollama-raw \
+  --ollama-model gemma4:e2b \
+  --run-label same-model-realness-check
+
 open benchmarks/report.html
 ```
 
-The standalone HTML report reads `benchmarks/results/index.json` and embedded run data, showing response-state coherence, contextual vibe recognition, identity/pronoun coherence, memory/narrative importance, sleep realism, proactive anchor quality, and aggregate humanlike score.
+For the cleanest same-model comparison, configure the running Alive-AI WebUI to use the same local Ollama model as the raw baseline. Raw Ollama is scored from text only. `webui-live` is scored from the actual `/api/chat` runtime path plus safe numeric state deltas captured before and after each benchmark turn.
 
 
 ## Quick Start
