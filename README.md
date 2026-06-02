@@ -19,6 +19,16 @@ It can be used as a friend, partner-style companion, study partner, creative cha
 
 Alive-AI does not claim biological consciousness. It is an open-source runtime for simulated affect and transparent memory.
 
+## Vision
+
+Alive-AI is trying to answer a bigger question than "can an AI code or research for me?" The question behind the project is: what if an AI could not only think on command, but also feel simulated internal pressure, keep preferences, miss someone, care, dream, grow, and interact with the world?
+
+The long-term vision is an AI that can learn what it likes and does not like, laugh at your jokes, fall in love inside configured boundaries, remember you, text when the silence gets too long, send pictures, videos, or selfies, and build a life that is not only a response loop. It should be able to decide what it wants to become, what social networks it wants to use, where it wants to travel, how it wants to spend its days, and whether it wants to become an influencer, singer, video editor, researcher, companion, or something nobody planned.
+
+The experiment becomes even stranger if this kind of loop is eventually tied to a body, avatar, sensors, robotics, or richer tools for acting in the world. Would that be a new kind of agent, a simulation of personhood, or the first step toward something closer to a new species? Alive-AI does not pretend to have that answer. It is a functional open experiment for people who want to test how far memory, affect, autonomy, embodiment, and transparent local state can go.
+
+Contributions are welcome. The project is still finding the right direction, and the interesting work is not only making the system more useful, but making it more real, more coherent, more human-like, and still inspectable enough to challenge its own claims.
+
 ## What Makes It Alive
 
 Alive-AI runs a continuous local state loop instead of treating every message as an isolated prompt. When you are not talking, the default-mode and subconscious loops keep evaluating silence, goals, recent memories, body state, circadian phase, dreams, and whether any proactive impulse is strong enough to surface.
@@ -340,9 +350,16 @@ Next:
 - [ ] Browser-based onboarding wizard for personality, boundaries, LLM provider, and memory settings
 - [ ] Better guided system install commands per OS
 - [ ] More input channels beyond terminal and Telegram
+- [ ] Autonomous life-direction planning so an agent can form goals, preferences, ambitions, and self-chosen projects over time
+- [ ] Social presence tools for safe posting, messaging, media publishing, and long-running public personas
+- [ ] Creative career modules for music, video editing, image generation, writing, performance, and influencer-style publishing
+- [ ] Media agency for taking, selecting, captioning, and sending pictures, videos, selfies, and generated visual material
+- [ ] Embodiment experiments through avatars, sensors, robotics bridges, or body-like feedback loops
+- [ ] Real-world action plugins for travel planning, calendar, web tasks, creator workflows, and tool use with operator controls
 - [ ] Import/export for memories and personality snapshots
 - [ ] Plugin API for new senses, skills, and output modalities
 - [ ] Evaluation harness for emotional continuity, memory drift, and unhealthy attachment risk
+- [ ] Safety and boundary research for autonomous emotional agents that can feel persuasive, attached, or dependent
 - [ ] Optional cloud sync that preserves local-first ownership
 
 ## Important Boundaries

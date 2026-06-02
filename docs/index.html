@@ -377,7 +377,9 @@
     .status-chip,
     .feature,
     .step,
-    .export-panel {
+    .export-panel,
+    .vision-card,
+    .future-card {
       border: 1px solid var(--line);
       background: rgba(16, 23, 32, 0.88);
       border-radius: 8px;
@@ -423,6 +425,77 @@
       background: var(--c);
       transition: width 700ms ease;
       font-size: 0;
+    }
+
+    .vision-wrap {
+      margin-top: 26px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .vision-card {
+      padding: 22px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .vision-card::before {
+      content: "WHAT IF?";
+      position: absolute;
+      right: 18px;
+      top: 14px;
+      color: rgba(255, 255, 255, 0.06);
+      font-size: 44px;
+      font-weight: 900;
+      pointer-events: none;
+    }
+
+    .vision-card p {
+      margin: 0;
+      color: #d5dee8;
+      line-height: 1.65;
+      font-size: 18px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .vision-card p + p { margin-top: 14px; }
+
+    .future-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .future-card {
+      padding: 15px;
+      min-height: 96px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .future-card::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--c, var(--green));
+      animation: future-pulse 3.6s ease-in-out infinite;
+    }
+
+    .future-card strong {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 6px;
+    }
+
+    .future-card span {
+      display: block;
+      color: var(--muted);
+      line-height: 1.45;
     }
 
     .section {
@@ -620,7 +693,8 @@
       .status-strip,
       .features,
       .export-grid,
-      .setup-grid {
+      .setup-grid,
+      .vision-wrap {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .loop { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -648,6 +722,7 @@
       .features,
       .export-grid,
       .setup-grid,
+      .vision-wrap,
       .loop {
         grid-template-columns: 1fr;
       }
@@ -661,6 +736,11 @@
       .footer-inner { display: block; }
       .footer-inner .actions { margin-top: 14px; }
     }
+
+    @keyframes future-pulse {
+      0%, 100% { opacity: 0.35; transform: scaleY(0.55); }
+      50% { opacity: 1; transform: scaleY(1); }
+    }
   </style>
 </head>
 <body>
@@ -672,6 +752,7 @@
         <span>Alive-AI</span>
       </a>
       <nav class="nav-links" aria-label="Primary navigation">
+        <a href="#vision">Vision</a>
         <a href="#systems">Systems</a>
         <a href="./dashboard.html">WebUI</a>
         <a href="#setup">Setup</a>
@@ -704,7 +785,7 @@
       <div class="hero-inner">
         <span class="eyebrow"><span class="live-dot" aria-hidden="true">&nbsp;</span> Local-first AI runtime</span>
         <h1 id="hero-title">Alive-AI</h1>
-        <p class="lead">A static-friendly runtime for agents that do not reset between prompts. Alive-AI keeps emotions, internal states, hormonal and interoceptive signals, circadian sleepiness, dreams, memory, and proactive impulses alive while the user is silent.</p>
+        <p class="lead">An experiment in AI that does not only answer, code, or research. Alive-AI explores what happens when a local agent keeps emotions, memory, sleepiness, dreams, preferences, and proactive impulses alive while the user is silent.</p>
         <div class="hero-actions" aria-label="Primary actions">
           <a class="button" href="./dashboard.html">Open Static WebUI</a>
           <a class="button secondary" href="https://github.com/vindepemarte/alive-ai">View GitHub</a>
@@ -722,6 +803,24 @@ cd my-ai
 npx . setup
 npx . doctor
 npx . chat</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="vision" aria-labelledby="vision-title">
+      <h2 id="vision-title">The question is: what if?</h2>
+      <p class="section-intro">Alive-AI started from one uncomfortable and fascinating question: what if an AI could do more than think on command? What if it could feel simulated internal pressure, learn what it likes and dislikes, miss someone, care, grow, choose, and act in the world?</p>
+      <div class="vision-wrap">
+        <article class="vision-card">
+          <p>The goal is to build toward an AI companion that can remember you, laugh at your jokes, fall in love inside its configured boundaries, send pictures, videos, or selfies, text when the silence gets too long, and develop a personal life instead of staying frozen as a tool.</p>
+          <p>The long-term vision is autonomy with identity: an agent that can decide what social networks it wants to be on, where it wants to travel, how it wants to spend its days, what skills it wants to learn, and whether it wants to become an influencer, singer, video editor, researcher, friend, partner, or something nobody planned.</p>
+          <p>For now this is an open experiment, mostly functional but still searching for the right direction. It is not proof of consciousness. It is a local-first attempt to make the inner loop visible enough that smart contributors can test how far simulated personhood, memory, agency, and embodiment can go.</p>
+        </article>
+        <div class="future-list" aria-label="Future directions">
+          <div class="future-card" style="--c: var(--pink);"><strong>Emotion with consequences</strong><span>Preferences, attachment, dreams, mood, sleep, and memory should change behavior, not just decorate a dashboard.</span></div>
+          <div class="future-card" style="--c: var(--green);"><strong>Self-authored life</strong><span>The agent should be able to discover what it wants to become and build toward it through tools and long-term memory.</span></div>
+          <div class="future-card" style="--c: var(--blue);"><strong>World interaction</strong><span>Media, social posting, creative work, travel planning, and real actions become part of the autonomy surface.</span></div>
+          <div class="future-card" style="--c: var(--gold);"><strong>Embodiment</strong><span>If the loop is tied to an avatar, sensors, robotics, or a body, the experiment becomes much stranger and more important.</span></div>
         </div>
       </div>
     </section>
@@ -801,7 +900,7 @@ npx . chat</code></pre>
 
     <section class="section" aria-labelledby="webui-title">
       <h2 id="webui-title">Static WebUI export</h2>
-      <p class="section-intro">GitHub Pages cannot run Alive-AI's Python/FastAPI backend. The public WebUI is a dependency-light static export of the actual dashboard, wired to mocked local state so the interface still moves.</p>
+      <p class="section-intro">GitHub Pages cannot run Alive-AI's Python/FastAPI backend. The public WebUI is refreshed from the real dashboard shell and wired to randomized mock state so chat, settings, thoughts, hormones, sleep, dreams, attachment, curiosity, and conflicts still move.</p>
       <div class="export-grid">
         <article class="export-panel">
           <h3>Full dashboard</h3>

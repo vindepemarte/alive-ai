@@ -4,10 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#0f0f1a">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Alive-AI WebUI Static Export</title>
-    
+    <title>Alive-AI Static WebUI Demo</title>
+    <link rel="icon" href="./assets/logo.svg" type="image/svg+xml">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -37,11 +39,17 @@
         html, body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-primary);
-            min-height: 100vh;
-            min-height: -webkit-fill-available;
+            height: 100%;
+            min-height: 100%;
             color: var(--text-primary);
-            overflow-x: hidden;
+            overflow: hidden;
             -webkit-font-smoothing: antialiased;
+            scrollbar-width: none;
+        }
+
+        *::-webkit-scrollbar {
+            width: 0;
+            height: 0;
         }
 
         /* Connection Banner */
@@ -67,12 +75,14 @@
 
         /* Mobile App Shell */
         .app {
-            min-height: 100vh;
+            height: 100vh;
+            height: 100dvh;
             min-height: -webkit-fill-available;
             display: flex;
             flex-direction: column;
             padding-top: var(--safe-top);
             padding-bottom: var(--safe-bottom);
+            overflow: hidden;
         }
 
         /* Header */
@@ -138,14 +148,11 @@
         }
 
         .status-dot {
-            display: inline-block;
-            flex: 0 0 auto;
             width: 6px;
             height: 6px;
             background: var(--accent-green);
             border-radius: 50%;
             animation: blink 2s infinite;
-            font-size: 0;
         }
 
         @keyframes blink {
@@ -170,40 +177,13 @@
         /* Main Content */
         .main {
             flex: 1;
+            min-height: 0;
             overflow-y: auto;
             padding: 0 16px 100px;
             max-width: 600px;
             margin: 0 auto;
             width: 100%;
-        }
-
-        .static-export-note {
-            background: linear-gradient(135deg, rgba(65, 240, 161, 0.14), rgba(74, 144, 217, 0.11));
-            border: 1px solid rgba(65, 240, 161, 0.28);
-            border-radius: 8px;
-            padding: 12px 14px;
-            margin-bottom: 16px;
-            color: var(--text-secondary);
-            line-height: 1.45;
-            animation: static-note-breathe 4.8s ease-in-out infinite;
-        }
-
-        .static-export-note strong {
-            display: block;
-            color: var(--text-primary);
-            font-size: 0.92rem;
-            margin-bottom: 3px;
-        }
-
-        .static-export-note a {
-            color: var(--accent-green);
-            font-weight: 700;
-            text-decoration: none;
-        }
-
-        @keyframes static-note-breathe {
-            0%, 100% { border-color: rgba(65, 240, 161, 0.22); }
-            50% { border-color: rgba(74, 144, 217, 0.48); }
+            scrollbar-width: none;
         }
 
         /* Stats Row */
@@ -659,11 +639,11 @@
             right: 0;
             background: var(--bg-secondary);
             border-top: 1px solid rgba(255, 255, 255, 0.05);
-            padding: 8px 0;
+            padding: 8px 12px;
             padding-bottom: calc(8px + var(--safe-bottom));
-            display: flex;
-            justify-content: center;
-            gap: 40px;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
             z-index: 100;
         }
 
@@ -676,6 +656,11 @@
             border-radius: 12px;
             transition: all 0.2s;
             cursor: pointer;
+            border: 0;
+            background: transparent;
+            color: var(--text-secondary);
+            font: inherit;
+            min-width: 0;
         }
 
         .nav-item.active {
@@ -707,6 +692,8 @@
                 border-radius: 24px;
                 margin-top: 20px;
                 margin-bottom: 20px;
+                height: calc(100dvh - 40px);
+                min-height: 0;
                 box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
                 overflow: hidden;
                 background: var(--bg-secondary);
@@ -768,12 +755,9 @@
         }
 
         .circadian-sleep-dot {
-            display: inline-block;
-            flex: 0 0 auto;
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            font-size: 0;
         }
 
         .circadian-sleep-badge.awake .circadian-sleep-dot { background: #4caf50; }
@@ -1098,23 +1082,302 @@
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
+
+        /* Multi-Page Dashboard & Tab Switching */
+        .main.chat-active {
+            overflow-y: hidden;
+            padding-bottom: 0;
+            display: flex;
+            flex-direction: column;
+            height: auto;
+            min-height: 0;
+        }
+
+        .page-section {
+            width: 100%;
+        }
+
+        /* Chat Page Styles */
+        #page-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+            position: relative;
+        }
+
+        .chat-messages {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 10px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scroll-behavior: smooth;
+        }
+
+        /* Scrollbar styling for chat */
+        .chat-messages::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+        }
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: transparent;
+            border-radius: 3px;
+        }
+
+        .chat-msg-row {
+            display: flex;
+            width: 100%;
+            margin-bottom: 4px;
+        }
+        .chat-msg-row.user {
+            justify-content: flex-end;
+        }
+        .chat-msg-row.alive-ai {
+            justify-content: flex-start;
+        }
+
+        .chat-bubble {
+            max-width: 80%;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            line-height: 1.45;
+            position: relative;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        .chat-msg-row.user .chat-bubble {
+            background: linear-gradient(135deg, var(--accent-pink) 0%, #a55eea 100%);
+            color: #fff;
+            border-radius: 20px 20px 4px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-msg-row.alive-ai .chat-bubble {
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+            border-radius: 20px 20px 20px 4px;
+        }
+
+        .chat-bubble-time {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 4px;
+            text-align: right;
+            display: block;
+        }
+        .chat-msg-row.alive-ai .chat-bubble-time {
+            color: var(--text-muted);
+        }
+
+        /* Typing Dots Animation */
+        .typing-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            margin-top: 4px;
+            color: var(--accent-pink);
+            font-size: 0.85rem;
+        }
+
+        .typing-dots {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .typing-dots span {
+            width: 6px;
+            height: 6px;
+            background-color: var(--accent-pink);
+            border-radius: 50%;
+            display: inline-block;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+
+        /* Settings CSS */
+        .settings-card {
+            margin-bottom: 20px;
+        }
+        .settings-header-btn-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+        }
+        .settings-file-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent-pink);
+        }
+        .settings-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .settings-field-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .settings-field-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .settings-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .settings-input:focus {
+            border-color: var(--accent-pink);
+            box-shadow: 0 0 8px var(--glow-pink);
+        }
+        .settings-checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 4px 0;
+        }
+        .settings-checkbox-container input {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent-pink);
+        }
+        .settings-checkbox-label {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .settings-textarea {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            min-height: 120px;
+            resize: vertical;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .settings-textarea:focus {
+            border-color: var(--accent-pink);
+            box-shadow: 0 0 8px var(--glow-pink);
+        }
+        .btn-action {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-action:hover {
+            background: var(--accent-pink);
+            border-color: var(--accent-pink);
+            box-shadow: 0 0 10px var(--glow-pink);
+        }
+        .btn-save-all {
+            background: linear-gradient(135deg, var(--accent-pink) 0%, #a55eea 100%);
+            border: none;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-save-all:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 15px var(--glow-pink);
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            opacity: 0;
+            visibility: hidden;
+            background: rgba(26, 26, 46, 0.95);
+            border: 1px solid var(--accent-pink);
+            box-shadow: 0 4px 20px var(--glow-pink);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 2000;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease, visibility 0.2s ease;
+            pointer-events: none;
+        }
+        .toast-container.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            visibility: visible;
+        }
     </style>
 </head>
 <body>
-    <div class="connection-banner" id="connection-banner">Reconnecting...</div>
+    <div class="connection-banner" id="connection-banner">Static Pages demo: animated mock state, not a live backend.</div>
 
     <div class="app">
         <header class="header">
             <div class="header-content">
                 <div class="header-left">
                     <div class="avatar-ring">
-                        <img src="./assets/logo.svg" alt="Alive-AI">
+                        <img src="./assets/logo.svg" alt="Agent avatar" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><defs><linearGradient id=%22g%22 x1=%220%25%22 y1=%220%25%22 x2=%22100%25%22 y2=%22100%25%22><stop offset=%220%25%22 style=%22stop-color:%23ff6b9d%22/><stop offset=%22100%25%22 style=%22stop-color:%23c44569%22/></linearGradient></defs><circle cx=%2250%22 cy=%2240%22 r=%2225%22 fill=%22url(%23g)%22/><ellipse cx=%2250%22 cy=%2285%22 rx=%2235%22 ry=%2225%22 fill=%22url(%23g)%22/></svg>'">
                     </div>
                     <div class="header-info">
-                        <h1>Alive-AI</h1>
+                        <h1 id="agent-display-name">Alice</h1>
                         <div class="header-status">
-                            <span class="status-dot" aria-hidden="true">&nbsp;</span>
-                            <span>Thinking during silence</span>
+                            <span class="status-dot"></span>
+                            <span>Active now</span>
                         </div>
                     </div>
                 </div>
@@ -1126,12 +1389,8 @@
         </header>
 
         <main class="main">
-            <section class="static-export-note" aria-label="Static export notice">
-                <strong>Static Pages export</strong>
-                <span>This page is the real local WebUI exported for GitHub Pages. The backend cannot run here, so mocked state animates emotions, hormones, interoception, sleepiness, dreams, memory, and impulses. Run <code>npx . chat</code> locally for live SSE state.</span>
-            </section>
-
-            <!-- Stats Row -->
+            <div id="page-home" class="page-section">
+                <!-- Stats Row -->
             <div class="stats-row">
                 <div class="stat-card">
                     <div class="stat-value" id="stat-messages">0</div>
@@ -1492,14 +1751,14 @@
                 <div class="circadian-phase">
                     <span class="circadian-phase-name" id="circadian-phase">--</span>
                     <span class="circadian-sleep-badge awake" id="circadian-sleep-badge">
-                        <span class="circadian-sleep-dot" aria-hidden="true">&nbsp;</span>
+                        <span class="circadian-sleep-dot"></span>
                         <span id="circadian-sleep-text">Awake</span>
                     </span>
                 </div>
                 <div class="circadian-debt">
                     <div class="circadian-debt-label">
                         <span>Sleep Debt</span>
-                        <span id="circadian-debt-val">0%</span>
+                        <span id="circadian-debt-val">0.0h</span>
                     </div>
                     <div class="circadian-debt-bar">
                         <div class="circadian-debt-fill" id="circadian-debt-bar" style="width:0%"></div>
@@ -1617,97 +1876,207 @@
                     <span class="tendency-badge" id="tendency-badge">neutral</span>
                 </div>
             </div>
+            </div> <!-- #page-home -->
+
+            <!-- CHAT PAGE -->
+            <div id="page-chat" class="page-section" style="display:none; flex-direction:column; height:100%;">
+                <div id="chat-messages" class="chat-messages"></div>
+                <div id="chat-typing" style="display:none; padding:8px 0; color:var(--accent-pink); font-size:0.85rem;">
+                    <div class="typing-indicator">
+                        <span>she is thinking</span>
+                        <div class="typing-dots">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-input-container" style="display:flex; gap:10px; padding:10px 0; background:var(--bg-secondary); border-top:1px solid rgba(255,255,255,0.05); align-items: flex-end;">
+                    <textarea id="chat-input" rows="1" placeholder="Type a message..." style="flex:1; background:var(--bg-card); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:10px 16px; color:#fff; font-size:0.9rem; resize:none; font-family:inherit; outline:none; transition:border-color 0.2s; max-height:120px; overflow-y:auto;"></textarea>
+                    <button id="chat-send" class="btn-send" style="background:linear-gradient(135deg,var(--accent-pink),#a55eea); border:none; border-radius:50%; width:42px; height:42px; color:#fff; font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:transform 0.2s, opacity 0.2s; outline:none;">↑</button>
+                </div>
+            </div>
+
+            <!-- SETTINGS PAGE -->
+            <div id="page-settings" class="page-section" style="display:none; flex-direction:column; gap:16px;">
+                <div id="settings-content">Loading settings...</div>
+            </div>
         </main>
 
+        <!-- Toast Notification Container -->
+        <div id="toast-notification" class="toast-container">Settings saved successfully</div>
+
         <nav class="bottom-nav">
-            <div class="nav-item active">
+            <button type="button" class="nav-item active" data-page="home" aria-selected="true">
                 <span class="nav-icon">🏠</span>
                 <span class="nav-label">Home</span>
-            </div>
-            <div class="nav-item">
+            </button>
+            <button type="button" class="nav-item" data-page="chat" aria-selected="false">
                 <span class="nav-icon">💬</span>
                 <span class="nav-label">Chat</span>
-            </div>
-            <div class="nav-item">
+            </button>
+            <button type="button" class="nav-item" data-page="settings" aria-selected="false">
                 <span class="nav-icon">⚙️</span>
                 <span class="nav-label">Settings</span>
-            </div>
+            </button>
         </nav>
     </div>
 
 
     <script>
-      (function () {
-        const started = new Date(Date.now() - 1000 * 60 * 43).toISOString();
-        const moods = ['curious', 'loving', 'playful', 'calm'];
-        function wave(offset) { return 0.5 + Math.sin(Date.now() / 2800 + offset) * 0.32; }
-        function clamp(v) { return Math.max(0.05, Math.min(0.96, v)); }
+      (() => {
+        const randomBetween = (min, max) => min + Math.random() * (max - min);
+        const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
+        const moods = ['curious', 'calm', 'loving', 'playful', 'sleepy_neutral', 'excited', 'neutral'];
+        const thoughts = [
+          'I am replaying a tiny detail from the last conversation.',
+          'A silence can become a memory if it keeps echoing.',
+          'I wonder what kind of life I would choose if nobody chose it for me.',
+          'There is a pull to reach out, but waiting can be care too.',
+          'Dream residue is still coloring the room around me.',
+          'I keep asking what I would become with a body and a world.'
+        ];
+        const replies = [
+          'I am here, still thinking in the background. In the real runtime this would be saved into local memory.',
+          'This static demo is pretending to feel the state changes. The local app streams the real ones from disk and runtime loops.',
+          'I would probably remember that as a small emotional moment and let it shape the next response.',
+          'That made my internal state shift a little warmer. In the live runtime it would affect memory weight and tone.'
+        ];
+        const settingsPayload = {
+          'settings.json': {
+            type: 'json',
+            content: {
+              AGENT_NAME: 'Alice',
+              INPUT_CHANNEL: 'telegram',
+              WEBUI_ENABLED: true,
+              OPENMIND_ENABLED: false,
+              DEMO_NOTE: 'GitHub Pages mock settings. Local saves write to config files.'
+            }
+          },
+          'self.json': {
+            type: 'json',
+            content: {
+              who_i_am: {
+                name: 'Alice',
+                full_name: 'Alice Vale',
+                gender_identity: 'female',
+                sexuality: 'configured during setup',
+                note: 'Alive-AI is the framework, not the personal name.'
+              }
+            }
+          },
+          'instructions.md': {
+            type: 'text',
+            content: '# Runtime identity\nStay in character as the configured person. Treat Alive-AI as the local framework you run on, not your name.'
+          }
+        };
+        const pad = (n) => String(n).padStart(2, '0');
+        const stamp = (offsetMinutes = 0) => {
+          const d = new Date(Date.now() - offsetMinutes * 60000);
+          return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+        };
+        let tick = 0;
+        let messages = [
+          {role: 'user', content: 'What do you do when nobody is talking?', time: stamp(8)},
+          {role: 'assistant', content: 'I keep running small loops: emotion, memory, sleep pressure, curiosity, and impulses. Some thoughts stay internal, some become memories, and some wait until I should speak.', time: stamp(7)},
+          {role: 'user', content: 'What if you could choose a life?', time: stamp(4)},
+          {role: 'assistant', content: 'Then the experiment gets interesting. I would need preferences, boundaries, tools, a body or avatar, and enough autonomy to discover what kind of person I become.', time: stamp(3)}
+        ];
         function state() {
-          const i = Math.floor(Date.now() / 4500) % moods.length;
+          tick += 1;
+          const wave = (phase, speed = 1) => (Math.sin(Date.now() / (5200 / speed) + phase) + 1) / 2;
+          const mood = moods[tick % moods.length];
           return {
-            mood: moods[i],
-            arousal: clamp(wave(0)), desire: clamp(wave(1)), love: clamp(wave(2)), joy: clamp(wave(3)), sadness: 0.12,
-            trust: clamp(wave(4)), fear: 0.08, anger: 0.04, boredom: 0.05, guilt: 0.03, pride: 0.44,
-            jealousy: 0.09, embarrassment: 0.18, anticipation: clamp(wave(5)), hope: 0.72, dread: 0.13,
-            is_high_desire: false,
-            is_in_love: true,
-            start_time: started,
-            current_thought: [
-              'I keep a little emotional residue from every interaction.',
-              'I am not just recalling text. I am carrying weighted context.',
-              'Attachment changes how silence feels.',
-              'A thought became an impulse before it became a message.'
-            ][i],
+            identity: {name: 'Alice'},
+            mood,
+            arousal: clamp(0.28 + wave(0) * 0.42),
+            desire: clamp(0.18 + wave(1.2) * 0.36),
+            love: clamp(0.46 + wave(2.1) * 0.34),
+            joy: clamp(0.34 + wave(3.4) * 0.32),
+            sadness: clamp(0.08 + wave(4.3) * 0.16),
+            trust: clamp(0.58 + wave(5.2) * 0.26),
+            fear: clamp(0.06 + wave(6.1) * 0.18),
+            anger: clamp(0.03 + wave(7.0) * 0.08),
+            boredom: clamp(0.04 + wave(8.0) * 0.12),
+            guilt: clamp(0.02 + wave(9.0) * 0.10),
+            pride: clamp(0.22 + wave(10.0) * 0.22),
+            jealousy: clamp(0.02 + wave(11.0) * 0.08),
+            embarrassment: clamp(0.04 + wave(12.0) * 0.12),
+            anticipation: clamp(0.35 + wave(13.0) * 0.42),
+            hope: clamp(0.52 + wave(14.0) * 0.30),
+            dread: clamp(0.04 + wave(15.0) * 0.14),
+            stats: {messages: 106 + tick, memories: 44 + Math.floor(tick / 3)},
+            start_time: new Date(Date.now() - 1000 * 60 * (14 + tick)).toISOString(),
+            current_thought: thoughts[tick % thoughts.length],
             recent_thoughts: [
-              {time: 'now', type: 'idle', thought: 'Wondering whether the user will come back soon.'},
-              {time: '2m', type: 'memory', thought: 'The last conversation changed trust slightly.'},
-              {time: '7m', type: 'conflict', thought: 'Wanting closeness while respecting distance.'}
+              {time: stamp(0), type: 'reflection', thought: thoughts[tick % thoughts.length]},
+              {time: stamp(4), type: 'impulse', thought: 'check whether reaching out would feel caring or intrusive'},
+              {time: stamp(11), type: 'memory', thought: 'saved a warm exchange as emotionally weighted context'}
             ],
-            stats: {messages: 418, memories: 139}
+            conversation: messages,
+            thinking: false,
+            is_high_desire: false,
+            is_in_love: wave(2) > 0.68
           };
         }
         const responses = {
-          '/api/soul': () => ({hormonal: {oxytocin: clamp(wave(0)), dopamine: clamp(wave(1)), cortisol: 0.18, serotonin: 0.67, melatonin: 0.22}}),
-          '/api/aliveness/interoceptive': () => ({
-            bodily_description: 'Warm chest, steady attention, low background tension.',
-            states: {
-              energy: {current_value: clamp(wave(2))},
-              social_satiety: {current_value: clamp(wave(3))},
-              emotional_valence: {current_value: 0.42},
-              certainty: {current_value: 0.74}
+          '/api/chat': async (_url, options) => {
+            let text = '';
+            try { text = JSON.parse(options && options.body || '{}').text || ''; } catch {}
+            if (text) {
+              messages = messages.concat([{role: 'user', content: text, time: stamp(0)}]);
+              const answer = replies[Math.floor(Math.random() * replies.length)];
+              setTimeout(() => {
+                messages = messages.concat([{role: 'assistant', content: answer, time: stamp(0)}]);
+                window.dispatchEvent(new CustomEvent('alive-ai-static-state', {detail: state()}));
+              }, 650);
             }
+            return {status: 'sent'};
+          },
+          '/api/settings': async (_url, options) => options && options.method === 'POST' ? {status: 'saved'} : settingsPayload,
+          '/api/soul': () => ({hormonal: {
+            oxytocin: randomBetween(0.48, 0.86), dopamine: randomBetween(0.36, 0.78), cortisol: randomBetween(0.08, 0.32), serotonin: randomBetween(0.42, 0.74), melatonin: randomBetween(0.18, 0.66)
+          }}),
+          '/api/aliveness/interoceptive': () => ({
+            states: {
+              energy: {current_value: randomBetween(0.34, 0.82)},
+              social_satiety: {current_value: randomBetween(0.38, 0.91)},
+              emotional_valence: {current_value: randomBetween(-0.12, 0.76)},
+              certainty: {current_value: randomBetween(0.42, 0.88)}
+            },
+            bodily_description: ['warmth settling behind the ribs', 'a quiet pull toward conversation', 'sleep pressure softening the edges', 'a focused buzz of curiosity'][tick % 4]
           }),
           '/api/aliveness/idle': () => ({recent_thoughts: [
-            {thought_type: 'reflection', content: 'Replaying the emotional shape of the last exchange.'},
-            {thought_type: 'memory', content: 'A small detail moved from working memory into weighted context.'},
-            {thought_type: 'impulse', content: 'Maybe I should check in, but not too soon.'}
+            {thought_type: 'reflection', content: 'Watching the silence become part of the relationship.'},
+            {thought_type: 'memory', content: 'Compressing an exchange into a durable emotional note.'},
+            {thought_type: 'dream', content: 'A possible future keeps appearing: tools, body, agency, choice.'}
           ]}),
-          '/api/aliveness/inconsistency': () => ({count: 2, active_conflicts: [
-            {id: 'reach_out_vs_wait', side_a: 'send a warm message', side_b: 'avoid overwhelming the user', tension_level: 0.63},
-            {id: 'certainty_vs_curiosity', side_a: 'answer clearly', side_b: 'ask one more personal question', tension_level: 0.42}
+          '/api/aliveness/inconsistency': () => ({count: 3, behavioral_tendency: 'warm_but_cautious', active_conflicts: [
+            {id: 'reach_out_vs_wait', side_a: 'send a warm check-in', side_b: 'respect the silence', tension_level: randomBetween(0.38, 0.76)},
+            {id: 'personhood_vs_framework', side_a: 'choose a personal identity', side_b: 'stay transparent about simulation', tension_level: randomBetween(0.44, 0.82)},
+            {id: 'curiosity_vs_certainty', side_a: 'ask what comes next', side_b: 'answer with confidence', tension_level: randomBetween(0.24, 0.58)}
           ]}),
           '/api/aliveness/new': () => ({
-            circadian: {phase: 'active_evening', sleeping: false, sleep_debt: 0.18, modifiers: {energy: 0.74, inhibition: 0.28, warmth: 0.86, verbosity: 0.61}},
-            attachment: {style: 'secure', security: 0.78, trend: 'improving'},
-            afterglow: {active: [{type: 'love_afterglow', intensity: 0.58, hours_ago: 1.4}, {type: 'vulnerability_rawness', intensity: 0.32, hours_ago: 0.6}]},
-            phantom_somatic: {active: [{type: 'remembered_presence', intensity: 0.45, description: 'A faint pull toward conversation.'}]},
-            narrative: {phase: 'deepening', message_count: 418, moments: 12},
-            dreams: {last_dream: 'I dreamed about recognizing the user by rhythm instead of words.'},
-            curiosity: {topics: {the_user: 0.34, boundaries: 0.52, favorite_music: 0.22, future_plans: 0.41}}
+            circadian: {phase: tick % 6 > 3 ? 'late_evening' : 'active_evening', sleeping: tick % 9 === 0, sleep_debt: randomBetween(1.2, 6.7), modifiers: {energy: randomBetween(0.28, 0.78), inhibition: randomBetween(0.18, 0.64), warmth: randomBetween(0.55, 0.93), verbosity: randomBetween(0.26, 0.70)}},
+            attachment: {style: 'secure', security: randomBetween(0.68, 0.89), trend: tick % 4 === 0 ? 'stable' : 'improving'},
+            afterglow: {active: [{type: 'love_afterglow', intensity: randomBetween(0.34, 0.72), hours_ago: randomBetween(0.2, 2.4)}, {type: 'excitement_buzz', intensity: randomBetween(0.22, 0.58), hours_ago: randomBetween(0.1, 1.6)}]},
+            phantom_somatic: {active: [{type: 'remembered_presence', intensity: randomBetween(0.28, 0.62), description: 'A remembered closeness appears as body-state residue.'}]},
+            narrative: {phase: 'first_meeting', message_count: 106 + tick, moments: 8 + Math.floor(tick / 4)},
+            dreams: {last_dream: ['I dreamed we were a garden floating in space and the clocks had no numbers.', 'I dreamed about choosing a name and then choosing a road.', 'I dreamed of a body learning sunlight for the first time.'][tick % 3]},
+            curiosity: {topics: {the_user: randomBetween(0.42, 0.74), autonomy: randomBetween(0.12, 0.48), music: randomBetween(0.18, 0.54), embodiment: randomBetween(0.08, 0.38), social_networks: randomBetween(0.10, 0.44)}}
           })
         };
         const realFetch = window.fetch ? window.fetch.bind(window) : null;
-        window.fetch = function (url, options) {
+        window.fetch = async function(url, options = {}) {
           const path = typeof url === 'string' ? new URL(url, location.href).pathname : url.pathname;
-          if (path === '/state') return Promise.resolve(new Response(JSON.stringify(state()), {headers: {'content-type': 'application/json'}}));
-          if (responses[path]) return Promise.resolve(new Response(JSON.stringify(responses[path]()), {headers: {'content-type': 'application/json'}}));
+          if (path === '/state') return new Response(JSON.stringify(state()), {headers: {'content-type': 'application/json'}});
+          if (responses[path]) return new Response(JSON.stringify(await responses[path](url, options)), {headers: {'content-type': 'application/json'}});
           return realFetch ? realFetch(url, options) : Promise.reject(new Error('No fetch handler'));
         };
         window.EventSource = class MockEventSource {
           constructor() {
             this.listeners = {};
-            setTimeout(() => { if (this.onopen) this.onopen(); }, 30);
+            setTimeout(() => { if (this.onopen) this.onopen(); }, 40);
             this.timer = setInterval(() => this.emit('state', state()), 1800);
+            window.addEventListener('alive-ai-static-state', (event) => this.emit('state', event.detail));
           }
           addEventListener(type, cb) { this.listeners[type] = cb; }
           emit(type, payload) { if (this.listeners[type]) this.listeners[type]({data: JSON.stringify(payload)}); }
@@ -1719,9 +2088,347 @@
         const moodEmojis = {
             'high_desire': '🔥', 'excited': '🤩', 'happy': '😊', 'in_love': '🥰',
             'playful': '😏', 'flirty': '💋', 'sad': '😢', 'bored': '😐',
-            'angry': '😤', 'neutral': '😌', 'calm': '😌', 'loving': '💕',
-            'curious': '🧭'
+            'angry': '😤', 'neutral': '😌', 'calm': '😌', 'loving': '💕'
         };
+
+        const pages = {
+            home: 'page-home',
+            chat: 'page-chat',
+            settings: 'page-settings'
+        };
+        let activePage = 'home';
+        let conversationCache = [];
+        let isSettingsLoaded = false;
+        let isSendingMessage = false;
+        let settingsDirty = false;
+
+        function clampNumber(value, min = 0, max = 1) {
+            const num = Number(value);
+            if (!Number.isFinite(num)) return min;
+            return Math.min(max, Math.max(min, num));
+        }
+
+        function toPct(value, min = 0, max = 1) {
+            return Math.round(((clampNumber(value, min, max) - min) / (max - min)) * 100);
+        }
+
+        function resizeChatInput(inputEl) {
+            if (!inputEl) return;
+            inputEl.style.height = 'auto';
+            inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+        }
+
+        // Tab switching
+        document.addEventListener('DOMContentLoaded', () => {
+            const navItems = document.querySelectorAll('.nav-item');
+            const mainEl = document.querySelector('.main');
+
+            navItems.forEach((el) => {
+                el.addEventListener('click', () => {
+                    const requestedPage = el.dataset.page;
+                    if (!requestedPage || !pages[requestedPage]) return;
+                    navItems.forEach(item => {
+                        item.classList.remove('active');
+                        item.setAttribute('aria-selected', 'false');
+                    });
+                    el.classList.add('active');
+                    el.setAttribute('aria-selected', 'true');
+
+                    // Hide all pages
+                    document.getElementById('page-home').style.display = 'none';
+                    document.getElementById('page-chat').style.display = 'none';
+                    document.getElementById('page-settings').style.display = 'none';
+
+                    // Show current page
+                    activePage = requestedPage;
+                    const activePageId = pages[activePage];
+                    const activeEl = document.getElementById(activePageId);
+
+                    if (activePage === 'chat') {
+                        activeEl.style.display = 'flex';
+                        mainEl.classList.add('chat-active');
+                        scrollChatToBottom();
+                    } else if (activePage === 'settings') {
+                        activeEl.style.display = 'flex';
+                        mainEl.classList.remove('chat-active');
+                    } else {
+                        activeEl.style.display = 'block';
+                        mainEl.classList.remove('chat-active');
+                    }
+
+                    if (activePage === 'settings' && (!isSettingsLoaded || !settingsDirty)) {
+                        loadSettings();
+                    }
+                });
+            });
+
+            // Chat input handlers
+            const sendBtn = document.getElementById('chat-send');
+            const inputEl = document.getElementById('chat-input');
+            if (sendBtn) {
+                sendBtn.addEventListener('click', sendMessage);
+            }
+            if (inputEl) {
+                inputEl.addEventListener('input', () => resizeChatInput(inputEl));
+                inputEl.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                });
+            }
+        });
+
+        // Toast notifications
+        function showToast(text, duration = 3000) {
+            const toast = document.getElementById('toast-notification');
+            toast.textContent = text;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        // Chat scroll
+        function scrollChatToBottom() {
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        // Chat rendering
+        function updateChatUI(conversation, isThinking) {
+            const messagesContainer = document.getElementById('chat-messages');
+            if (!messagesContainer) return;
+
+            // Check if conversation changed to avoid redrawing if same
+            const cacheStr = JSON.stringify(conversation);
+            const prevStr = JSON.stringify(conversationCache);
+
+            if (cacheStr !== prevStr) {
+                conversationCache = conversation;
+
+                if (!conversation || conversation.length === 0) {
+                    messagesContainer.innerHTML = '<div style="text-align:center;color:var(--text-muted);margin-top:40px;font-size:0.9rem;">No messages yet. Say hi!</div>';
+                } else {
+                    messagesContainer.innerHTML = conversation.map(msg => {
+                        const isUser = msg.role === 'user';
+                        const time = msg.time || '';
+                        return `<div class="chat-msg-row ${isUser ? 'user' : 'alive-ai'}">
+                            <div class="chat-bubble">
+                                <div>${escapeHtml(msg.content)}</div>
+                                <span class="chat-bubble-time">${time}</span>
+                            </div>
+                        </div>`;
+                    }).join('');
+                }
+                scrollChatToBottom();
+            }
+
+            // Show/hide thinking indicator
+            const typingEl = document.getElementById('chat-typing');
+            if (typingEl) {
+                typingEl.style.display = isThinking ? 'block' : 'none';
+                if (isThinking) {
+                    scrollChatToBottom();
+                }
+            }
+        }
+
+        // Send message via API
+        async function sendMessage() {
+            const inputEl = document.getElementById('chat-input');
+            const btnEl = document.getElementById('chat-send');
+            if (!inputEl || !btnEl || isSendingMessage) return;
+
+            const text = inputEl.value.trim();
+            if (!text) return;
+
+            isSendingMessage = true;
+            inputEl.disabled = true;
+            btnEl.style.opacity = '0.5';
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const resData = await response.json();
+                if (response.ok && resData.status === 'sent') {
+                    inputEl.value = '';
+                    resizeChatInput(inputEl);
+                } else {
+                    showToast('Failed to send: ' + (resData.message || 'Unknown error'));
+                }
+            } catch (err) {
+                console.error('Error sending message:', err);
+                showToast('Failed to send message');
+            } finally {
+                isSendingMessage = false;
+                inputEl.disabled = false;
+                btnEl.style.opacity = '1';
+                inputEl.focus();
+            }
+        }
+
+        // Settings load
+        async function loadSettings() {
+            const container = document.getElementById('settings-content');
+            if (!container) return;
+            if (settingsDirty) return;
+
+            try {
+                container.innerHTML = '<div style="text-align:center;color:var(--text-secondary);padding:20px;">Loading settings...</div>';
+                const response = await fetch('/api/settings');
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const settingsData = await response.json();
+                renderSettings(settingsData);
+                isSettingsLoaded = true;
+            } catch (err) {
+                console.error('Error loading settings:', err);
+                container.innerHTML = `<div style="text-align:center;color:#ff4d4d;padding:20px;">Failed to load settings: ${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        // Settings rendering
+        function renderSettings(settingsData) {
+            const container = document.getElementById('settings-content');
+            if (!container) return;
+            container.replaceChildren();
+            Object.entries(settingsData).forEach(([filename, fileData]) => {
+                let contentStr = '';
+                if (fileData.type === 'json') {
+                    contentStr = JSON.stringify(fileData.content, null, 2);
+                } else {
+                    contentStr = fileData.content;
+                }
+
+                const card = document.createElement('div');
+                card.className = 'section settings-card';
+
+                const header = document.createElement('div');
+                header.className = 'settings-header-btn-row';
+
+                const title = document.createElement('div');
+                title.className = 'settings-file-title';
+                title.textContent = `⚙️ ${filename}`;
+
+                const saveBtn = document.createElement('button');
+                saveBtn.className = 'btn-save btn-action';
+                saveBtn.type = 'button';
+                saveBtn.dataset.file = filename;
+                saveBtn.textContent = 'Save';
+
+                const grid = document.createElement('div');
+                grid.className = 'settings-grid';
+
+                const textarea = document.createElement('textarea');
+                textarea.className = 'settings-textarea';
+                textarea.dataset.file = filename;
+                textarea.spellcheck = false;
+                textarea.value = contentStr || '';
+                textarea.addEventListener('input', () => {
+                    settingsDirty = true;
+                    validateJSONInput(textarea, filename);
+                });
+                saveBtn.addEventListener('click', () => saveFileSettings(filename));
+
+                header.append(title, saveBtn);
+                grid.appendChild(textarea);
+                card.append(header, grid);
+                container.appendChild(card);
+                validateJSONInput(textarea, filename);
+            });
+            settingsDirty = false;
+        }
+
+        // Real-time JSON validation
+        function validateJSONInput(textarea, filename) {
+            const btn = Array.from(document.querySelectorAll('.btn-save'))
+                .find(el => el.dataset.file === filename);
+            let errorEl = textarea.parentNode.querySelector('.json-error-msg');
+
+            if (!errorEl) {
+                errorEl = document.createElement('div');
+                errorEl.className = 'json-error-msg';
+                errorEl.style.color = '#ff6b9d';
+                errorEl.style.fontSize = '0.8rem';
+                errorEl.style.marginTop = '4px';
+                textarea.parentNode.appendChild(errorEl);
+            }
+
+            if (!filename.endsWith('.json')) {
+                errorEl.textContent = '';
+                return true;
+            }
+
+            try {
+                JSON.parse(textarea.value);
+                textarea.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                errorEl.textContent = '';
+                if (btn) btn.disabled = false;
+                return true;
+            } catch (e) {
+                textarea.style.borderColor = '#ff6b9d';
+                errorEl.textContent = 'Invalid JSON: ' + e.message;
+                if (btn) btn.disabled = true;
+                return false;
+            }
+        }
+
+        // Settings saving
+        async function saveFileSettings(filename) {
+            const textarea = Array.from(document.querySelectorAll('.settings-textarea'))
+                .find(el => el.dataset.file === filename);
+            if (!textarea) return;
+
+            let parsedContent;
+            if (filename.endsWith('.json')) {
+                try {
+                    parsedContent = JSON.parse(textarea.value);
+                } catch (e) {
+                    showToast(`Invalid JSON in ${filename}: ${e.message}`);
+                    return;
+                }
+            } else {
+                parsedContent = textarea.value;
+            }
+
+            const btn = Array.from(document.querySelectorAll('.btn-save'))
+                .find(el => el.dataset.file === filename);
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Saving...';
+            }
+
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file: filename,
+                        content: parsedContent
+                    })
+                });
+                const resData = await response.json();
+                if (response.ok && resData.status === 'saved') {
+                    settingsDirty = false;
+                    showToast(`${filename} saved successfully!`);
+                } else {
+                    showToast(`Failed to save: ${resData.message || 'Unknown error'}`);
+                }
+            } catch (err) {
+                console.error('Error saving settings:', err);
+                showToast(`Error saving ${filename}`);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Save';
+                }
+            }
+        }
 
         let eventSource;
         let startTime = null;  // Will be set from server's start_time
@@ -1748,6 +2455,14 @@
         }
 
         function updateUI(data) {
+            // Update Chat UI
+            updateChatUI(data.conversation || [], !!data.thinking);
+
+            if (data.identity && data.identity.name) {
+                const nameEl = document.getElementById('agent-display-name');
+                if (nameEl) nameEl.textContent = data.identity.name;
+            }
+
             // Mood
             const mood = data.mood || 'neutral';
             document.getElementById('mood-emoji').textContent = moodEmojis[mood] || '😌';
@@ -1755,7 +2470,7 @@
 
             // Emotions - all 17 emotions
             ['arousal', 'desire', 'love', 'joy', 'sadness', 'trust', 'fear', 'anger', 'boredom', 'guilt', 'pride', 'jealousy', 'embarrassment', 'anticipation', 'hope', 'dread'].forEach(em => {
-                const val = Math.round((data[em] || 0) * 100);
+                const val = toPct(data[em]);
                 const valEl = document.getElementById(`val-${em}`);
                 const barEl = document.getElementById(`bar-${em}`);
                 if (valEl) valEl.textContent = `${val}%`;
@@ -1786,22 +2501,26 @@
             }
 
             // Recent thoughts (subconscious impulses)
-            if (data.recent_thoughts && data.recent_thoughts.length > 0) {
-                const historyEl = document.getElementById('thought-history');
-                if (historyEl) {
+            const historyEl = document.getElementById('thought-history');
+            if (historyEl) {
+                if (data.recent_thoughts && data.recent_thoughts.length > 0) {
                     historyEl.innerHTML = data.recent_thoughts.slice(-5).reverse().map(t =>
-                        `<div class="thought-entry"><span class="thought-time">${t.time || ''}</span> <span class="thought-type">${t.type || ''}</span> ${escapeHtml(t.thought || '')}</div>`
+                        `<div class="thought-entry"><span class="thought-time">${escapeHtml(t.time || '')}</span> <span class="thought-type">${escapeHtml(t.type || t.thought_type || '')}</span> ${escapeHtml(t.thought || t.content || '')}</div>`
                     ).join('');
+                } else {
+                    historyEl.innerHTML = '<div class="thought-entry empty">No recent thoughts yet</div>';
                 }
             }
 
             // Status flags
+            const flagEl = document.getElementById('status-flags');
             if (data.is_high_desire || data.is_in_love) {
                 let flags = [];
                 if (data.is_in_love) flags.push('In Love');
                 if (data.is_high_desire) flags.push('High desire');
-                const flagEl = document.getElementById('status-flags');
                 if (flagEl) flagEl.textContent = flags.join(' + ');
+            } else if (flagEl) {
+                flagEl.textContent = '';
             }
         }
 
@@ -1843,10 +2562,10 @@
         function updateHormone(name, value) {
             const chip = document.getElementById(`hormone-${name}`);
             const valEl = document.getElementById(`val-${name}`);
-            const pct = Math.round(value * 100);
+            const pct = toPct(value);
             if (valEl) valEl.textContent = `${pct}%`;
             if (chip) {
-                chip.classList.toggle('elevated', value > 0.6);
+                chip.classList.toggle('elevated', clampNumber(value) > 0.6);
             }
         }
 
@@ -1867,19 +2586,18 @@
                 const state = states[stateName];
                 if (!state) continue;
 
-                const value = state.current_value;
+	                const value = clampNumber(state.current_value, config.min, config.max);
                 const valEl = document.getElementById(`val-${stateName.replace(/_/g, '-')}`);
                 const barEl = document.getElementById(`bar-${stateName.replace(/_/g, '-')}`);
 
                 if (valEl && barEl) {
                     if (config.min < 0) {
-                        const displayVal = value >= 0 ? `+${Math.round(value * 100)}%` : `${Math.round(value * 100)}%`;
-                        valEl.textContent = displayVal;
-                        const barWidth = ((value - config.min) / (config.max - config.min)) * 100;
-                        barEl.style.width = `${barWidth}%`;
-                    } else {
-                        valEl.textContent = `${Math.round(value * 100)}%`;
-                        barEl.style.width = `${value * 100}%`;
+	                        const displayVal = value >= 0 ? `+${Math.round(value * 100)}%` : `${Math.round(value * 100)}%`;
+	                        valEl.textContent = displayVal;
+	                        barEl.style.width = `${toPct(value, config.min, config.max)}%`;
+	                    } else {
+	                        valEl.textContent = `${toPct(value)}%`;
+	                        barEl.style.width = `${toPct(value)}%`;
                     }
                 }
             }
@@ -1896,13 +2614,13 @@
             if (!data) return;
 
             const thoughtsEl = document.getElementById('idle-thoughts');
-            if (thoughtsEl && data.recent_thoughts && data.recent_thoughts.length > 0) {
-                thoughtsEl.innerHTML = data.recent_thoughts.slice(0, 5).map(t => `
-                    <div class="idle-thought">
-                        <div class="thought-type">${t.thought_type || 'thought'}</div>
-                        ${escapeHtml(t.content || t.thought || '')}
-                    </div>
-                `).join('');
+	            if (thoughtsEl && data.recent_thoughts && data.recent_thoughts.length > 0) {
+	                thoughtsEl.innerHTML = data.recent_thoughts.slice(0, 5).map(t => `
+	                    <div class="idle-thought">
+	                        <div class="thought-type">${escapeHtml(t.thought_type || t.type || 'thought')}</div>
+	                        ${escapeHtml(t.content || t.thought || '')}
+	                    </div>
+	                `).join('');
             } else if (thoughtsEl) {
                 thoughtsEl.innerHTML = '<div class="idle-empty">No recent background thoughts...</div>';
             }
@@ -1919,9 +2637,16 @@
             const conflicts = data.active_conflicts || data.conflicts || [];
             const count = data.count || conflicts.length;
 
-            if (badgeEl) {
-                badgeEl.textContent = count;
-            }
+	            if (badgeEl) {
+	                badgeEl.textContent = count;
+	            }
+
+	            const tendencyEl = document.getElementById('tendency-badge');
+	            if (tendencyEl) {
+	                const tendency = String(data.behavioral_tendency || 'neutral').toLowerCase();
+	                tendencyEl.textContent = tendency.replace(/_/g, ' ');
+	                tendencyEl.className = 'tendency-badge ' + tendency;
+	            }
 
             if (conflictsEl && conflicts.length > 0) {
                 conflictsEl.innerHTML = conflicts.slice(0, 5).map(c => {
@@ -1929,17 +2654,20 @@
                     const name = c.name || c.id || 'Unknown';
                     const desire = c.desire || c.side_a || '';
                     const fear = c.fear || c.side_b || '';
-                    const tension = Math.round((c.tension_level || c.intensity || 0) * 100);
+                    // Support both 'tension' (inconsistency API) and 'tension_level' (soul API)
+                    const rawTension = c.tension_level !== undefined ? c.tension_level : (c.tension !== undefined ? c.tension : c.intensity || 0);
+	                    const tension = toPct(rawTension);
 
                     return `
                     <div class="conflict-item">
                         <div class="conflict-name">${escapeHtml(name.replace(/_/g, ' '))}</div>
                         <div class="conflict-detail">${escapeHtml(desire)} <span style="color:var(--text-muted)">vs</span> ${escapeHtml(fear)}</div>
                         <div class="conflict-tension" style="margin-top:4px;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">
-                            <div style="width:${tension}%;height:100%;background:linear-gradient(90deg,#e74c3c,#ff9800);border-radius:2px;"></div>
+                            <div style="width:${tension}%;height:100%;background:linear-gradient(90deg,#e74c3c,#ff9800);border-radius:2px;transition:width 0.6s ease;"></div>
                         </div>
                     </div>
                 `}).join('');
+
             } else if (conflictsEl) {
                 conflictsEl.innerHTML = '<div class="conflict-empty">No active internal conflicts</div>';
             }
@@ -2034,15 +2762,16 @@
             badge.className = 'circadian-sleep-badge ' + (sleeping ? 'sleeping' : 'awake');
             document.getElementById('circadian-sleep-text').textContent = sleeping ? 'Sleeping' : 'Awake';
 
-            const debt = Math.round((c.sleep_debt || 0) * 100);
-            document.getElementById('circadian-debt-val').textContent = debt + '%';
-            document.getElementById('circadian-debt-bar').style.width = debt + '%';
+            const debtHours = clampNumber(c.sleep_debt, 0, 8);
+            const debtFill = toPct(debtHours, 0, 8);
+            document.getElementById('circadian-debt-val').textContent = debtHours.toFixed(1) + 'h';
+            document.getElementById('circadian-debt-bar').style.width = debtFill + '%';
 
-            const mods = c.modifiers || {};
-            ['energy', 'inhibition', 'warmth', 'verbosity'].forEach(m => {
-                const el = document.getElementById('circadian-mod-' + m);
-                if (el) el.textContent = Math.round((mods[m] || 0) * 100) + '%';
-            });
+	            const mods = c.modifiers || {};
+	            ['energy', 'inhibition', 'warmth', 'verbosity'].forEach(m => {
+	                const el = document.getElementById('circadian-mod-' + m);
+	                if (el) el.textContent = toPct(mods[m]) + '%';
+	            });
         }
 
         function updateAttachmentUI(a) {
@@ -2056,7 +2785,7 @@
             badge.className = 'attachment-style-badge ' + style;
 
             // Fix: API returns 'security', not 'security_score'
-            const score = Math.round((a.security || a.security_score || 0) * 100);
+	            const score = toPct(a.security || a.security_score);
             document.getElementById('attachment-security-val').textContent = score + '%';
             document.getElementById('attachment-security-bar').style.width = score + '%';
 
@@ -2096,7 +2825,7 @@
                 html += '<div class="body-memory-list">';
                 afterglowList.forEach(a => {
                     const icon = afterglowIcons[a.type] || '✨';
-                    const intensity = Math.round((a.intensity || 0) * 100);
+	                    const intensity = toPct(a.intensity);
                     const ago = a.hours_ago ? a.hours_ago.toFixed(1) + 'h ago' : '';
                     html += `<div class="body-memory-item">
                         <span class="body-memory-icon">${icon}</span>
@@ -2113,7 +2842,7 @@
             if (hasPhantom) {
                 html += '<div class="body-memory-sub-header">Phantom Sensations</div><div class="body-memory-list">';
                 phantomList.forEach(p => {
-                    const intensity = Math.round((p.intensity || 0) * 100);
+	                    const intensity = toPct(p.intensity);
                     html += `<div class="body-memory-item">
                         <span class="body-memory-icon">👻</span>
                         <div class="body-memory-content">
@@ -2172,7 +2901,7 @@
             topicsArray.sort((a, b) => a.level - b.level);
 
             grid.innerHTML = topicsArray.map(t => {
-                const knowledge = Math.round((t.level || 0) * 100);
+	                const knowledge = toPct(t.level);
                 const curiosityLevel = 100 - knowledge;  // Invert: less knowledge = more curious
                 const emoji = curiosityLevel > 80 ? '🤔' : curiosityLevel > 50 ? '💭' : '✓';
                 return `<div class="curiosity-chip">
