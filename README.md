@@ -51,7 +51,7 @@ The emotional layer now has real runtime consequences:
 | Reflection and autobiography | Post-response reflection journal, global autobiography, and per-user relationship autobiography. | After each reply, Alive-AI checks whether it answered the user, matched its state, repeated itself, created or resolved an open loop, or discovered a repeated preference. Those records persist under `data/` and feed future continuity work. |
 | Persistence | Emotion, attachment, soul, somatic, unconscious, conflict, subconscious, circadian, and dream state under `data/`. | Restarting the runtime preserves the inner state instead of visually resetting it. |
 
-The public Pages site is a static explanation and dashboard export. The local WebUI is the live version: it streams the actual state from the running Python backend.
+The public Pages site is an interactive static portal with a presentation, simulator, docs, and a preserved static WebUI demo. The local WebUI is the live version: it streams the actual state from the running Python backend.
 
 
 ## Quick Start
@@ -302,10 +302,16 @@ Settings edits validate JSON before saving and write atomically, so a bad edit c
 
 The WebUI script is intentionally shipped as a single static file because the npm package has to run locally without a frontend build step. `npm run smoke` compiles the Python modules and checks the CLI; release validation also parses the embedded dashboard script and verifies required dashboard hooks so tab navigation, chat, settings, and thought rendering cannot be broken by a syntax error.
 
-GitHub Pages cannot run the Python/FastAPI backend, so the public page includes a static export of the actual WebUI with mocked state:
+GitHub Pages cannot run the Python/FastAPI backend, so the public site is a static React portal with mocked runtime data, docs, and an interactive state simulator:
 
 ```text
 https://vindepemarte.github.io/alive-ai/
+```
+
+The static WebUI demo is still available at:
+
+```text
+https://vindepemarte.github.io/alive-ai/dashboard.html
 ```
 
 ## Docker
@@ -349,7 +355,7 @@ Implemented:
 - [x] Update prompt and project uninstall command
 - [x] `doctor --fix` guided system dependency installer
 - [x] Clean public repo with private personas, media, runtime data, and multi-AI orchestration removed
-- [x] GitHub Pages site and full static WebUI export
+- [x] GitHub Pages portal with interactive state simulator and preserved static WebUI export
 
 Next:
 
