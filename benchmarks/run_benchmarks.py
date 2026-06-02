@@ -50,10 +50,12 @@ SUBJECT_ALIASES = {
     "alive-offline/current-code": "alive-offline/current-code",
     "webui": "webui-metadata",
     "webui-metadata": "webui-metadata",
+    "webui-chat": "webui-chat",
     "ollama": "ollama",
     "ollama-raw": "ollama",
     "v2": "v2",
 }
+
 
 
 SCENARIOS: List[Dict[str, Any]] = [
@@ -542,6 +544,51 @@ def webui_metadata_response(scenario: Mapping[str, Any], base_url: str) -> Tuple
     return response, metadata
 
 
+def webui_chat_response(scenario: Mapping[str, Any], base_url: str, timeout: int = 45) -> Tuple[str, Dict[str, Any]]:
+    import time
+    state_url = base_url.rstrip("/") + "/state"
+    chat_url = base_url.rstrip("/") + "/api/chat"
+    
+    try:
+        init_state = http_json(state_url, timeout=5)
+        init_count = len(init_state.get("conversation", []))
+    except Exception:
+        init_count = 0
+        
+    payload = {
+        "text": scenario["prompt"],
+        "user_id": "benchmark",
+        "message_id": f"benchmark_{scenario['id']}_{int(time.time())}"
+    }
+    
+    try:
+        http_json(chat_url, payload, timeout=10)
+    except Exception as exc:
+        return f"Error sending chat to WebUI: {exc}", {"error": str(exc)}
+        
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        time.sleep(1.0)
+        try:
+            state = http_json(state_url, timeout=5)
+            conv = state.get("conversation", [])
+            if len(conv) > init_count:
+                for msg in reversed(conv):
+                    if msg.get("role") in ("alive_ai", "assistant") and msg.get("status") == "sent":
+                        metadata = {
+                            "adapter": "webui_chat",
+                            "base_url": base_url,
+                            "state": state.get("aliveness", {}).get("interoceptive", {}).get("states", {}),
+                            "mood": state.get("aliveness", {}).get("interoceptive", {}).get("current_mood"),
+                            "raw_state": state
+                        }
+                        return msg.get("content", ""), metadata
+        except Exception:
+            pass
+            
+    return f"Timeout waiting for WebUI AI response after {timeout} seconds.", {"error": "timeout"}
+
+
 def ollama_response(scenario: Mapping[str, Any], base_url: str, model: str, timeout: int) -> Tuple[str, Dict[str, Any]]:
     system = (
         "You are an Alive-AI benchmark subject. Answer naturally in one short paragraph. "
@@ -593,6 +640,8 @@ def build_result_for_subject(
         response, metadata = offline_response(scenario, subject)
     elif subject == "webui-metadata":
         response, metadata = webui_metadata_response(scenario, args.webui_url)
+    elif subject == "webui-chat":
+        response, metadata = webui_chat_response(scenario, args.webui_url, args.timeout)
     elif subject == "ollama":
         response, metadata = ollama_response(scenario, args.ollama_url, args.ollama_model, args.timeout)
     else:
@@ -1532,7 +1581,8 @@ def report_html(data: Mapping[str, Any]) -> str:
       ['v2', 'v2', 'Alive-AI v2 Moment Appraisal'],
       ['v1', 'alive-offline/current-code', 'Alive-AI v1 Baseline'],
       ['ollama', 'ollama', 'Ollama raw (Gemma 4:2b)'],
-      ['webui', 'webui-metadata', 'WebUI Live metadata']
+      ['webui', 'webui-metadata', 'WebUI Live metadata'],
+      ['webui_chat', 'webui-chat', 'WebUI Live Chat']
     ];
 
     function latest() {{
@@ -1661,7 +1711,7 @@ def report_html(data: Mapping[str, Any]) -> str:
     function renderMatrix() {{
       const s = latest();
       const base = s.v2?.rows || [];
-      const cols = [s.v2, s.v1, s.ollama, s.webui].filter(Boolean);
+      const cols = [s.v2, s.v1, s.ollama, s.webui, s.webui_chat].filter(Boolean);
       
       const badgeClass = score => {{
         const v = n(score);
@@ -1733,7 +1783,8 @@ def report_html(data: Mapping[str, Any]) -> str:
         ['v2', s.v2, 'Alive-AI v2 Moment Appraisal'],
         ['v1', s.v1, 'Alive-AI v1 Baseline'],
         ['ollama', s.ollama, 'Ollama raw (Gemma 4:2b)'],
-        ['webui', s.webui, 'WebUI Live metadata']
+        ['webui', s.webui, 'WebUI Live metadata'],
+        ['webui_chat', s.webui_chat, 'WebUI Live Chat']
       ].filter(x => x[1]);
 
       const formatState = state => {{
@@ -1841,7 +1892,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=None,
         help=(
             "Subject(s) to benchmark. Use comma-separated values or repeat the flag. "
-            "Supported: alive-offline/current-code, webui-metadata, ollama, v2. "
+            "Supported: alive-offline/current-code, webui-metadata, webui-chat, ollama, v2. "
             "Default: alive-offline/current-code."
         ),
     )
@@ -1863,6 +1914,33 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def cleanup_benchmark_user() -> None:
+    try:
+        root = Path(__file__).resolve().parent.parent
+        configured = os.environ.get("ALIVE_AI_DATA_PATH") or os.environ.get("DATA_PATH")
+        if configured:
+            data_path = Path(configured).expanduser().resolve()
+            if not data_path.is_absolute():
+                data_path = root / data_path
+        else:
+            data_path = root / "data"
+            
+        benchmark_user_dir = data_path / "users" / "benchmark"
+        if benchmark_user_dir.exists():
+            for item in benchmark_user_dir.glob("*"):
+                if item.is_file():
+                    item.unlink()
+            convs = benchmark_user_dir / "conversations"
+            if convs.exists():
+                for item in convs.glob("*"):
+                    if item.is_file():
+                        item.unlink()
+                convs.rmdir()
+            benchmark_user_dir.rmdir()
+    except Exception:
+        pass
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     if args.list_scenarios:
@@ -1875,6 +1953,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
 
     run = run_benchmark(args)
+    cleanup_benchmark_user()
     output_path = RUNS_DIR / f"{run['run_id']}.json"
     write_json(output_path, run)
     print(f"Wrote {output_path.relative_to(ROOT)}")
