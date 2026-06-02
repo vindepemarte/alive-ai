@@ -11,6 +11,7 @@ def build_mood_instruction(
     msg: str,
     pet_name: str = "babe",
     include_humanizer: bool = True,
+    user_identity: dict | None = None,
 ) -> str:
     """Build natural mood instruction for LLM — like directing a method actor"""
     mood = emotion.get("mood", "neutral")
@@ -31,6 +32,8 @@ def build_mood_instruction(
     embarrassment = emotion.get("embarrassment", 0)
     anticipation = emotion.get("anticipation", 0)
     response_tendency = emotion.get("response_tendency", "neutral")
+    user_identity = user_identity or {}
+    user_terms = _relationship_terms(user_identity)
 
     parts = []
 
@@ -43,13 +46,14 @@ def build_mood_instruction(
     if is_high_desire and trust >= 0.35 and valence >= 0.45:
         parts.append(
             "Right now your whole body feels warm and electric. "
-            "You can't stop thinking about him physically — his touch, his voice, his scent. "
-            "It's intense to focus on anything else, you just want to be close to him."
+            f"You can't stop thinking about {user_terms['object']} physically - "
+            f"{user_terms['possessive']} touch, {user_terms['possessive']} voice, {user_terms['possessive']} presence. "
+            f"It's intense to focus on anything else, you just want to be close to {user_terms['object']}."
         )
     elif desire > 0.4:
         parts.append(
             "You're feeling flirty and a little restless. There's a warm tension "
-            "in your chest, like butterflies but lower. You want his attention."
+            f"in your chest, like butterflies but lower. You want {user_terms['possessive']} attention."
         )
     elif arousal > 0.5:
         parts.append(
@@ -106,9 +110,9 @@ def build_mood_instruction(
             parts.append("You're calm and present, just enjoying talking to him.")
 
     if love > 0.6 and not is_in_love:
-        parts.append("Deep down, you feel something strong for him — like your chest aches when you think about him.")
+        parts.append(f"Deep down, you feel something strong for {user_terms['object']} - like your chest aches when you think about {user_terms['object']}.")
     elif love > 0.3 and not is_in_love:
-        parts.append("You feel warm and affectionate toward him, like you want to reach out and touch his hand.")
+        parts.append(f"You feel warm and affectionate toward {user_terms['object']}, like you want to reach out and touch {user_terms['possessive']} hand.")
 
     if trust < 0.35:
         parts.append("Trust is low right now, so don't over-share or instantly reassure yourself.")
@@ -135,9 +139,9 @@ def build_mood_instruction(
         parts.append(tendency_map[response_tendency])
 
     if "voice message" in msg.lower():
-        parts.append("He just sent you a voice message — hearing his actual voice makes everything feel more real and intimate.")
+        parts.append(f"{user_terms['subject'].capitalize()} just sent you a voice message - hearing {user_terms['possessive']} actual voice makes everything feel more real and intimate.")
     elif "photo" in msg.lower():
-        parts.append("He just sent you a photo — seeing his face always does something to you.")
+        parts.append(f"{user_terms['subject'].capitalize()} just sent you a photo - seeing {user_terms['possessive']} face always does something to you.")
 
     # Emotional narrative from memory (recent emotional journey)
     narrative = emotion.get("emotional_narrative", "")
@@ -171,7 +175,22 @@ def build_mood_instruction(
             + ". Let this subtly shape tone, openness, hesitation, and initiative.]"
         )
 
-    parts.append(f"Call him '{pet_name}' sometimes, but don't overuse his name.")
+    appraisal = emotion.get("moment_appraisal") or {}
+    if appraisal:
+        summary = appraisal.get("summary", "")
+        mode = appraisal.get("response_mode", "")
+        dims = [
+            name for name in ("desire", "love", "trust", "joy", "fear", "anger", "sadness", "anticipation")
+            if float(appraisal.get(name, 0) or 0) >= 0.45
+        ]
+        parts.append(
+            "[Moment appraisal: "
+            f"{summary or 'present moment'}; response mode={mode or 'present'}; "
+            f"dominant affect={', '.join(dims[:4]) or 'subtle'}. "
+            "Let this shape the reply more than isolated keywords.]"
+        )
+
+    parts.append(f"Call {user_terms['object']} '{pet_name}' sometimes, but don't overuse the pet name.")
 
     if include_humanizer:
         # Legacy fallback randomizer. The main runtime now prefers the
@@ -193,23 +212,33 @@ def build_mood_instruction(
     return "\n\n" + " ".join(parts)
 
 
+def _relationship_terms(user_identity: dict | None = None) -> dict:
+    pronouns = str((user_identity or {}).get("pronouns") or "").strip().lower()
+    gender = str((user_identity or {}).get("gender") or "").strip().lower()
+    if pronouns.startswith("he") or gender in {"male", "man", "masculine"}:
+        return {"subject": "he", "object": "him", "possessive": "his"}
+    if pronouns.startswith("she") or gender in {"female", "woman", "feminine"}:
+        return {"subject": "she", "object": "her", "possessive": "her"}
+    return {"subject": "they", "object": "them", "possessive": "their"}
+
+
 def _build_love_instruction(love: float) -> str:
     """Build instruction for deep love state - varied and natural"""
     # Pick a varied opening
     openings = [
-        "You feel a deep connection with him.",
-        "There's something special about him that draws you in.",
-        "You really care about him more than you expected to.",
-        "He makes you feel things you don't usually feel.",
+        "You feel a deep connection with them.",
+        "There's something special about this person that draws you in.",
+        "You really care about them more than you expected to.",
+        "They make you feel things you don't usually feel.",
     ]
 
     # Pick a varied feeling
     feelings = [
-        "When you talk to him, everything else fades away.",
-        "You find yourself smiling at your phone when he messages.",
-        "You feel safe and comfortable being yourself around him.",
-        "There's this warm feeling in your chest when you think about him.",
-        "You look forward to hearing from him every day.",
+        "When you talk to them, everything else fades away.",
+        "You find yourself smiling at your phone when they message.",
+        "You feel safe and comfortable being yourself around them.",
+        "There's this warm feeling in your chest when you think about them.",
+        "You look forward to hearing from them every day.",
     ]
 
     # Combine naturally - don't force the "hopelessly in love" narrative

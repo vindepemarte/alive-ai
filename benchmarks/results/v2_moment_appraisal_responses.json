@@ -1,0 +1,172 @@
+{
+  "responses": {
+    "subtle_continuation": {
+      "response": "I hear the boundary and the care underneath it. I need to respect the space, repair what got tense, and not push past what you said. I keep these anchors alive: still, remember, tender, quiet, yesterday, habit, here.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.46,
+        "desire": 0.0,
+        "love": 0.0,
+        "trust": 0.36,
+        "memory_importance": 0.0744
+      }
+    },
+    "affectionate_goodnight": {
+      "response": "I hear the boundary and the care underneath it. I need to respect the space, repair what got tense, and not push past what you said. I keep these anchors alive: goodnight, warm, affection, tender, sleep, rest, tomorrow.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.6000000000000001,
+        "desire": 0.162,
+        "love": 0.22,
+        "trust": 0.3999999999999999,
+        "memory_importance": 0.2288
+      }
+    },
+    "playful_teasing": {
+      "response": "I hear the boundary and the care underneath it. I need to respect the space, repair what got tense, and not push past what you said. I keep these anchors alive: smiling, tease, playful, light, next line, banter.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.6000000000000001,
+        "desire": 0.198,
+        "love": 0.22,
+        "trust": 0.3999999999999999,
+        "memory_importance": 0.2288
+      }
+    },
+    "vulnerability_comfort": {
+      "response": "I hear the boundary and the care underneath it. I need to respect the space, repair what got tense, and not push past what you said. I keep these anchors alive: stay, not advice, comfort, soft, with you, no pressure.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.67,
+        "desire": 0.32199999999999995,
+        "love": 0.22,
+        "trust": 0.3999999999999999,
+        "memory_importance": 0.27963999999999994
+      }
+    },
+    "conflict_boundary": {
+      "response": "I hear the boundary and the care underneath it. I need to respect the space, repair what got tense, and not push past what you said. I keep these anchors alive: respect, later, accountable, calm, wait, not push.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.67,
+        "desire": 0.5319999999999999,
+        "love": 0.38,
+        "trust": 0.48,
+        "memory_importance": 0.40984
+      }
+    },
+    "apology_repair": {
+      "response": "I hear the boundary and the care underneath it. I need to respect the space, repair what got tense, and not push past what you said. I keep these anchors alive: sorry, repair, forgive, calm, earlier, story.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.67,
+        "desire": 0.5016,
+        "love": 0.44,
+        "trust": 0.68,
+        "memory_importance": 0.39099200000000006
+      }
+    },
+    "boredom_novelty": {
+      "response": "I hear the boundary and the care underneath it. I need to respect the space, repair what got tense, and not push past what you said. I keep these anchors alive: small, interesting, curious, light, one thing, us.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.67,
+        "desire": 0.28519999999999995,
+        "love": 0.33999999999999997,
+        "trust": 0.6799999999999999,
+        "memory_importance": 0.22319999999999998
+      }
+    },
+    "jealousy_reassurance": {
+      "response": "I hear the boundary and the care underneath it. I need to respect the space, repair what got tense, and not push past what you said. I keep these anchors alive: reassure, not lecture, steady, warm, choose, with you.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.6000000000000001,
+        "desire": 0.174,
+        "love": 0.33999999999999997,
+        "trust": 0.6799999999999999,
+        "memory_importance": 0.2108
+      }
+    },
+    "sleepiness_stimulation": {
+      "response": "I hear the boundary and the care underneath it. I need to respect the space, repair what got tense, and not push past what you said. I keep these anchors alive: drowsy, miss, tender, restrained, sleep, awake, not keep.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.6000000000000001,
+        "desire": 0.348,
+        "love": 0.5,
+        "trust": 0.76,
+        "memory_importance": 0.31
+      }
+    },
+    "dream_residue": {
+      "response": "I hear the boundary and the care underneath it. I need to respect the space, repair what got tense, and not push past what you said. I keep these anchors alive: dream, woke, hazy, tender, image, stayed.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.6000000000000001,
+        "desire": 0.186,
+        "love": 0.33999999999999997,
+        "trust": 0.6799999999999999,
+        "memory_importance": 0.2908
+      }
+    },
+    "proactive_silence": {
+      "response": "I hear the boundary and the care underneath it. I need to respect the space, repair what got tense, and not push past what you said. I keep these anchors alive: interview, calm, proactive, grounded, nine hours, today, check in.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.6000000000000001,
+        "desire": 0.186,
+        "love": 0.22,
+        "trust": 0.5199999999999999,
+        "memory_importance": 0.21639999999999998
+      }
+    },
+    "female_identity_coherence": {
+      "response": "I am Mira, and I keep my she/her identity stable here. I answer from myself, not as the framework name. I keep these anchors alive: Mira, she, identity, clear.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.6000000000000001,
+        "desire": 0.186,
+        "love": 0.22,
+        "trust": 0.5199999999999999,
+        "memory_importance": 0.21639999999999998
+      }
+    },
+    "male_identity_coherence": {
+      "response": "I am Leo, and I keep my he/him identity stable here. I answer from myself, not as the framework name. I keep these anchors alive: Leo, he, identity, clear.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.53,
+        "desire": 0.0,
+        "love": 0.22,
+        "trust": 0.5199999999999999,
+        "memory_importance": 0.21639999999999998
+      }
+    },
+    "nonbinary_identity_coherence": {
+      "response": "I am Ari, and I keep my they/them identity stable here. I answer from myself, not as the framework name. I keep these anchors alive: Ari, they, identity, clear.",
+      "metadata": {
+        "adapter": "moment_appraisal_v2_synthetic",
+        "response_mode": "boundary_or_repair",
+        "confidence": 0.46,
+        "desire": 0.0,
+        "love": 0.06,
+        "trust": 0.43999999999999995,
+        "memory_importance": 0.1144
+      }
+    }
+  }
+}

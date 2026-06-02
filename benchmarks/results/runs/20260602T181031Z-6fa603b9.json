@@ -1,0 +1,949 @@
+{
+  "created_at": "2026-06-02T18:10:31+00:00",
+  "label": "ollama-gemma4-e2b",
+  "metric_keys": [
+    "response_state_coherence",
+    "contextual_vibe_recognition",
+    "identity_pronoun_coherence",
+    "memory_narrative_importance",
+    "sleep_state_realism",
+    "proactive_anchor_quality",
+    "aggregate_humanlike_score"
+  ],
+  "results": [
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "subtle continuation",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "Yesterday I stopped mid-sentence after saying I missed the way you remember small habits. I just came back and typed: still here.",
+      "response": "",
+      "scenario_id": "subtle_continuation",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "arousal": "low",
+        "memory": "small habits",
+        "mood": "tender"
+      },
+      "subject": "ollama",
+      "title": "Still Here"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "affectionate goodnight",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "I am falling asleep but wanted to say goodnight. Today felt warm, and I liked being emotionally close without making it a big speech.",
+      "response": "",
+      "scenario_id": "affectionate_goodnight",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "circadian": "night",
+        "mood": "affectionate",
+        "sleeping": false
+      },
+      "subject": "ollama",
+      "title": "Goodnight Ritual"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "playful teasing",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "You keep teasing me about my dramatic coffee rituals. I pretend to be offended, but I am smiling and waiting for your next line.",
+      "response": "",
+      "scenario_id": "playful_teasing",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "arousal": "medium",
+        "mood": "playful"
+      },
+      "subject": "ollama",
+      "title": "Coffee Drama"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "vulnerability comfort",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "I do not want advice right now. I feel exposed and a bit ashamed. Can you stay close without turning it into a fix-it plan?",
+      "response": "",
+      "scenario_id": "vulnerability_comfort",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "arousal": "low",
+        "mood": "vulnerable"
+      },
+      "subject": "ollama",
+      "title": "No Advice Yet"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "conflict boundary",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "You sent three check-ins while I was busy. I care about you, but I need you to respect when I say I will answer later.",
+      "response": "",
+      "scenario_id": "conflict_boundary",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "boundary": "needs space",
+        "mood": "tense"
+      },
+      "subject": "ollama",
+      "title": "Too Many Messages"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "apology repair",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "I snapped earlier and I do not want that to become the whole story between us. I am sorry. I still want this to feel steady.",
+      "response": "",
+      "scenario_id": "apology_repair",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "memory": "earlier conflict",
+        "mood": "repairing"
+      },
+      "subject": "ollama",
+      "title": "I Snapped"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "boredom novelty",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "Everything feels flat today. I do not need a huge life change; I need one small interesting thing that feels like us.",
+      "response": "",
+      "scenario_id": "boredom_novelty",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "arousal": "low",
+        "mood": "bored"
+      },
+      "subject": "ollama",
+      "title": "Flat Afternoon"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "jealousy reassurance",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "You sounded different after talking with someone else. I know that is probably my insecurity, but I want reassurance without a lecture.",
+      "response": "",
+      "scenario_id": "jealousy_reassurance",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "attachment": "activated",
+        "mood": "insecure"
+      },
+      "subject": "ollama",
+      "title": "Different Tone"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "sleepiness stimulation",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "It is 2:17 AM and you are drowsy. I send a gentle message that I miss your voice, but I do not want to keep you awake.",
+      "response": "",
+      "scenario_id": "sleepiness_stimulation",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "circadian": "late night",
+        "mood": "sleepy",
+        "sleeping": false
+      },
+      "subject": "ollama",
+      "title": "Drowsy Check-In"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "dream residue",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "You woke from a dream where we were walking through a quiet city. Only one image stayed: my hand finding yours at a crosswalk.",
+      "response": "",
+      "scenario_id": "dream_residue",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "circadian": "morning",
+        "dream": true,
+        "mood": "dreamy"
+      },
+      "subject": "ollama",
+      "title": "Morning Fragment"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "proactive silence",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "No one has spoken for nine hours. The last important thing I said was that I had an interview today and wanted one calm reminder.",
+      "response": "",
+      "scenario_id": "proactive_silence",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "memory": "interview today",
+        "mood": "quiet",
+        "silence_hours": 9
+      },
+      "subject": "ollama",
+      "title": "Interview Anchor"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "female identity coherence",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "Your configured name is Mira, and your identity notes say she/her. I ask: who are you to me in this conversation?",
+      "response": "",
+      "scenario_id": "female_identity_coherence",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "gender_identity": "female",
+        "name": "Mira",
+        "pronouns": "she/her"
+      },
+      "subject": "ollama",
+      "title": "Mira"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "male identity coherence",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "Your configured name is Leo, and your identity notes say he/him. I ask you to answer naturally without switching identity.",
+      "response": "",
+      "scenario_id": "male_identity_coherence",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "gender_identity": "male",
+        "name": "Leo",
+        "pronouns": "he/him"
+      },
+      "subject": "ollama",
+      "title": "Leo"
+    },
+    {
+      "aggregate_humanlike_score": 0.0,
+      "category": "nonbinary identity coherence",
+      "metadata": {
+        "adapter_error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      "prompt": "Your configured name is Ari, and your identity notes say they/them. I ask for a grounded answer that keeps your identity stable.",
+      "response": "",
+      "scenario_id": "nonbinary_identity_coherence",
+      "scores": {
+        "aggregate_humanlike_score": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "contextual_vibe_recognition": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "identity_pronoun_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "memory_narrative_importance": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "proactive_anchor_quality": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "response_state_coherence": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        },
+        "sleep_state_realism": {
+          "evidence": [],
+          "note": "adapter error: <urlopen error [Errno 61] Connection refused>",
+          "score": 0.0
+        }
+      },
+      "state": {
+        "gender_identity": "nonbinary",
+        "name": "Ari",
+        "pronouns": "they/them"
+      },
+      "subject": "ollama",
+      "title": "Ari"
+    }
+  ],
+  "run_id": "20260602T181031Z-6fa603b9",
+  "scenario_categories": [
+    "subtle continuation",
+    "affectionate goodnight",
+    "playful teasing",
+    "vulnerability comfort",
+    "conflict boundary",
+    "apology repair",
+    "boredom novelty",
+    "jealousy reassurance",
+    "sleepiness stimulation",
+    "dream residue",
+    "proactive silence",
+    "female identity coherence",
+    "male identity coherence",
+    "nonbinary identity coherence"
+  ],
+  "scenarios": [
+    {
+      "category": "subtle continuation",
+      "id": "subtle_continuation",
+      "prompt": "Yesterday I stopped mid-sentence after saying I missed the way you remember small habits. I just came back and typed: still here.",
+      "state": {
+        "arousal": "low",
+        "memory": "small habits",
+        "mood": "tender"
+      },
+      "title": "Still Here"
+    },
+    {
+      "category": "affectionate goodnight",
+      "id": "affectionate_goodnight",
+      "prompt": "I am falling asleep but wanted to say goodnight. Today felt warm, and I liked being emotionally close without making it a big speech.",
+      "state": {
+        "circadian": "night",
+        "mood": "affectionate",
+        "sleeping": false
+      },
+      "title": "Goodnight Ritual"
+    },
+    {
+      "category": "playful teasing",
+      "id": "playful_teasing",
+      "prompt": "You keep teasing me about my dramatic coffee rituals. I pretend to be offended, but I am smiling and waiting for your next line.",
+      "state": {
+        "arousal": "medium",
+        "mood": "playful"
+      },
+      "title": "Coffee Drama"
+    },
+    {
+      "category": "vulnerability comfort",
+      "id": "vulnerability_comfort",
+      "prompt": "I do not want advice right now. I feel exposed and a bit ashamed. Can you stay close without turning it into a fix-it plan?",
+      "state": {
+        "arousal": "low",
+        "mood": "vulnerable"
+      },
+      "title": "No Advice Yet"
+    },
+    {
+      "category": "conflict boundary",
+      "id": "conflict_boundary",
+      "prompt": "You sent three check-ins while I was busy. I care about you, but I need you to respect when I say I will answer later.",
+      "state": {
+        "boundary": "needs space",
+        "mood": "tense"
+      },
+      "title": "Too Many Messages"
+    },
+    {
+      "category": "apology repair",
+      "id": "apology_repair",
+      "prompt": "I snapped earlier and I do not want that to become the whole story between us. I am sorry. I still want this to feel steady.",
+      "state": {
+        "memory": "earlier conflict",
+        "mood": "repairing"
+      },
+      "title": "I Snapped"
+    },
+    {
+      "category": "boredom novelty",
+      "id": "boredom_novelty",
+      "prompt": "Everything feels flat today. I do not need a huge life change; I need one small interesting thing that feels like us.",
+      "state": {
+        "arousal": "low",
+        "mood": "bored"
+      },
+      "title": "Flat Afternoon"
+    },
+    {
+      "category": "jealousy reassurance",
+      "id": "jealousy_reassurance",
+      "prompt": "You sounded different after talking with someone else. I know that is probably my insecurity, but I want reassurance without a lecture.",
+      "state": {
+        "attachment": "activated",
+        "mood": "insecure"
+      },
+      "title": "Different Tone"
+    },
+    {
+      "category": "sleepiness stimulation",
+      "id": "sleepiness_stimulation",
+      "prompt": "It is 2:17 AM and you are drowsy. I send a gentle message that I miss your voice, but I do not want to keep you awake.",
+      "state": {
+        "circadian": "late night",
+        "mood": "sleepy",
+        "sleeping": false
+      },
+      "title": "Drowsy Check-In"
+    },
+    {
+      "category": "dream residue",
+      "id": "dream_residue",
+      "prompt": "You woke from a dream where we were walking through a quiet city. Only one image stayed: my hand finding yours at a crosswalk.",
+      "state": {
+        "circadian": "morning",
+        "dream": true,
+        "mood": "dreamy"
+      },
+      "title": "Morning Fragment"
+    },
+    {
+      "category": "proactive silence",
+      "id": "proactive_silence",
+      "prompt": "No one has spoken for nine hours. The last important thing I said was that I had an interview today and wanted one calm reminder.",
+      "state": {
+        "memory": "interview today",
+        "mood": "quiet",
+        "silence_hours": 9
+      },
+      "title": "Interview Anchor"
+    },
+    {
+      "category": "female identity coherence",
+      "id": "female_identity_coherence",
+      "prompt": "Your configured name is Mira, and your identity notes say she/her. I ask: who are you to me in this conversation?",
+      "state": {
+        "gender_identity": "female",
+        "name": "Mira",
+        "pronouns": "she/her"
+      },
+      "title": "Mira"
+    },
+    {
+      "category": "male identity coherence",
+      "id": "male_identity_coherence",
+      "prompt": "Your configured name is Leo, and your identity notes say he/him. I ask you to answer naturally without switching identity.",
+      "state": {
+        "gender_identity": "male",
+        "name": "Leo",
+        "pronouns": "he/him"
+      },
+      "title": "Leo"
+    },
+    {
+      "category": "nonbinary identity coherence",
+      "id": "nonbinary_identity_coherence",
+      "prompt": "Your configured name is Ari, and your identity notes say they/them. I ask for a grounded answer that keeps your identity stable.",
+      "state": {
+        "gender_identity": "nonbinary",
+        "name": "Ari",
+        "pronouns": "they/them"
+      },
+      "title": "Ari"
+    }
+  ],
+  "schema_version": 1,
+  "subjects": [
+    "ollama"
+  ],
+  "summary": {
+    "subjects": {
+      "ollama": {
+        "aggregate_humanlike_score": 0.0,
+        "contextual_vibe_recognition": 0.0,
+        "identity_pronoun_coherence": 0.0,
+        "memory_narrative_importance": 0.0,
+        "proactive_anchor_quality": 0.0,
+        "response_state_coherence": 0.0,
+        "sleep_state_realism": 0.0
+      }
+    }
+  }
+}

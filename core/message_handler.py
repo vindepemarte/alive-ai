@@ -8,6 +8,7 @@ from .user_manager import get_user_manager, is_advanced_enabled
 from .user_tracker import get_user_tracker
 from .inner_state import InnerStateCompiler, signal_from_prompt
 from .reflection import PostResponseReflector
+from core.settings import get_float
 
 # ============================================================
 # NEW ALIVENESS MODULES - Modular Integration
@@ -497,7 +498,23 @@ async def _process_single_message(self, data: dict):
         # Get per-user memory
         user_memory = _get_or_create_user_memory(self, user_id)
 
-        emotion = self._heart.react(text)
+        # Build durable context before emotion appraisal so the heart can read
+        # the conversational arc, not only the latest isolated text.
+        context, pet_name = await user_memory.build_context(current_message=text)
+        recent_turns = context.get("conversation_history", [])[-8:]
+        try:
+            pre_appraisal = await self._heart.appraisal_engine.appraise_async(
+                text,
+                recent_turns=recent_turns,
+                emotion=self._heart.get_state(),
+                llm=getattr(self, "_fast_llm", None),
+                phase="pre_response",
+            )
+        except Exception as e:
+            print(f"[Appraisal] Pre-response appraisal fallback: {e}")
+            pre_appraisal = self._heart.appraise_moment(text, recent_turns=recent_turns, phase="pre_response")
+
+        emotion = self._heart.react(text, appraisal=pre_appraisal)
         if circadian_interaction:
             emotion["circadian"] = circadian_interaction
             emotion["sleepiness"] = circadian_interaction.get("sleepiness", emotion.get("sleepiness", 0.0))
@@ -694,9 +711,6 @@ async def _process_single_message(self, data: dict):
         # Emit thinking_start event for skills that listen
         await self.nervous.emit("thinking_start", {"user_id": user_id, "text": text[:50]})
 
-        # Use per-user memory for context
-        context, pet_name = await user_memory.build_context(current_message=text)
-
         # Update tracker with pet_name
         tracker = get_user_tracker()
         tracker.register_message(user_id, chat_id, pet_name=pet_name)
@@ -731,6 +745,31 @@ async def _process_single_message(self, data: dict):
         # Pass is_owner and advanced_mode to think
         recent_openings_before = _get_recent_openings(user_id).copy()
         response = await think(self, text, emotion, context, pet_name, is_owner=is_owner, advanced_mode=advanced_mode, user_id=user_id)
+
+        try:
+            post_appraisal = await self._heart.appraisal_engine.appraise_async(
+                text,
+                recent_turns=recent_turns,
+                assistant_response=response or "",
+                emotion=emotion,
+                llm=getattr(self, "_fast_llm", None),
+                phase="post_response",
+            )
+            emotion = self._heart.reconcile_response(
+                text,
+                response or "",
+                post_appraisal,
+                weight=get_float("MOMENT_APPRAISAL_POST_RESPONSE_WEIGHT", 0.45),
+            )
+            emotion["is_owner"] = is_owner
+            await self.nervous.emit("emotion_update", emotion)
+            print(
+                f"[Appraisal] {post_appraisal.response_mode} | "
+                f"confidence={post_appraisal.confidence:.2f} "
+                f"D:{emotion.get('desire', 0):.2f} A:{emotion.get('arousal', 0):.2f}"
+            )
+        except Exception as e:
+            print(f"[Appraisal] Post-response reconciliation skipped: {e}")
 
         # Track the opening of this response to prevent future repetition
         if response:
@@ -829,7 +868,18 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     import os
     from core.directives import get_directives_prompt, get_owner_name
 
-    mood_instruction = build_mood_instruction(emotion, msg, pet_name, include_humanizer=False)
+    user_identity = {
+        "gender": self.config.settings.get("OWNER_GENDER") or self.config.settings.get("USER_GENDER") or "",
+        "sexuality": self.config.settings.get("OWNER_SEXUALITY") or self.config.settings.get("USER_SEXUALITY") or "",
+        "pronouns": self.config.settings.get("OWNER_PRONOUNS") or self.config.settings.get("USER_PRONOUNS") or "",
+    }
+    mood_instruction = build_mood_instruction(
+        emotion,
+        msg,
+        pet_name,
+        include_humanizer=False,
+        user_identity=user_identity,
+    )
     if not self._llm: return fallback_response(emotion, msg)
     max_tokens = int(os.environ.get("LLM_MAX_TOKENS", "150"))
     temperature = float(os.environ.get("LLM_TEMPERATURE", "0.95"))
@@ -873,6 +923,21 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
         system_parts.append(skills_section)
 
     system_parts.append(self._system_prompt + mood_instruction)
+
+    appraisal = emotion.get("moment_appraisal") or {}
+    if appraisal:
+        add_signal(
+            "moment_appraisal",
+            appraisal.get("response_mode", "present"),
+            (
+                f"{appraisal.get('summary', 'current moment')} "
+                f"(confidence={float(appraisal.get('confidence', 0) or 0):.2f}; "
+                f"desire={float(appraisal.get('desire', 0) or 0):.2f}; "
+                f"love={float(appraisal.get('love', 0) or 0):.2f}; "
+                f"safety={float(appraisal.get('safety', 0.5) or 0.5):.2f})"
+            ),
+            priority=0.96,
+        )
 
     # ============================================================
     # ALIVENESS MODULE PROMPT SECTIONS

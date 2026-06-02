@@ -38,6 +38,7 @@ The emotional layer now has real runtime consequences:
 | System | What it stores | Runtime effect |
 | --- | --- | --- |
 | Core affect | Valence, arousal, dominance, trust, love, joy, desire, sadness, fear, anger, boredom, guilt, pride, jealousy, embarrassment, anticipation, hope, and dread. | Recomputed after every trigger so emotion changes affect mood, attachment, memory weighting, interoception, reactions, voice/media choices, and LLM tone. |
+| Moment appraisal | A canonical interpretation of what each turn means: context, vibe, intensity, safety, playfulness, vulnerability, memory importance, body effects, and response mode. | The heart no longer reacts only to isolated keywords. It appraises the current message with recent context before generation, then reconciles the assistant's own response afterward so visible replies, dashboard emotion, body state, hormones, memory, narrative, and prompts stay aligned. |
 | Complex emotions | Guilt, pride, jealousy, embarrassment, and anticipation. | They do not just label the dashboard. They push fear, sadness, anger, dominance, trust, arousal, joy, and future-facing behavior in different directions. |
 | Inner-state compiler | A compact response plan made from emotion, sleep pressure, body state, bids, dreams, memories, attachment, curiosity, conflicts, and narrative phase. | Every reply receives one prioritized inner-state briefing instead of a pile of disconnected prompt hints. The planner decides what to reveal, what to withhold, and whether the answer should comfort, answer directly, repair, ask, set a boundary, or drift back toward sleep. |
 | Hormones | Oxytocin, dopamine, serotonin, cortisol, melatonin, plus residual metabolites. | Hormones modulate perception, soul valence/arousal, emotional deltas, somatic body state, interoception, impulse probability, and prompt guidance. Stress makes her more vigilant; bonding increases trust; dopamine increases pursuit; serotonin stabilizes; melatonin slows her down. |
@@ -52,6 +53,21 @@ The emotional layer now has real runtime consequences:
 | Persistence | Emotion, attachment, soul, somatic, unconscious, conflict, subconscious, circadian, and dream state under `data/`. | Restarting the runtime preserves the inner state instead of visually resetting it. |
 
 The public Pages site is an interactive static portal with a presentation, simulator, docs, and a preserved static WebUI demo. The local WebUI is the live version: it streams the actual state from the running Python backend.
+
+## Humanlike Affect Benchmark
+
+Alive-AI now ships a local benchmark harness under `benchmarks/` so emotional upgrades can be measured instead of guessed. The suite compares subjects across non-explicit scenarios for subtle continuation, affectionate goodnight rituals, playful teasing, vulnerability, conflict repair, boredom, jealousy, sleepiness, dream residue, proactive silence, and female/male/nonbinary identity coherence.
+
+Run it locally:
+
+```bash
+python3 benchmarks/run_benchmarks.py --subject alive-offline/current-code --run-label alive-ai-v1-current
+python3 benchmarks/run_benchmarks.py --subject ollama --ollama-model gemma4:e2b --run-label ollama-gemma4-e2b
+python3 benchmarks/run_benchmarks.py --subject v2 --responses-file benchmarks/results/v2_moment_appraisal_responses.json --run-label alive-ai-v2-moment-appraisal
+open benchmarks/report.html
+```
+
+The standalone HTML report reads `benchmarks/results/index.json` and embedded run data, showing response-state coherence, contextual vibe recognition, identity/pronoun coherence, memory/narrative importance, sleep realism, proactive anchor quality, and aggregate humanlike score.
 
 
 ## Quick Start
@@ -372,7 +388,8 @@ Next:
 - [ ] Real-world action plugins for travel planning, calendar, web tasks, creator workflows, and tool use with operator controls
 - [ ] Import/export for memories and personality snapshots
 - [ ] Plugin API for new senses, skills, and output modalities
-- [ ] Evaluation harness for emotional continuity, memory drift, and unhealthy attachment risk
+- [x] Evaluation harness for humanlike affect, emotional continuity, identity coherence, sleep realism, and model-vs-runtime comparisons
+- [ ] Extended evaluation for memory drift and unhealthy attachment risk
 - [ ] Safety and boundary research for autonomous emotional agents that can feel persuasive, attached, or dependent
 - [ ] Optional cloud sync that preserves local-first ownership
 

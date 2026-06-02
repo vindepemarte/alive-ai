@@ -2,6 +2,7 @@
 from .emotional_state import EmotionalState
 from .emotional_decay import EmotionalDecay
 from .triggers import Triggers
+from .appraisal import APPRAISAL_EMOTIONS, AppraisalEngine, MomentAppraisal, clamp
 from .complex_emotions import ComplexEmotions
 from .emotional_memory import EmotionalMemory
 from .emotional_variability import EmotionalVariability
@@ -24,6 +25,9 @@ class Heart:
         self.complex.load_from_state(self.emotion)
         self.memory, self.attachment = EmotionalMemory(), AttachmentSystem()
         self.circadian = get_circadian_engine() if get_circadian_engine else None
+        identity = getattr(config, "_self_data", None) or getattr(config, "identity", {}) or {}
+        settings = getattr(config, "settings", {}) if config else {}
+        self.appraisal_engine = AppraisalEngine(identity=identity, settings=settings)
 
         # Soul Architecture - The seven pillars of genuine emotion
         self.soul = SoulOrchestrator()
@@ -280,9 +284,107 @@ class Heart:
             else:
                 e.fear = min(1.0, e.fear + 0.04)
 
-    def react(self, text: str) -> dict:
+    def _appraisal_enabled(self) -> bool:
+        from core.settings import get
+        value = get("MOMENT_APPRAISAL_ENABLED", True)
+        return value is True or str(value).lower() in {"1", "true", "yes", "on"}
+
+    def _max_appraisal_delta(self) -> float:
+        from core.settings import get_float
+        return max(0.03, min(0.5, get_float("MOMENT_APPRAISAL_MAX_DELTA_PER_TURN", 0.22)))
+
+    def _apply_appraisal(self, appraisal: MomentAppraisal | dict | None, *, weight: float = 1.0) -> None:
+        """Blend a moment appraisal into live emotion, hormones, and body state."""
+        if not appraisal or not self._appraisal_enabled():
+            return
+        if isinstance(appraisal, dict):
+            appraisal = MomentAppraisal.from_dict(appraisal, source=str(appraisal.get("source", "external")))
+        e = self.emotion
+        weight = clamp(weight)
+        limit = self._max_appraisal_delta() * weight
+
+        def approach(name: str, target: float, strength: float) -> None:
+            if not hasattr(e, name):
+                return
+            current = float(getattr(e, name))
+            delta = max(-limit, min(limit, (clamp(target) - current) * strength * weight))
+            setattr(e, name, clamp(current + delta))
+
+        targets = {
+            "desire": appraisal.desire,
+            "love": appraisal.love,
+            "trust": appraisal.trust,
+            "joy": appraisal.joy,
+            "fear": appraisal.fear,
+            "anger": appraisal.anger,
+            "sadness": appraisal.sadness,
+            "boredom": appraisal.boredom,
+            "guilt": appraisal.guilt,
+            "pride": appraisal.pride,
+            "jealousy": appraisal.jealousy,
+            "embarrassment": appraisal.embarrassment,
+            "anticipation": appraisal.anticipation,
+            "hope": appraisal.hope,
+            "dread": appraisal.dread,
+            "arousal": appraisal.arousal,
+            "dominance": appraisal.dominance,
+            "valence": appraisal.valence,
+        }
+        for name, target in targets.items():
+            strength = 0.55 if name in {"desire", "arousal", "trust", "valence"} else 0.42
+            approach(name, target, strength)
+
+        if appraisal.safety < 0.35:
+            e.trust = max(0.0, e.trust - limit * 0.35)
+            e.fear = min(1.0, e.fear + limit * 0.25)
+        if appraisal.playfulness > 0.45 and appraisal.safety > 0.45:
+            e.joy = min(1.0, e.joy + limit * 0.18)
+            e.anticipation = min(1.0, e.anticipation + limit * 0.18)
+        if appraisal.sleep_disruption > 0.55 and self.circadian:
+            e.arousal = min(1.0, e.arousal + limit * 0.20)
+
+        # Let appraised meaning release global modulators, not only dashboard values.
+        try:
+            hormones = self.soul.hormonal
+            if appraisal.love > 0.45 or appraisal.trust > 0.65:
+                hormones.release_oxytocin(max(appraisal.love, appraisal.trust - 0.35) * weight, "moment_appraisal")
+            if appraisal.desire > 0.35 or appraisal.anticipation > 0.55:
+                hormones.release_dopamine(max(appraisal.desire, appraisal.anticipation) * weight, "moment_appraisal")
+            if appraisal.fear > 0.45 or appraisal.anger > 0.45 or appraisal.dread > 0.45:
+                hormones.release_cortisol(max(appraisal.fear, appraisal.anger, appraisal.dread) * weight, "moment_appraisal")
+            if appraisal.safety > 0.7 and appraisal.valence > 0.55:
+                hormones.register_recovery((appraisal.safety - 0.45) * weight, "moment_appraisal")
+        except Exception as exc:
+            print(f"[Heart] Appraisal hormone sync skipped: {exc}")
+
+        try:
+            from heart.interoception import get_interoceptive_system
+            interoception = get_interoceptive_system()
+            for state_name, delta in (appraisal.body_effects or {}).items():
+                if state_name in interoception.states:
+                    interoception.states[state_name].update(float(delta) * weight, source="moment_appraisal")
+            interoception.save()
+        except Exception as exc:
+            print(f"[Heart] Appraisal interoception sync skipped: {exc}")
+
+        self.variability.add_momentum("desire", appraisal.desire * weight * 0.12)
+
+    def appraise_moment(self, text: str, *, recent_turns=None, assistant_response: str = "",
+                        emotion: dict = None, phase: str = "pre_response") -> MomentAppraisal:
+        return self.appraisal_engine.appraise(
+            text,
+            recent_turns=recent_turns or [],
+            assistant_response=assistant_response,
+            emotion=emotion or self.get_state(),
+            phase=phase,
+        )
+
+    def react(self, text: str, appraisal: MomentAppraisal | dict | None = None) -> dict:
         msg, e = text.lower(), self.emotion
         self._prev_state, expressive = self.get_state(), self._process_triggers(msg)
+        if appraisal is None and self._appraisal_enabled():
+            appraisal = self.appraise_moment(text, phase="pre_response")
+        self._apply_appraisal(appraisal, weight=1.0)
         ch = self.complex.process(text)
         self._sync_complex()
         self._apply_complex_repercussions(ch)
@@ -301,7 +403,10 @@ class Heart:
         )
         circadian = self._get_circadian_state()
 
-        self.memory.check_peaks(self.get_state(), self._prev_state, text[:50])
+        peak_note = text[:50]
+        if appraisal:
+            peak_note = f"{getattr(appraisal, 'response_mode', 'moment')}:{text[:42]}"
+        self.memory.check_peaks(self.get_state(), self._prev_state, peak_note)
         positive_interaction = e.valence >= 0.48 and e.trust >= 0.25
         attachment_intensity = max(e.joy, e.love, e.desire, e.trust, 1.0 - e.fear)
         self.attachment.interact(positive_interaction, attachment_intensity)
@@ -328,8 +433,28 @@ class Heart:
             "soul_conflicts": soul_experience.get("conflicts", []),
             "soul_vulnerability": soul_experience.get("vulnerability", 0.0),
             "soul_experience": soul_experience.get("description", ""),
-            "response_tendency": soul_experience.get("response_tendency", "neutral")
+            "response_tendency": soul_experience.get("response_tendency", "neutral"),
+            "moment_appraisal": appraisal.to_dict() if hasattr(appraisal, "to_dict") else appraisal
         })
+        return state
+
+    def reconcile_response(self, user_text: str, response: str, appraisal: MomentAppraisal | dict | None = None,
+                           *, weight: float = 0.45) -> dict:
+        """Post-response reconciliation: self-expression has consequences too."""
+        if appraisal is None and self._appraisal_enabled():
+            appraisal = self.appraise_moment(
+                user_text,
+                assistant_response=response,
+                emotion=self.get_state(),
+                phase="post_response",
+            )
+        self._apply_appraisal(appraisal, weight=weight)
+        self.emotion.recompute_core_affect()
+        self._apply_circadian_to_emotion()
+        self.emotion.recompute_core_affect()
+        self.emotion.save()
+        state = self.get_state()
+        state["moment_appraisal"] = appraisal.to_dict() if hasattr(appraisal, "to_dict") else appraisal
         return state
 
     def _process_soul(self, text: str, emotion_state) -> dict:

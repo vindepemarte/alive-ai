@@ -186,6 +186,13 @@ function generatedFullName(name, gender) {
   return `${firstName} ${surnames[hash]}`;
 }
 
+function pronounsForGender(gender) {
+  const normalizedGender = normalizeChoice(gender, "");
+  if (normalizedGender === "male") return "he/him";
+  if (normalizedGender === "female") return "she/her";
+  return "they/them";
+}
+
 function readProjectSettings() {
   const settingsPath = path.join(process.cwd(), "config", "settings.json");
   if (!fs.existsSync(settingsPath)) return {};
@@ -584,6 +591,19 @@ async function setupProject(args) {
   const fullName = emptyIfSkipped(fullNameAnswer)
     ? titleCaseName(fullNameAnswer)
     : generatedFullName(displayName, genderChoice);
+  const ownerGender = normalizeChoice(
+    await ask("Your gender identity (optional, use skip to leave neutral)", "skip", assumeYes),
+    "skip"
+  );
+  const ownerSexuality = normalizeChoice(
+    await ask("Your sexuality (optional, use skip to leave neutral)", "skip", assumeYes),
+    "skip"
+  );
+  const ownerPronouns = emptyIfSkipped(await ask(
+    "Your pronouns (skip to infer from gender or leave neutral)",
+    ownerGender === "skip" ? "skip" : pronounsForGender(ownerGender),
+    assumeYes
+  ));
   const ownerId = emptyIfSkipped(await ask("Telegram owner ID (optional, use skip to leave blank)", "", assumeYes));
   const telegramToken = emptyIfSkipped(await ask("Telegram bot token (optional, use skip to leave blank)", "", assumeYes));
   const providerChoice = normalizeChoice(
@@ -638,6 +658,9 @@ async function setupProject(args) {
   settings.AGENT_NAME = displayName;
   settings.AGENT_GENDER = genderChoice;
   settings.AGENT_SEXUALITY = sexualityChoice;
+  settings.OWNER_GENDER = emptyIfSkipped(ownerGender);
+  settings.OWNER_SEXUALITY = emptyIfSkipped(ownerSexuality);
+  settings.OWNER_PRONOUNS = ownerPronouns || (ownerGender === "skip" ? "" : pronounsForGender(ownerGender));
   settings.INPUT_CHANNEL = "telegram";
   settings.telegram_token = telegramToken;
   settings.TELEGRAM_OWNER_ID = ownerId;
@@ -667,7 +690,7 @@ async function setupProject(args) {
   self.who_i_am.full_name = fullName;
   self.who_i_am.gender = genderChoice;
   self.who_i_am.sexuality = sexualityChoice;
-  self.who_i_am.pronouns = genderChoice === "male" ? "he/him" : genderChoice === "nonbinary" ? "they/them" : "she/her";
+  self.who_i_am.pronouns = pronounsForGender(genderChoice);
   self.who_i_am.origin = `I am ${displayName}, a persistent local companion built on the Alive-AI runtime.`;
 
   const directives = readJson(directivesExample);
