@@ -7,19 +7,44 @@ import aiohttp
 import asyncio
 import os
 import time
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from .base import BaseLLM
 from .reasoning import has_reasoning_payload, visible_answer_from_message
 
 
-def _settings_bool(key: str, default: bool) -> bool:
+_MISSING = object()
+
+
+def _coerce_bool(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in ("1", "true", "yes", "on", "enabled"):
+            return True
+        if lowered in ("0", "false", "no", "off", "disabled"):
+            return False
+    return default
+
+
+def _settings_value(key: str, default: Any = _MISSING) -> Any:
     if key in os.environ:
-        return os.environ[key].strip().lower() not in ("0", "false", "no", "off")
+        return os.environ[key]
     try:
-        from core.settings import get_bool
-        return get_bool(key, default)
+        from core.settings import get
+        return get(key, default)
     except Exception:
         return default
+
+
+def _openrouter_thinking_enabled() -> bool:
+    """OpenRouter reasoning controls are opt-in because some models leak labels."""
+    value = _settings_value("OPENROUTER_THINKING_ENABLED", _MISSING)
+    if value is _MISSING:
+        return False
+    return _coerce_bool(value, False)
 
 
 def _extract_openrouter_answer(data: dict) -> str:
@@ -132,14 +157,12 @@ class OpenRouterClient(BaseLLM):
             "frequency_penalty": 0.8,  # Penalize repeated phrases - increased from 0.5
             "presence_penalty": 0.6,   # Encourage topic diversity - increased from 0.3
         }
-        thinking_enabled = _settings_bool("LLM_THINKING_ENABLED", True)
+        thinking_enabled = _openrouter_thinking_enabled()
         if thinking_enabled:
             payload["reasoning"] = {
                 "effort": "low",
                 "exclude": True,
             }
-        else:
-            payload["reasoning"] = {"enabled": False}
 
         try:
             async def post_chat(payload_to_send: dict) -> tuple[int, object]:
@@ -182,9 +205,9 @@ class OpenRouterClient(BaseLLM):
 
                 content = _extract_openrouter_answer(data)
                 if (not content or not content.strip()) and thinking_enabled and _has_reasoning_activity(data):
-                    print("[OpenRouter] Thinking produced no answer field, retrying with thinking disabled")
+                    print("[OpenRouter] Thinking produced no answer field, retrying without reasoning control")
                     retry_payload = dict(payload)
-                    retry_payload["reasoning"] = {"enabled": False}
+                    retry_payload.pop("reasoning", None)
                     status, result = await post_chat(retry_payload)
                     if status == 200 and isinstance(result, dict):
                         data = result
@@ -211,7 +234,7 @@ class OpenRouterClient(BaseLLM):
                     if sanitized:
                         content = sanitized
                     elif sanitized != content:
-                        print("[OpenRouter] Rejected reasoning-only visible content")
+                        print("[OpenRouter] Rejected non-dialogue visible content")
                         return None
                 except Exception:
                     pass

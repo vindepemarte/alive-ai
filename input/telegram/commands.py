@@ -556,6 +556,7 @@ Make it personal, reflective, and heartfelt. Use paragraphs and natural speech."
 
         enabled = value in ("true", "on", "1", "yes")
         set_value("LLM_THINKING_ENABLED", enabled)
+        set_value("OPENROUTER_THINKING_ENABLED", enabled)
         await update.message.reply_text(
             f"Model thinking is now {'ON' if enabled else 'OFF'}.\n"
             "Change is instant; no restart needed."

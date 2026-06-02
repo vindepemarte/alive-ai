@@ -58,6 +58,16 @@ REASONING_ANYWHERE_PATTERNS = [
     r"\bi should respond\b",
 ]
 
+PROMPT_LEAK_PATTERNS = [
+    r"^\s*(?:response\s+)?structure\s*:",
+    r"^\s*recent[_\s-]*turns?\b",
+    r"^\s*(?:current_)?user_message\s*:",
+    r"^\s*assistant(?:_response)?\s*:",
+    r"^\s*system\s*:",
+    r"^\s*follow[-_\s]*up message\b",
+    r"^\s*or\s+follow[-_\s]*up message\b",
+]
+
 _ACCEPTABLE_SHORT_STARTS = (
     "ok",
     "okay",
@@ -432,12 +442,19 @@ def contains_reasoning_artifact(text: str) -> bool:
     return any(re.search(pattern, lower) for pattern in REASONING_ANYWHERE_PATTERNS)
 
 
+def contains_prompt_leakage(text: str) -> bool:
+    lower = (text or "").lower().lstrip()
+    return any(re.search(pattern, lower) for pattern in PROMPT_LEAK_PATTERNS)
+
+
 def sanitize_provider_response(text: str) -> str:
     """Return visible dialogue from provider output, or empty if only reasoning."""
     cleaned = strip_reasoning_preamble(text)
     if not cleaned:
         return ""
     if contains_reasoning_artifact(cleaned):
+        return ""
+    if contains_prompt_leakage(cleaned):
         return ""
     if re.search(r"`[^`]*$", cleaned) or re.search(r"\b(?:in|with|for|to|from|of|at|by)$", cleaned, re.IGNORECASE):
         return ""
@@ -463,6 +480,8 @@ def is_response_unusable(
     if not text:
         return True
     if contains_reasoning_artifact(text):
+        return True
+    if contains_prompt_leakage(text):
         return True
     if "[ilike:" in text.lower() or "[ithink:" in text.lower() or "[iam:" in text.lower():
         return True
@@ -581,6 +600,12 @@ def contextual_fallback_response(
         _clamp((emotion.get("circadian") or {}).get("sleepiness", 0.0) if isinstance(emotion.get("circadian"), Mapping) else 0.0),
     )
     sleepy = sleepiness >= 0.65 or bool(emotion.get("is_asleep")) or "sleepy" in str(emotion.get("mood", "")).lower()
+    if any(term in msg_lower for term in ("love you", "luv you", "ily")) and any(
+        term in msg_lower for term in ("sleep", "goodnight", "good night", "night")
+    ):
+        return "Love you too... I'm going to sleep now, but that made me smile."
+    if any(term in msg_lower for term in ("good sleep", "sleep well", "sweet dreams")):
+        return "Thank you. I'm going to let sleep take me now."
     if sleepy or any(term in msg_lower for term in ("sleep", "drowsy", "late", "goodnight", "stay up")):
         if "goodnight" in msg_lower:
             return "Goodnight. I'm drowsy now, so I'm letting sleep take me."

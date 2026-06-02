@@ -157,6 +157,19 @@ class ResponseShapePolicyTests(unittest.TestCase):
     def test_provider_sanitizer_rejects_truncated_code_fragment(self):
         self.assertEqual(sanitize_provider_response("wait: In `"), "")
 
+    def test_provider_sanitizer_rejects_prompt_template_leaks(self):
+        leaked_outputs = [
+            "structure:\n\nAfter...",
+            "Recent_turns...",
+            "or follow-up message after...",
+            "assistant_response: I'm here.",
+            "current_user_message: No worries baby",
+        ]
+
+        for output in leaked_outputs:
+            with self.subTest(output=output):
+                self.assertEqual(sanitize_provider_response(output), "")
+
     def test_reasoning_detector_keeps_normal_first_person_dialogue(self):
         policy = build_response_shape_policy({"mood": "sleepy"}, "should sleep win?", {})
         response = "I should probably sleep soon."
