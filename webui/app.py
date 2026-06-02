@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from core.paths import data_dir, media_dir
 from .persistence import (
     append_chat_message,
+    count_visible_messages,
     load_chat_messages,
     new_message_id,
     resolve_active_user_id,
@@ -27,26 +28,45 @@ app = FastAPI(title="Alive-AI Dashboard")
 _start_time = datetime.now()
 
 
-def load_persistent_stats() -> dict:
+def load_persistent_stats(active_user: str = None) -> dict:
     """Load stats from actual data sources on startup"""
     stats = {"messages": 0, "memories": 0, "evaluations": 0}
 
     # Try different base paths
     base_paths = [data_dir()]
 
-    # Count messages from conversation summaries (in users/*/summaries/)
+    if active_user:
+        try:
+            stats["messages"] = count_visible_messages(active_user)
+        except Exception:
+            pass
+
+    # Count actual per-user conversation rows and WebUI journal rows.
     for base_path in base_paths:
         try:
-            # Look for summaries in users/*/summaries/
             users_path = base_path / "users"
             if users_path.exists():
                 count = 0
                 for user_dir in users_path.iterdir():
-                    summaries_path = user_dir / "summaries"
-                    if summaries_path.exists():
-                        count += len(list(summaries_path.glob("*.json")))
+                    conv_path = user_dir / "conversations"
+                    if conv_path.exists():
+                        for conv_file in conv_path.glob("*.jsonl"):
+                            with conv_file.open() as fh:
+                                for line in fh:
+                                    try:
+                                        row = json.loads(line)
+                                        if row.get("user"):
+                                            count += 1
+                                        if row.get("ai"):
+                                            count += 1
+                                    except Exception:
+                                        continue
+                    journal_path = user_dir / "webui_chat.jsonl"
+                    if journal_path.exists():
+                        with journal_path.open() as fh:
+                            count += sum(1 for _ in fh)
                 if count > 0:
-                    stats["messages"] = count
+                    stats["messages"] = max(stats["messages"], count)
                     break
         except Exception:
             pass
@@ -313,6 +333,10 @@ def build_snapshot(user_id: str = None) -> dict:
     snapshot["soul"] = soul_state
     snapshot["aliveness"] = aliveness_state
     snapshot["conversation"] = load_chat_messages(active_user)
+    snapshot["stats"] = {
+        **snapshot.get("stats", {}),
+        **load_persistent_stats(active_user),
+    }
     thoughts = _subconscious_thoughts()
     snapshot["recent_thoughts"] = thoughts
     snapshot["current_thought"] = thoughts[-1]["thought"] if thoughts else alive_ai_state.get("current_thought")
@@ -491,7 +515,7 @@ async def health():
 @app.get("/api/stats")
 async def get_persistent_stats():
     """Get stats refreshed from actual data sources"""
-    stats = load_persistent_stats()
+    stats = load_persistent_stats(_active_user_id())
 
     # Update global state with fresh stats
     alive_ai_state["stats"] = stats
@@ -936,8 +960,7 @@ async def get_new_aliveness():
     try:
         from brain.narrative import get_narrative_engine
         ne = get_narrative_engine()
-        from core.settings import get as settings_get
-        owner_id = str(settings_get("TELEGRAM_OWNER_ID", ""))
+        owner_id = _active_user_id()
 
         # Fallback: when owner_id is empty (terminal mode), find the most active user
         if not owner_id:
@@ -972,7 +995,7 @@ async def get_new_aliveness():
 
             result["narrative"] = {
                 "phase": data.get("phase", "first_meeting"),
-                "message_count": msg_count,
+                "message_count": max(msg_count, count_visible_messages(owner_id)),
                 "moments": len(data.get("key_moments", []))
             }
         else:
@@ -991,8 +1014,7 @@ async def get_new_aliveness():
     # Linguistic
     try:
         from brain.linguistic import get_linguistic_profile
-        from core.settings import get as settings_get
-        owner_id = str(settings_get("TELEGRAM_OWNER_ID", ""))
+        owner_id = _active_user_id()
         if owner_id:
             lp = get_linguistic_profile(owner_id)
             patterns = lp.get_absorbed_patterns() if hasattr(lp, 'get_absorbed_patterns') else {}
@@ -1010,8 +1032,7 @@ async def get_new_aliveness():
     # Curiosity
     try:
         from brain.curiosity import get_curiosity_drive
-        from core.settings import get as settings_get
-        owner_id = str(settings_get("TELEGRAM_OWNER_ID", ""))
+        owner_id = _active_user_id()
 
         # Fallback: when owner_id is empty (terminal mode), find the most active user
         if not owner_id:

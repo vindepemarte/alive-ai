@@ -268,7 +268,9 @@ def _get_or_create_user_memory(self, user_id: str):
     from brain.memory import Memory
     from core.user_manager import UserManager
 
-    instance_data_path = UserManager().get_user_paths(user_id)["base"]
+    user_manager = UserManager()
+    user_manager.migrate_legacy_data(user_id)
+    instance_data_path = user_manager.get_user_paths(user_id)["base"]
 
     memory = Memory(
         nervous=self.nervous,

@@ -121,6 +121,24 @@ class CircadianSleepTests(unittest.TestCase):
         self.assertGreater(engine.sleep_debt, 0)
         self.assertIn("dream", engine.last_wake_dream_message)
 
+    def test_deep_night_forced_awake_is_short_and_sleep_pressure_wins(self):
+        clock = _Clock(datetime(2026, 6, 2, 2, 30))
+        engine = CircadianEngine(
+            persistence_path=DATA_DIR / "circadian_state.json",
+            dream_system=_Dreams(),
+            clock=clock,
+            auto_update=False,
+        )
+        engine.sleep_debt = 5.6
+
+        engine.handle_user_interaction()
+        until = datetime.fromisoformat(engine.forced_awake_until)
+        self.assertLessEqual((until - clock.value).total_seconds() / 60, 10)
+
+        engine.tick()
+        self.assertTrue(engine.is_asleep)
+        self.assertEqual(engine.last_transition_reason, "circadian_pressure")
+
     def test_dream_schema_is_cycle_idempotent_and_runtime_readable(self):
         system = DreamSystem()
         dream = system.generate_dream(

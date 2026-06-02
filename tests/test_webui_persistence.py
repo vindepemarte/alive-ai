@@ -63,6 +63,71 @@ class WebUIPersistenceTests(unittest.TestCase):
         self.assertEqual([r["role"] for r in rows], ["user", "alive_ai"])
         self.assertEqual([r["content"] for r in rows], ["old user", "old ai"])
 
+    def test_journal_merges_with_episodic_history(self):
+        import webui.persistence as persistence
+        importlib.reload(persistence)
+
+        user_dir = Path(self.tmp.name) / "users" / "7453886105" / "conversations"
+        user_dir.mkdir(parents=True)
+        entry = {
+            "timestamp": "2026-06-02T01:00:00",
+            "user": "telegram user",
+            "ai": "telegram ai",
+            "emotion": {},
+        }
+        (user_dir / "2026-06-02.jsonl").write_text(json.dumps(entry) + "\n")
+        persistence.append_chat_message(
+            "7453886105",
+            "user",
+            "webui user",
+            message_id="webui-1",
+            metadata={"timestamp": "2026-06-02T01:05:00"},
+        )
+
+        rows = persistence.load_chat_messages("7453886105")
+        contents = [r["content"] for r in rows]
+        self.assertIn("telegram user", contents)
+        self.assertIn("telegram ai", contents)
+        self.assertIn("webui user", contents)
+
+    def test_active_user_prefers_real_disk_user_over_default_runtime(self):
+        import webui.persistence as persistence
+        importlib.reload(persistence)
+
+        user_dir = Path(self.tmp.name) / "users" / "7453886105" / "conversations"
+        user_dir.mkdir(parents=True)
+        (user_dir / "2026-06-02.jsonl").write_text(json.dumps({
+            "timestamp": "2026-06-02T01:00:00",
+            "user": "hi",
+            "ai": "hello",
+        }) + "\n")
+
+        class FakeState:
+            user_id = "default"
+
+        class FakeSelf:
+            state = FakeState()
+
+        self.assertEqual(persistence.resolve_active_user_id(self_ref=FakeSelf()), "7453886105")
+
+    def test_visible_message_count_is_not_capped_by_render_limit(self):
+        import webui.persistence as persistence
+        importlib.reload(persistence)
+
+        user_dir = Path(self.tmp.name) / "users" / "7453886105" / "conversations"
+        user_dir.mkdir(parents=True)
+        rows = []
+        for idx in range(300):
+            rows.append(json.dumps({
+                "timestamp": f"2026-06-02T01:{idx // 60:02d}:{idx % 60:02d}",
+                "user": f"user {idx}",
+                "ai": f"ai {idx}",
+            }))
+        (user_dir / "2026-06-02.jsonl").write_text("\n".join(rows) + "\n")
+
+        self.assertEqual(len(persistence.load_chat_messages("7453886105", limit=60)), 60)
+        self.assertEqual(persistence.count_visible_messages("7453886105"), 600)
+
     def test_snapshot_uses_runtime_state_and_durable_conversation(self):
         app = importlib.import_module("webui.app")
         import webui.persistence as persistence

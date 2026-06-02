@@ -10,7 +10,7 @@ import re
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.paths import data_dir
 
@@ -26,22 +26,92 @@ def normalize_user_id(user_id: Any) -> str:
     return safe or "webui"
 
 
+def _configured_owner_id() -> str:
+    owner = os.environ.get("TELEGRAM_OWNER_ID", "")
+    if owner:
+        return owner
+    try:
+        from core.settings import get as settings_get
+        return str(settings_get("TELEGRAM_OWNER_ID", "") or "")
+    except Exception:
+        return ""
+
+
+def _tracked_active_user_id() -> str:
+    try:
+        from core.user_tracker import get_user_tracker
+        active = get_user_tracker().get_active_users(within_minutes=24 * 60)
+        if active:
+            active = sorted(active, key=lambda u: u.last_interaction, reverse=True)
+            return active[0].user_id
+    except Exception:
+        pass
+    return ""
+
+
+def _path_activity_score(path: Path) -> Tuple[float, int]:
+    latest = path.stat().st_mtime if path.exists() else 0.0
+    count = 0
+    for pattern in ("conversations/*.jsonl", "webui_chat.jsonl", "narrative.json",
+                    "facts.json", "emotional_memories.json"):
+        for item in path.glob(pattern):
+            try:
+                latest = max(latest, item.stat().st_mtime)
+                if item.is_file():
+                    count += 1
+            except Exception:
+                continue
+    return latest, count
+
+
+def _most_active_disk_user_id() -> str:
+    users = data_dir() / "users"
+    if not users.exists():
+        return ""
+    candidates = []
+    for child in users.iterdir():
+        if not child.is_dir() or child.name in {"default", "webui"}:
+            continue
+        latest, count = _path_activity_score(child)
+        if count:
+            candidates.append((latest, child.name))
+    if not candidates:
+        return ""
+    return max(candidates)[1]
+
+
 def resolve_active_user_id(explicit: Any = None, self_ref: Any = None,
                            dashboard_state: Optional[Dict[str, Any]] = None) -> str:
     if explicit:
         return normalize_user_id(explicit)
 
     dashboard_state = dashboard_state or {}
-    if dashboard_state.get("active_user"):
+    active = dashboard_state.get("active_user")
+    if active and normalize_user_id(active) not in {"default", "webui"}:
         return normalize_user_id(dashboard_state["active_user"])
 
-    runtime_state = getattr(self_ref, "state", None)
-    if runtime_state and getattr(runtime_state, "user_id", None):
-        return normalize_user_id(runtime_state.user_id)
+    tracked = _tracked_active_user_id()
+    if tracked:
+        return normalize_user_id(tracked)
 
-    owner = os.environ.get("TELEGRAM_OWNER_ID", "")
+    owner = _configured_owner_id()
     if owner:
         return normalize_user_id(owner)
+
+    runtime_state = getattr(self_ref, "state", None)
+    runtime_user = getattr(runtime_state, "user_id", None) if runtime_state else None
+    if runtime_user and normalize_user_id(runtime_user) not in {"default", "webui"}:
+        return normalize_user_id(runtime_state.user_id)
+
+    disk_user = _most_active_disk_user_id()
+    if disk_user:
+        return normalize_user_id(disk_user)
+
+    if active:
+        return normalize_user_id(active)
+
+    if runtime_user:
+        return normalize_user_id(runtime_user)
 
     return "webui"
 
@@ -134,19 +204,26 @@ def _load_journal(user_id: str) -> List[Dict[str, Any]]:
 def _load_episodic_fallback(user_id: str, limit_turns: int) -> List[Dict[str, Any]]:
     base = user_base(user_id) / "conversations"
     legacy = data_dir() / "conversations"
-    conv_dir = base if list(base.glob("*.jsonl")) else legacy
-    if not conv_dir.exists():
+    conv_dirs = [base]
+    if legacy != base:
+        conv_dirs.append(legacy)
+    bot_prefixed = [p for p in (data_dir() / "users").glob(f"*_{normalize_user_id(user_id)}")
+                   if (p / "conversations").exists()]
+    conv_dirs.extend(p / "conversations" for p in bot_prefixed)
+
+    existing_dirs = [p for p in conv_dirs if p.exists() and list(p.glob("*.jsonl"))]
+    if not existing_dirs:
         return []
 
     turns: List[Dict[str, Any]] = []
-    for file in sorted(conv_dir.glob("*.jsonl"), reverse=True):
-        file_rows = _read_jsonl(file)
-        turns.extend(reversed(file_rows))
-        if len(turns) >= limit_turns:
-            break
+    for conv_dir in existing_dirs:
+        for file in sorted(conv_dir.glob("*.jsonl"), reverse=True):
+            file_rows = _read_jsonl(file)
+            turns.extend(reversed(file_rows))
+    turns = sorted(turns, key=lambda row: row.get("timestamp", ""), reverse=True)[:limit_turns]
 
     messages: List[Dict[str, Any]] = []
-    for row in reversed(turns[:limit_turns]):
+    for row in reversed(turns):
         ts = row.get("timestamp", "")
         if row.get("user"):
             messages.append(_format_entry({
@@ -168,7 +245,24 @@ def _load_episodic_fallback(user_id: str, limit_turns: int) -> List[Dict[str, An
 
 
 def load_chat_messages(user_id: str, limit: int = 60) -> List[Dict[str, Any]]:
-    messages = _load_journal(user_id)
-    if not messages:
-        messages = _load_episodic_fallback(user_id, max(1, limit // 2))
-    return messages[-limit:]
+    if limit and limit > 0:
+        episodic_limit = max(1, limit // 2)
+    else:
+        episodic_limit = 1_000_000
+    messages = _load_episodic_fallback(user_id, episodic_limit)
+    messages.extend(_load_journal(user_id))
+
+    deduped: Dict[str, Dict[str, Any]] = {}
+    for msg in messages:
+        key = msg.get("message_id") or f"{msg.get('role')}:{msg.get('timestamp')}:{msg.get('content')}"
+        deduped[key] = msg
+
+    ordered = sorted(
+        deduped.values(),
+        key=lambda m: m.get("timestamp") or ""
+    )
+    return ordered[-limit:] if limit and limit > 0 else ordered
+
+
+def count_visible_messages(user_id: str) -> int:
+    return len(load_chat_messages(user_id, limit=0))

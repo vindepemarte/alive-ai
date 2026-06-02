@@ -140,9 +140,21 @@ class CircadianEngine:
         return round(self._clamp(sleepiness), 2)
 
     def _should_auto_sleep(self, now: datetime) -> bool:
-        if self._is_forced_awake(now):
+        sleepiness = self.get_sleepiness()
+        if not (2 <= now.hour < 6 and sleepiness >= 0.85):
             return False
-        return 2 <= now.hour < 6 and self.get_sleepiness() >= 0.85
+        if not self._is_forced_awake(now):
+            return True
+        # After 2am, sleep pressure can override a user wake-up. Messages can
+        # briefly rouse her, but they should not pin her awake for another hour.
+        if sleepiness >= 0.95:
+            return True
+        try:
+            until = datetime.fromisoformat(self.forced_awake_until) if self.forced_awake_until else now
+            forced_started = until - timedelta(minutes=self._forced_awake_duration_minutes(now))
+            return (now - forced_started).total_seconds() >= 10 * 60
+        except Exception:
+            return sleepiness >= 0.9
 
     def _should_auto_wake(self, now: datetime) -> bool:
         slept = self._hours_asleep(now)
@@ -231,9 +243,21 @@ class CircadianEngine:
         self._save()
         return True
 
-    def stay_up_for_user(self, duration_minutes: int = 45):
+    def _forced_awake_duration_minutes(self, now: datetime = None) -> int:
+        now = now or self._now()
+        sleepiness = self.get_sleepiness()
+        if 2 <= now.hour < 6 and sleepiness >= 0.9:
+            return 10
+        if 0 <= now.hour < 6 and sleepiness >= 0.85:
+            return 20
+        if now.hour >= 23 and sleepiness >= 0.75:
+            return 30
+        return 45
+
+    def stay_up_for_user(self, duration_minutes: int = None):
         """User is keeping her awake past bedtime."""
         now = self._now()
+        duration_minutes = duration_minutes or self._forced_awake_duration_minutes(now)
         self.forced_awake = True
         self.forced_awake_until = (now + timedelta(minutes=duration_minutes)).isoformat()
         self.last_transition_reason = "staying_up_for_user"
