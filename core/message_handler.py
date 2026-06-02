@@ -1174,7 +1174,8 @@ IMPORTANT: You are sending this media ALONG with your message. Reference it natu
             # (not mid-sentence reasoning which is natural dialogue)
             reasoning_starts = [
                 "I need to", "I should", "He wants me to", "She wants me to",
-                "I have to", "Let me think", "My goal is", "The user is"
+                "I have to", "Let me think", "My goal is", "The user is",
+                "Thinking Process", "Analysis:", "Reasoning:", "1. **Analyze"
             ]
             first_30 = response[:30].lower()
             for pattern in reasoning_starts:
@@ -1186,6 +1187,13 @@ IMPORTANT: You are sending this media ALONG with your message. Reference it natu
                         identity=self.config.identity,
                     )
             shaped = shape_response_text(response, response_policy, identity=self.config.identity)
+            if not shaped:
+                print("[Think] Reasoning preamble stripped without final answer, using fallback")
+                shaped = shape_response_text(
+                    fallback_response(emotion, msg),
+                    response_policy,
+                    identity=self.config.identity,
+                )
             if shaped != response:
                 print(
                     f"[Think] Response shape repaired: "

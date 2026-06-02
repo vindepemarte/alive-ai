@@ -25,6 +25,21 @@ ROLE_LEAK_PATTERNS = [
     "project name",
 ]
 
+REASONING_START_PATTERNS = [
+    "thinking process",
+    "analysis:",
+    "reasoning:",
+    "step 1:",
+    "1. analyze",
+    "1. **analyze",
+    "analyze the request",
+    "the user wants",
+    "the user is asking",
+    "i need to",
+    "i should",
+    "my goal is",
+]
+
 
 def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
     try:
@@ -300,13 +315,39 @@ def has_role_leakage(text: str, allow_system_terms: bool = False) -> bool:
     return any(pattern in lower for pattern in patterns)
 
 
+def strip_reasoning_preamble(text: str) -> str:
+    """Remove visible chain-of-thought style preambles if a final answer exists."""
+    original = (text or "").strip()
+    lower = original.lower().lstrip()
+    if not any(lower.startswith(pattern) for pattern in REASONING_START_PATTERNS):
+        return original
+
+    final_markers = (
+        "final answer:",
+        "final response:",
+        "response:",
+        "answer:",
+        "what i would say:",
+    )
+    for marker in final_markers:
+        idx = lower.rfind(marker)
+        if idx > 0:
+            return original[idx + len(marker):].strip()
+    return ""
+
+
+def has_reasoning_preamble(text: str) -> bool:
+    lower = (text or "").lower().lstrip()
+    return any(lower.startswith(pattern) for pattern in REASONING_START_PATTERNS)
+
+
 def shape_response_text(
     response: str,
     policy: ResponseShapePolicy,
     identity: Mapping[str, Any] | None = None,
 ) -> str:
     """Repair model output so the response policy has runtime consequences."""
-    text = (response or "").strip()
+    text = strip_reasoning_preamble(response)
     if not text:
         return text
 

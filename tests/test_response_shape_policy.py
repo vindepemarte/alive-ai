@@ -3,6 +3,7 @@ import unittest
 from core.thinking import (
     build_response_shape_policy,
     has_role_leakage,
+    strip_reasoning_preamble,
     shape_response_text,
 )
 
@@ -92,6 +93,24 @@ class ResponseShapePolicyTests(unittest.TestCase):
         self.assertLessEqual(policy.max_words, 70)
         self.assertEqual(policy.max_questions, 0)
         self.assertIn("restraint", policy.hesitation_instruction)
+
+    def test_reasoning_preamble_without_final_answer_is_stripped(self):
+        self.assertEqual(
+            strip_reasoning_preamble(
+                "Thinking Process: 1. **Analyze the Request:** The user wants a short reply."
+            ),
+            "",
+        )
+
+    def test_reasoning_preamble_with_final_answer_keeps_only_answer(self):
+        policy = build_response_shape_policy({"mood": "neutral"}, "hey", {})
+        shaped = shape_response_text(
+            "Thinking Process: analyze the request. Final Answer: just here with you.",
+            policy,
+            identity={"name": "Alice", "pronouns": "she/her"},
+        )
+
+        self.assertEqual(shaped, "just here with you.")
 
 
 if __name__ == "__main__":

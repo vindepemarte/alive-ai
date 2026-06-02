@@ -179,12 +179,12 @@ class OllamaClient(BaseLLM):
                 message = data.get("message", {})
                 content = message.get("content", "")
 
-                # Some models (like deepseek-r1, JOSIEFIED) use 'thinking' field
+                # Some models expose private reasoning in a separate `thinking`
+                # field. Do not send that as visible chat content.
                 if not content or not content.strip():
                     thinking = message.get("thinking", "")
                     if thinking and thinking.strip():
-                        content = thinking
-                        print(f"[Ollama] Using 'thinking' content instead of 'content'")
+                        print("[Ollama] Response had thinking but no visible content")
 
                 if not content or not content.strip():
                     print(f"[Ollama] Empty content in response: {data}")
