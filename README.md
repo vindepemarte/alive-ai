@@ -117,7 +117,7 @@ mypics/
 myvids/
 ```
 
-The setup accepts `skip` for optional keys and `local` for Ollama.
+The setup accepts `skip` for optional keys and `local` for Ollama. It also asks for the agent's personal name, gender identity, sexuality, and full name. If you skip the full name, setup derives one from the chosen first name. The agent treats `Alive-AI` as the runtime/framework name, not as their personal identity.
 
 Startup config is loaded from:
 
@@ -280,6 +280,8 @@ The real WebUI streams local runtime state over Server-Sent Events and shows:
 The WebUI hydrates from durable runtime stores instead of only the current browser session. It resolves the active dashboard user from explicit WebUI input, live Telegram activity, configured owner ID, runtime state, and finally the most active user folder on disk. Chat rows are journaled per active user under `data/users/<user>/webui_chat.jsonl` and merged with episodic Telegram conversation history, including legacy flat `data/conversations` history after upgrades. `/state` and the SSE stream now use the same composed snapshot: visible chat, runtime state, soul state, aliveness state, current thoughts, memory counters, and the active dashboard user.
 
 Sleep debt is stored and shown as hours on a 0-8h pressure scale. The UI no longer reports it as a misleading capped percentage, so a persisted `5.6h` debt displays as `5.6h` with the matching pressure bar.
+
+The Story panel can re-analyze existing episodic history for obvious missed key moments such as love language, intimacy, goodnight rituals, and shared dreams. This backfill runs from persisted history so older conversations are not stuck at zero moments after an upgrade.
 
 Settings edits validate JSON before saving and write atomically, so a bad edit cannot corrupt the existing config file. The Settings tab also protects unsaved edits while switching tabs.
 

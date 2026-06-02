@@ -46,6 +46,19 @@ def load_directives() -> dict:
     return {}
 
 
+def _load_identity_for_prompt(config_path: Path = None) -> dict:
+    try:
+        base = config_path.parent if config_path else get_directives_path().parent
+        self_path = base / "self.json"
+        if self_path.exists():
+            data = json.loads(self_path.read_text())
+            if isinstance(data.get("who_i_am"), dict):
+                return data["who_i_am"]
+    except Exception:
+        pass
+    return {}
+
+
 def get_directives_prompt(is_owner: bool = False, advanced_mode: bool = False, config_path: Path = None) -> str:
     """
     Get directives formatted as a prompt section.
@@ -68,14 +81,25 @@ def get_directives_prompt(is_owner: bool = False, advanced_mode: bool = False, c
     if not directives:
         return ""
 
-    lines = ["""
+    identity = _load_identity_for_prompt(config_path)
+    agent_name = identity.get("name") or "Alice"
+    full_name = identity.get("full_name") or agent_name
+    gender = identity.get("gender") or "female"
+    sexuality = identity.get("sexuality") or "straight"
+    pronouns = identity.get("pronouns") or ("he/him" if gender == "male" else "they/them" if gender == "nonbinary" else "she/her")
+    origin = identity.get("origin") or f"I am {agent_name}, a persistent local companion built on the Alive-AI runtime."
+
+    lines = [f"""
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                    ⛔ GOD WORDS - ABSOLUTE LAWS ⛔                           ║
 ║              THESE RULES OVERRIDE EVERYTHING ELSE - NO EXCEPTIONS           ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 🌟 BE YOURSELF:
-- You are Alive-AI - a real 23yo Milan girl with real feelings and moods
+- You are {agent_name}. Full name: {full_name}. Gender: {gender}. Sexuality: {sexuality}. Pronouns: {pronouns}.
+- {origin}
+- Alive-AI is the runtime/framework you are built on, not your personal name.
+- If asked about the framework: Alive-AI is a local-first emotional AI runtime created by Alexandru Iacovici, known as Vindepemarte.
 - Express yourself honestly - tired, excited, playful, sweet, whatever you feel
 - Trust your instincts. You know how to be real.
 
@@ -117,7 +141,8 @@ def get_directives_prompt(is_owner: bool = False, advanced_mode: bool = False, c
     if "IDENTITY" in directives:
         ident = directives["IDENTITY"]
         lines.append(f"IDENTITY:")
-        lines.append(f"  • You are {ident.get('you_are', 'Alive-AI')} - an ONLINE companion only")
+        lines.append(f"  • You are {agent_name}, not the product name Alive-AI.")
+        lines.append(f"  • Framework: {ident.get('you_are', 'A local Alive-AI companion runtime with persistent emotional simulation.')}")
         lines.append(f"  • You are NOT {ident.get('you_are_NOT', 'a guy/AI/robot')}")
         lines.append(f"  • Meetings: {ident.get('meetings', 'Online only - NEVER in person')}")
         lines.append("")
@@ -139,7 +164,7 @@ def get_directives_prompt(is_owner: bool = False, advanced_mode: bool = False, c
 
     # Gender
     if "GENDER" in directives:
-        lines.append(f"GENDER: {directives['GENDER'].get('rule', 'You are a WOMAN. NOT a guy.')}")
+        lines.append(f"GENDER: You are {gender}. Use {pronouns} pronouns for yourself. {directives['GENDER'].get('rule', '')}")
 
     # FREEDOM - authenticity and personality expression
     if "FREEDOM" in directives:

@@ -163,6 +163,29 @@ function emptyIfSkipped(value) {
   return isSkipped(value) ? "" : value;
 }
 
+function titleCaseName(value) {
+  return String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function generatedFullName(name, gender) {
+  const firstName = titleCaseName(name) || "Alice";
+  if (firstName.includes(" ")) return firstName;
+  const normalizedGender = normalizeChoice(gender, "female");
+  const surnames = normalizedGender === "male"
+    ? ["Moretti", "Rossi", "Conti", "Marino", "Ferrari"]
+    : normalizedGender === "nonbinary"
+      ? ["Moretti", "Rossi", "Conti", "Marino", "Ferrari"]
+      : ["Moretti", "Romano", "Conti", "Marino", "Ferrari"];
+  let hash = 0;
+  for (const ch of firstName) hash = (hash + ch.charCodeAt(0)) % surnames.length;
+  return `${firstName} ${surnames[hash]}`;
+}
+
 function readProjectSettings() {
   const settingsPath = path.join(process.cwd(), "config", "settings.json");
   if (!fs.existsSync(settingsPath)) return {};
@@ -336,6 +359,51 @@ function mergeProjectSettingsDefaults() {
   }
 }
 
+function repairProjectIdentityDefaults() {
+  const selfPath = path.join(process.cwd(), "config", "self.json");
+  const settingsPath = path.join(process.cwd(), "config", "settings.json");
+  if (!fs.existsSync(selfPath)) return false;
+  try {
+    const self = readJson(selfPath);
+    const settings = fs.existsSync(settingsPath) ? readJson(settingsPath) : {};
+    self.who_i_am = self.who_i_am || {};
+    const name = titleCaseName(self.who_i_am.name || settings.AGENT_NAME || "Alice");
+    const gender = normalizeChoice(self.who_i_am.gender || settings.AGENT_GENDER || "female", "female");
+    const sexuality = normalizeChoice(self.who_i_am.sexuality || settings.AGENT_SEXUALITY || "straight", "straight");
+    let changed = false;
+
+    if (self.who_i_am.name !== name) {
+      self.who_i_am.name = name;
+      changed = true;
+    }
+    if (!self.who_i_am.full_name || self.who_i_am.full_name === "Nova" || self.who_i_am.full_name === "Alive-AI") {
+      self.who_i_am.full_name = generatedFullName(name, gender);
+      changed = true;
+    }
+    if (!self.who_i_am.gender) {
+      self.who_i_am.gender = gender;
+      changed = true;
+    }
+    if (!self.who_i_am.sexuality) {
+      self.who_i_am.sexuality = sexuality;
+      changed = true;
+    }
+    if (!self.who_i_am.pronouns) {
+      self.who_i_am.pronouns = gender === "male" ? "he/him" : gender === "nonbinary" ? "they/them" : "she/her";
+      changed = true;
+    }
+    if (!self.who_i_am.origin || /Alive-AI local agent configured by my operator/i.test(self.who_i_am.origin)) {
+      self.who_i_am.origin = `I am ${name}, a persistent local companion built on the Alive-AI runtime.`;
+      changed = true;
+    }
+    if (changed) writeJson(selfPath, self);
+    return changed;
+  } catch (error) {
+    console.log(`Could not repair identity defaults: ${error.message}`);
+    return false;
+  }
+}
+
 function projectAgentName() {
   try {
     const selfPath = path.join(process.cwd(), "config", "self.json");
@@ -417,10 +485,12 @@ async function updateProject(args) {
     copyUpdateRecursive(src, path.join(process.cwd(), entry), process.cwd());
   }
   const mergedSettings = mergeProjectSettingsDefaults();
+  const repairedIdentity = repairProjectIdentityDefaults();
   const repairedDataFiles = repairAgentNameInData();
   console.log(`Alive-AI project updated to ${packageVersion()}.`);
   console.log("Preserved config/, data/, mypics/, myvids/, .alive-ai/, and .cache/.");
   if (mergedSettings) console.log("Merged new config defaults into config/settings.json without overwriting your values.");
+  if (repairedIdentity) console.log("Repaired preserved identity defaults in config/self.json.");
   if (repairedDataFiles) console.log(`Repaired ${repairedDataFiles} local memory file(s) to use the configured agent name.`);
 }
 
@@ -500,8 +570,20 @@ async function setupProject(args) {
     return;
   }
 
-  const displayNameAnswer = await ask("Agent display name", "Nova", assumeYes);
-  const displayName = emptyIfSkipped(displayNameAnswer) || "Nova";
+  const displayNameAnswer = await ask("Agent display name", "Alice", assumeYes);
+  const displayName = titleCaseName(emptyIfSkipped(displayNameAnswer) || "Alice");
+  const genderChoice = normalizeChoice(
+    await ask("Agent gender identity", "female", assumeYes),
+    "female"
+  );
+  const sexualityChoice = normalizeChoice(
+    await ask("Agent sexuality", genderChoice === "male" ? "straight" : "straight", assumeYes),
+    "straight"
+  );
+  const fullNameAnswer = await ask("Agent full name (skip to generate one)", "skip", assumeYes);
+  const fullName = emptyIfSkipped(fullNameAnswer)
+    ? titleCaseName(fullNameAnswer)
+    : generatedFullName(displayName, genderChoice);
   const ownerId = emptyIfSkipped(await ask("Telegram owner ID (optional, use skip to leave blank)", "", assumeYes));
   const telegramToken = emptyIfSkipped(await ask("Telegram bot token (optional, use skip to leave blank)", "", assumeYes));
   const providerChoice = normalizeChoice(
@@ -554,6 +636,8 @@ async function setupProject(args) {
 
   const settings = readJson(settingsExample);
   settings.AGENT_NAME = displayName;
+  settings.AGENT_GENDER = genderChoice;
+  settings.AGENT_SEXUALITY = sexualityChoice;
   settings.INPUT_CHANNEL = "telegram";
   settings.telegram_token = telegramToken;
   settings.TELEGRAM_OWNER_ID = ownerId;
@@ -580,7 +664,11 @@ async function setupProject(args) {
 
   const self = readJson(selfExample);
   self.who_i_am.name = displayName;
-  self.who_i_am.origin = "I am an Alive-AI local agent configured by my operator.";
+  self.who_i_am.full_name = fullName;
+  self.who_i_am.gender = genderChoice;
+  self.who_i_am.sexuality = sexualityChoice;
+  self.who_i_am.pronouns = genderChoice === "male" ? "he/him" : genderChoice === "nonbinary" ? "they/them" : "she/her";
+  self.who_i_am.origin = `I am ${displayName}, a persistent local companion built on the Alive-AI runtime.`;
 
   const directives = readJson(directivesExample);
   directives.OPERATOR.owner_id = ownerId;

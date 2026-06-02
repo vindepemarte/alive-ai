@@ -15,6 +15,21 @@ from .persistence import append_chat_message, new_message_id, resolve_active_use
 _webui_server = None
 
 
+def _event_timestamp(data):
+    value = data.get("timestamp") or data.get("created_at") or data.get("generated_at")
+    if not value and isinstance(data.get("context"), dict):
+        value = data["context"].get("generated_at") or data["context"].get("timestamp")
+    return value or datetime.now().isoformat()
+
+
+def _event_time(data):
+    try:
+        return datetime.fromisoformat(_event_timestamp(data)).strftime("%H:%M:%S")
+    except Exception:
+        text = str(_event_timestamp(data))
+        return text[11:19] if len(text) >= 19 else text
+
+
 def init_bridge(nervous, ai=None):
     """Connect nervous system events to webui updates"""
     if ai is not None:
@@ -88,7 +103,8 @@ def init_bridge(nervous, ai=None):
                 "thought": thought,
                 "type": impulse_type,
                 "emotion": {},
-                "time": __import__("datetime").datetime.now().strftime("%H:%M:%S")
+                "time": _event_time(data),
+                "timestamp": _event_timestamp(data),
             })
             # Keep last 10 thoughts
             alive_ai_state["recent_thoughts"] = alive_ai_state["recent_thoughts"][-10:]
@@ -109,7 +125,8 @@ def init_bridge(nervous, ai=None):
                 "thought": thought,
                 "type": thought_type,
                 "emotion": emotion,
-                "time": __import__("datetime").datetime.now().strftime("%H:%M:%S")
+                "time": _event_time(data),
+                "timestamp": _event_timestamp(data),
             })
             # Keep last 10 thoughts
             alive_ai_state["recent_thoughts"] = alive_ai_state["recent_thoughts"][-10:]
@@ -136,6 +153,8 @@ def init_bridge(nervous, ai=None):
     async def on_idle_thought(data):
         """Track idle thoughts from default mode processor"""
         try:
+            if isinstance(data, dict) and "time" not in data:
+                data = {**data, "time": _event_time(data), "timestamp": _event_timestamp(data)}
             # Add to recent bids/thoughts
             update_idle_state({
                 "recent_thoughts": [data] if isinstance(data, dict) else [],

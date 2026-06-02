@@ -292,6 +292,30 @@ def _runtime_chat_ready() -> bool:
     return len(listeners.get("message_received", [])) > 1
 
 
+def _agent_identity() -> dict:
+    identity = {}
+    try:
+        runtime_identity = getattr(getattr(_self_ref, "config", None), "identity", None)
+        if isinstance(runtime_identity, dict):
+            identity.update(runtime_identity)
+    except Exception:
+        pass
+    try:
+        config_path = Path(os.environ.get("ALIVE_AI_ROOT", ".")) / "config" / "self.json"
+        if config_path.exists():
+            data = json.loads(config_path.read_text())
+            if isinstance(data.get("who_i_am"), dict):
+                identity.update(data["who_i_am"])
+    except Exception:
+        pass
+    return {
+        "name": identity.get("name") or os.environ.get("AGENT_NAME") or "Alice",
+        "full_name": identity.get("full_name") or identity.get("name") or "Alice",
+        "gender": identity.get("gender") or "female",
+        "sexuality": identity.get("sexuality") or "straight",
+    }
+
+
 def _subconscious_thoughts(limit: int = 10) -> list:
     thoughts = []
     sub = getattr(_self_ref, "_subconscious", None)
@@ -299,11 +323,13 @@ def _subconscious_thoughts(limit: int = 10) -> list:
     if wm and hasattr(wm, "get_recent_thoughts"):
         try:
             for thought in wm.get_recent_thoughts(limit):
+                thought_time = getattr(thought, "timestamp", None) or getattr(thought, "created_at", None)
                 thoughts.append({
                     "thought": getattr(thought, "content", ""),
                     "type": getattr(thought, "type", "reflection"),
                     "emotion": getattr(thought, "emotion", {}) or {},
-                    "time": _format_time(getattr(thought, "created_at", None)),
+                    "time": _format_time(thought_time),
+                    "timestamp": _format_timestamp(thought_time),
                 })
         except Exception:
             thoughts = []
@@ -314,7 +340,7 @@ def _subconscious_thoughts(limit: int = 10) -> list:
 
 def _format_time(value) -> str:
     if not value:
-        return datetime.now().strftime("%H:%M:%S")
+        return ""
     try:
         if isinstance(value, datetime):
             return value.strftime("%H:%M:%S")
@@ -324,12 +350,24 @@ def _format_time(value) -> str:
         return text[11:19] if len(text) >= 19 else text
 
 
+def _format_timestamp(value) -> str:
+    if not value:
+        return ""
+    try:
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return datetime.fromisoformat(str(value)).isoformat()
+    except Exception:
+        return str(value)
+
+
 def build_snapshot(user_id: str = None) -> dict:
     """Compose the dashboard state from live and durable runtime stores."""
     active_user = _active_user_id(user_id)
     snapshot = dict(alive_ai_state)
     snapshot["active_user"] = active_user
     snapshot["runtime"] = _runtime_state_dict()
+    snapshot["identity"] = _agent_identity()
     snapshot["soul"] = soul_state
     snapshot["aliveness"] = aliveness_state
     snapshot["conversation"] = load_chat_messages(active_user)
@@ -773,12 +811,32 @@ def update_inconsistency_state(data: dict):
 @app.get("/api/aliveness/interoceptive")
 async def get_interoceptive_state():
     """Get current interoceptive states (internal body)"""
+    try:
+        from heart.circadian import get_circadian_engine
+        circadian = get_circadian_engine().get_state_summary()
+    except Exception:
+        circadian = {}
+
     # Try to get fresh data from the interoceptive system
     try:
         from heart.interoception import get_interoceptive_system
         system = get_interoceptive_system()
         states = system.get_state_values()
         report = system.get_feeling_report()
+        if circadian.get("sleeping"):
+            mods = circadian.get("modifiers", {})
+            return {
+                "states": {
+                    "energy": {"current_value": mods.get("energy", 0.05)},
+                    "social_satiety": {"current_value": states.get("social_satiety", 0.5)},
+                    "emotional_valence": {"current_value": -0.05},
+                    "certainty": {"current_value": 0.25},
+                },
+                "current_mood": "asleep",
+                "bodily_description": "asleep, heavy, quiet, and barely responsive",
+                "needs": ["sleep", "rest"],
+                "updated_at": aliveness_state["interoceptive"].get("updated_at")
+            }
 
         return {
             "states": {name: {"current_value": val} for name, val in states.items()},
@@ -979,6 +1037,9 @@ async def get_new_aliveness():
 
         if owner_id:
             data = ne._get_data(owner_id)
+            if not data.get("key_moments"):
+                ne.backfill_key_moments(owner_id)
+                data = ne._get_data(owner_id)
             msg_count = data.get("message_count", 0)
 
             # If narrative has no count, count actual messages from episodic files

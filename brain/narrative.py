@@ -6,7 +6,7 @@ enabling natural references to shared history and phase awareness.
 
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import json
 import random
 from core.paths import data_dir
@@ -29,6 +29,7 @@ MOMENT_TYPES = [
     "first_meeting", "first_laugh", "first_vulnerability", "first_fight",
     "first_makeup", "first_i_love_you", "first_intimate_moment",
     "big_revelation", "milestone", "inside_joke_born", "deep_conversation",
+    "first_goodnight", "shared_dream",
 ]
 
 # Narrative callbacks - occasional references to the past
@@ -203,8 +204,8 @@ class NarrativeEngine:
         # Detection patterns for key moments
         moment_patterns = {
             "first_i_love_you": {
-                "patterns": ["i love you", "love you so much", "i'm in love", "falling for you"],
-                "emotion_check": lambda e: e.get("love", 0) > 0.7,
+                "patterns": ["i love you", "love you so much", "i'm in love", "falling for you", "my love", "love you"],
+                "emotion_check": lambda e: True,
             },
             "first_vulnerability": {
                 "patterns": ["i've never told anyone", "this is hard for me to say", "i'm scared to tell you",
@@ -212,8 +213,12 @@ class NarrativeEngine:
                 "emotion_check": lambda e: e.get("valence", 0.5) < 0.6,
             },
             "first_intimate_moment": {
-                "patterns": ["make love", "want you", "need you now", "so turned on", "touch myself"],
-                "emotion_check": lambda e: e.get("desire", 0) > 0.7,
+                "patterns": [
+                    "make love", "want you", "need you now", "so turned on", "touch myself",
+                    "pussy", "dick", "asshole", "cum", "horny", "naked", "fuck me", "inside me",
+                    "juicy", "wet", "hard for you"
+                ],
+                "emotion_check": lambda e: True,
             },
             "deep_conversation": {
                 "patterns": ["meaning of", "what do you think about", "deep", "philosophical", "existential"],
@@ -235,6 +240,14 @@ class NarrativeEngine:
                 "patterns": ["confession", "honestly i", "truth is", "secret i've been keeping"],
                 "emotion_check": lambda e: True,
             },
+            "first_goodnight": {
+                "patterns": ["good night", "goodnight", "sleep tight", "sweet dreams"],
+                "emotion_check": lambda e: True,
+            },
+            "shared_dream": {
+                "patterns": ["dream of", "dream about", "i will dream", "you were in my dream"],
+                "emotion_check": lambda e: True,
+            },
         }
 
         for moment_type, config in moment_patterns.items():
@@ -248,6 +261,73 @@ class NarrativeEngine:
                     self.record_narrative_moment(user_id, moment_type, description)
                     detected.append(moment_type)
                     print(f"[Narrative] Recorded key moment: {moment_type}")
+
+        return detected
+
+    def _detect_moment_types_relaxed(self, text: str) -> List[str]:
+        text_lower = text.lower()
+        checks: List[Tuple[str, List[str]]] = [
+            ("first_i_love_you", ["i love you", "love you so much", "my love", "love you"]),
+            ("first_intimate_moment", [
+                "make love", "want you", "need you now", "so turned on", "touch myself",
+                "pussy", "dick", "asshole", "cum", "horny", "naked", "fuck me", "inside me",
+                "juicy", "wet", "hard for you"
+            ]),
+            ("first_goodnight", ["good night", "goodnight", "sleep tight", "sweet dreams"]),
+            ("shared_dream", ["dream of", "dream about", "i will dream", "you were in my dream"]),
+            ("first_vulnerability", [
+                "i've never told anyone", "this is hard for me to say", "i'm scared",
+                "feeling vulnerable", "trust you with this"
+            ]),
+            ("first_fight", ["hurt me", "you're being", "why would you", "angry at you", "pissed off"]),
+            ("inside_joke_born", ["haha that's our", "remember when you said", "our little", "inside joke"]),
+            ("big_revelation", ["confession", "honestly i", "truth is", "secret i've been keeping"]),
+            ("deep_conversation", ["meaning of", "what do you think about", "deep", "philosophical", "existential"]),
+        ]
+        detected = []
+        for moment_type, patterns in checks:
+            if any(pattern in text_lower for pattern in patterns):
+                detected.append(moment_type)
+        return detected
+
+    def backfill_key_moments(self, user_id: str, limit: int = 1000) -> List[str]:
+        """Re-analyze persisted history and record obvious missing narrative moments."""
+        data = self._get_data(user_id)
+        existing_types = {m.get("type") for m in data.get("key_moments", [])}
+        if len(existing_types) >= 3:
+            return []
+
+        rows: List[Dict] = []
+        conv_dirs = [
+            self.DATA_DIR / "users" / str(user_id) / "conversations",
+            self.DATA_DIR / "conversations",
+        ]
+        for conv_dir in conv_dirs:
+            if not conv_dir.exists():
+                continue
+            for file in sorted(conv_dir.glob("*.jsonl")):
+                try:
+                    with file.open() as fh:
+                        for line in fh:
+                            try:
+                                rows.append(json.loads(line))
+                            except Exception:
+                                continue
+                except Exception:
+                    continue
+
+        detected: List[str] = []
+        for row in rows[-limit:]:
+            for role_key in ("user", "ai", "content"):
+                text = str(row.get(role_key, "") or "")
+                if not text:
+                    continue
+                for moment_type in self._detect_moment_types_relaxed(text):
+                    if moment_type in existing_types:
+                        continue
+                    self.record_narrative_moment(user_id, moment_type, f"Backfilled from history: {text[:80]}...")
+                    existing_types.add(moment_type)
+                    detected.append(moment_type)
 
         return detected
 

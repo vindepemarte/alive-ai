@@ -1,6 +1,8 @@
 {
   "_comment": "Alive-AI settings. Copy to config/settings.json with `npx alive-ai setup`.",
-  "AGENT_NAME": "Nova",
+  "AGENT_NAME": "Alice",
+  "AGENT_GENDER": "female",
+  "AGENT_SEXUALITY": "straight",
   "INPUT_CHANNEL": "telegram",
   "ALIVE_AI_TERMINAL_USER_ID": "terminal_owner",
   "telegram_token": "",
