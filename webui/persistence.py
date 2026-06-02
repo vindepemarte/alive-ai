@@ -205,11 +205,12 @@ def _load_episodic_fallback(user_id: str, limit_turns: int) -> List[Dict[str, An
     base = user_base(user_id) / "conversations"
     legacy = data_dir() / "conversations"
     conv_dirs = [base]
-    if legacy != base:
+    if legacy != base and not str(user_id).startswith("benchmark_"):
         conv_dirs.append(legacy)
-    bot_prefixed = [p for p in (data_dir() / "users").glob(f"*_{normalize_user_id(user_id)}")
-                   if (p / "conversations").exists()]
-    conv_dirs.extend(p / "conversations" for p in bot_prefixed)
+    if not str(user_id).startswith("benchmark_"):
+        bot_prefixed = [p for p in (data_dir() / "users").glob(f"*_{normalize_user_id(user_id)}")
+                       if (p / "conversations").exists()]
+        conv_dirs.extend(p / "conversations" for p in bot_prefixed)
 
     existing_dirs = [p for p in conv_dirs if p.exists() and list(p.glob("*.jsonl"))]
     if not existing_dirs:
