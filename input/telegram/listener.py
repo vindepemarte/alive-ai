@@ -552,6 +552,10 @@ class TelegramListener:
             "message": message,
             "chat_id": chat_id,
             "user_id": user_id,
+            "reason": data.get("reason"),
+            "anchor": data.get("anchor"),
+            "silence_minutes": data.get("silence_minutes"),
+            "arbiter_accepted": data.get("arbiter_accepted", False),
         })
 
     async def _send_proactive_message(self, data: dict):
@@ -570,6 +574,30 @@ class TelegramListener:
         if not target_chat_id:
             print("[Telegram] No chat_id for proactive message")
             return
+
+        if not data.get("arbiter_accepted"):
+            try:
+                from core.proactive_arbiter import get_proactive_arbiter
+                circadian = {}
+                emotion = {}
+                if hasattr(self, "heart") and self.heart:
+                    emotion = self.heart.get_state()
+                if emotion.get("circadian"):
+                    circadian = emotion.get("circadian")
+                decision = get_proactive_arbiter().decide(
+                    user_id=str(target_user_id or target_chat_id),
+                    reason=data.get("reason") or data.get("type") or "proactive",
+                    anchor=data.get("anchor") or data.get("original_reminder") or "",
+                    emotion=emotion,
+                    circadian=circadian,
+                    silence_minutes=float(data.get("silence_minutes") or 0),
+                    scheduled=bool(data.get("scheduled")),
+                )
+                if not decision.accepted:
+                    print(f"[Telegram] Proactive blocked: {decision.rejection_reason}")
+                    return
+            except Exception as e:
+                print(f"[Telegram] Proactive arbiter error (non-fatal): {e}")
 
         try:
             # Show typing first for natural feel

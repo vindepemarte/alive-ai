@@ -243,6 +243,8 @@ class SubconsciousLoop:
                     "message": final_message,
                     "user_id": msg.user_id,
                     "chat_id": msg.user_id,  # Use user_id as chat_id
+                    "reason": "scheduled",
+                    "anchor": msg.message,
                     "scheduled": True,
                     "original_reminder": msg.message,
                     "context": msg.context
@@ -383,7 +385,10 @@ Your message:"""
             await self.nervous.emit("proactive_message", {
                 "message": message,
                 "user_id": user.user_id,
-                "chat_id": user.chat_id
+                "chat_id": user.chat_id,
+                "reason": follow_up_type,
+                "anchor": follow_up_data.get("message", "") or f"{follow_up_type} after {user.silence_minutes:.0f}min silence",
+                "silence_minutes": user.silence_minutes,
             })
         except Exception as e:
             print(f"[Subconscious] Follow-up error: {e}")

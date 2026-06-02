@@ -497,8 +497,8 @@ async def dashboard():
 @app.get("/favicon.ico")
 async def favicon():
     """Serve the dashboard icon for browsers that still request /favicon.ico."""
-    icon_path = Path(__file__).parent / "static" / "icon.svg"
-    return FileResponse(icon_path, media_type="image/svg+xml")
+    icon_path = Path(__file__).parent / "static" / "favicon.png"
+    return FileResponse(icon_path, media_type="image/png")
 
 
 @app.get("/events")
@@ -524,6 +524,7 @@ async def get_state():
 @app.get("/avatar")
 async def get_avatar():
     """Serve a random avatar image"""
+    official_logo = Path(__file__).parent / "static" / "alive-ai-512.png"
     try:
         pics_path = media_dir("mypics") / "public"
 
@@ -540,6 +541,9 @@ async def get_avatar():
                 return FileResponse(images[0], media_type="image/jpeg")
     except Exception as e:
         print(f"[WebUI] Avatar error: {e}")
+
+    if official_logo.exists():
+        return FileResponse(official_logo, media_type="image/png")
 
     # Fallback placeholder (always returns something)
     return HTMLResponse(content='<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><circle cx="50" cy="50" r="40" fill="#ccc"/></svg>', media_type="image/svg+xml")
@@ -808,14 +812,49 @@ def update_inconsistency_state(data: dict):
         client.set()
 
 
+def _saved_circadian_sleeping() -> bool:
+    """Durable sleep state wins over transient body text in the dashboard."""
+    try:
+        from core.paths import state_file
+        paths = [state_file("circadian_state.json")]
+        configured = os.environ.get("ALIVE_AI_DATA_PATH") or os.environ.get("DATA_PATH")
+        if configured:
+            paths.append(Path(configured).expanduser().resolve() / "circadian_state.json")
+        for circadian_path in paths:
+            if circadian_path.exists():
+                saved_circadian = json.loads(circadian_path.read_text(encoding="utf-8"))
+                if saved_circadian.get("is_asleep") or saved_circadian.get("sleeping"):
+                    return True
+    except Exception:
+        return False
+    return False
+
+
 @app.get("/api/aliveness/interoceptive")
 async def get_interoceptive_state():
     """Get current interoceptive states (internal body)"""
+    durable_sleeping = _saved_circadian_sleeping()
     try:
         from heart.circadian import get_circadian_engine
         circadian = get_circadian_engine().get_state_summary()
     except Exception:
         circadian = {}
+    if durable_sleeping:
+        circadian["sleeping"] = True
+        circadian["is_asleep"] = True
+        mods = circadian.get("modifiers", {})
+        return {
+            "states": {
+                "energy": {"current_value": min(mods.get("energy", 0.05), 0.1)},
+                "social_satiety": {"current_value": 0.5},
+                "emotional_valence": {"current_value": -0.05},
+                "certainty": {"current_value": 0.25},
+            },
+            "current_mood": "asleep",
+            "bodily_description": "asleep, heavy, quiet, and barely responsive",
+            "needs": ["sleep", "rest"],
+            "updated_at": aliveness_state["interoceptive"].get("updated_at")
+        }
 
     # Try to get fresh data from the interoceptive system
     try:
@@ -823,11 +862,11 @@ async def get_interoceptive_state():
         system = get_interoceptive_system()
         states = system.get_state_values()
         report = system.get_feeling_report()
-        if circadian.get("sleeping"):
+        if circadian.get("sleeping") or durable_sleeping:
             mods = circadian.get("modifiers", {})
             return {
                 "states": {
-                    "energy": {"current_value": mods.get("energy", 0.05)},
+                    "energy": {"current_value": min(mods.get("energy", 0.05), 0.1)},
                     "social_satiety": {"current_value": states.get("social_satiety", 0.5)},
                     "emotional_valence": {"current_value": -0.05},
                     "certainty": {"current_value": 0.25},

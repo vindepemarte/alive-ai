@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/assets/logo.svg" alt="Alive-AI" width="96" height="96">
+  <img src="docs/assets/alive-ai-512.png" alt="Alive-AI official logo" width="128" height="128">
 
   # Alive-AI
 
@@ -39,6 +39,7 @@ The emotional layer now has real runtime consequences:
 | --- | --- | --- |
 | Core affect | Valence, arousal, dominance, trust, love, joy, desire, sadness, fear, anger, boredom, guilt, pride, jealousy, embarrassment, anticipation, hope, and dread. | Recomputed after every trigger so emotion changes affect mood, attachment, memory weighting, interoception, reactions, voice/media choices, and LLM tone. |
 | Complex emotions | Guilt, pride, jealousy, embarrassment, and anticipation. | They do not just label the dashboard. They push fear, sadness, anger, dominance, trust, arousal, joy, and future-facing behavior in different directions. |
+| Inner-state compiler | A compact response plan made from emotion, sleep pressure, body state, bids, dreams, memories, attachment, curiosity, conflicts, and narrative phase. | Every reply receives one prioritized inner-state briefing instead of a pile of disconnected prompt hints. The planner decides what to reveal, what to withhold, and whether the answer should comfort, answer directly, repair, ask, set a boundary, or drift back toward sleep. |
 | Hormones | Oxytocin, dopamine, serotonin, cortisol, melatonin, plus residual metabolites. | Hormones modulate perception, soul valence/arousal, emotional deltas, somatic body state, interoception, impulse probability, and prompt guidance. Stress makes her more vigilant; bonding increases trust; dopamine increases pursuit; serotonin stabilizes; melatonin slows her down. |
 | Internal body state | Energy, arousal, certainty, social satiety, cognitive load, connection craving, body sensations, and somatic memories. | The body state is persisted and feeds prompt tone, sleep/rest behavior, and whether she feels steady, overloaded, touchy, open, or withdrawn. |
 | Circadian rhythm | Phase, sleep pressure, sleep debt in hours, forced-awake windows, sleep cycle ID, wake time, and sleepiness. | She becomes sleepy, slows down, falls asleep, stops outward proactive behavior while asleep, can be woken by a message, recovers sleep debt, and wakes with lower or higher energy depending on rest. After 2am, high sleep pressure shortens user wake-up windows so she can drift back to sleep instead of staying pinned awake. |
@@ -46,6 +47,8 @@ The emotional layer now has real runtime consequences:
 | Narrative | Relationship phase (first_meeting → bonded) tracked per user. Key moments are detected from message content. | Phase and moment count are injected into the LLM prompt each turn. The dashboard shows the current phase and total key moments. |
 | Curiosity | Per-user knowledge map across topics detected in messages. Topics range from 0 (unknown) to 1 (well-understood). | When knowledge on a topic is below 0.3 she asks a direct question. At 40% probability otherwise she surfaces curiosity as a prompt hint. Dashboard shows topics sorted by curiosity level. |
 | Internal conflicts | Five persistent desire-vs-fear tensions (closeness/independence, passion/comfort, stability/growth, etc.) with a swinging balance that is saved between sessions. | Every message triggers conflicts whose keywords match the topic. Balance swings over time. Conflicts with tension > 0 surface in the prompt and are visible on the dashboard with a tension bar. |
+| Proactive arbiter | A per-user audit log of accepted and rejected autonomous messages, with reason, anchor, score, cooldowns, and sleep state. | Idle thoughts cannot spam the user just because a random impulse fired. A proactive message needs a contextual anchor, enough silence, a high enough emotional score, no recent duplicate reason, and no active sleep block unless it is explicitly scheduled. |
+| Reflection and autobiography | Post-response reflection journal, global autobiography, and per-user relationship autobiography. | After each reply, Alive-AI checks whether it answered the user, matched its state, repeated itself, created or resolved an open loop, or discovered a repeated preference. Those records persist under `data/` and feed future continuity work. |
 | Persistence | Emotion, attachment, soul, somatic, unconscious, conflict, subconscious, circadian, and dream state under `data/`. | Restarting the runtime preserves the inner state instead of visually resetting it. |
 
 The public Pages site is a static explanation and dashboard export. The local WebUI is the live version: it streams the actual state from the running Python backend.
@@ -291,6 +294,8 @@ The WebUI hydrates from durable runtime stores instead of only the current brows
 
 Sleep debt is stored and shown as hours on a 0-8h pressure scale. The UI no longer reports it as a misleading capped percentage, so a persisted `5.6h` debt displays as `5.6h` with the matching pressure bar.
 
+The interoceptive panel treats durable circadian sleep as authoritative. If `data/circadian_state.json` says she is asleep, the dashboard reports asleep body state and low energy even when a stale live subsystem still has an awake body report in memory.
+
 The Story panel can re-analyze existing episodic history for obvious missed key moments such as love language, intimacy, goodnight rituals, and shared dreams. This backfill runs from persisted history so older conversations are not stuck at zero moments after an upgrade.
 
 Settings edits validate JSON before saving and write atomically, so a bad edit cannot corrupt the existing config file. The Settings tab also protects unsaved edits while switching tabs.
@@ -327,6 +332,9 @@ Implemented:
 - [x] Persistent emotion model with PAD-style core affect, decay, and compound state
 - [x] Working, episodic, semantic, and emotional memory modules
 - [x] Default-mode loop for idle thoughts and proactive impulses
+- [x] Inner-state compiler and response planner for coherent prompt assembly
+- [x] Contextual proactive-message arbiter with audit logging, cooldowns, and sleep gating
+- [x] Post-response reflection journal and persistent autobiography stores
 - [x] Attachment, circadian sleep/wake rhythm, body memory, curiosity, dreams, and internal conflicts
 - [x] Hormonal runtime effects for emotion, body state, interoception, impulses, and prompt guidance
 - [x] Durable internal state persistence across emotion, soul, body, subconscious, dreams, and conflicts

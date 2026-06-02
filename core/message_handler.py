@@ -6,6 +6,8 @@ from .thinking import build_mood_instruction, fallback_response
 from .follow_up import FollowUpSystem
 from .user_manager import get_user_manager, is_advanced_enabled
 from .user_tracker import get_user_tracker
+from .inner_state import InnerStateCompiler, signal_from_prompt
+from .reflection import PostResponseReflector
 
 # ============================================================
 # NEW ALIVENESS MODULES - Modular Integration
@@ -727,6 +729,7 @@ async def _process_single_message(self, data: dict):
         context["inconsistency_modifiers"] = inconsistency_modifiers
 
         # Pass is_owner and advanced_mode to think
+        recent_openings_before = _get_recent_openings(user_id).copy()
         response = await think(self, text, emotion, context, pet_name, is_owner=is_owner, advanced_mode=advanced_mode, user_id=user_id)
 
         # Track the opening of this response to prevent future repetition
@@ -797,6 +800,19 @@ async def _process_single_message(self, data: dict):
 
         # Save to per-user memory
         await _save_memory(user_memory, text, response, emotion, photo, video)
+
+        # Reflect after the visible response path completes so it never delays sending.
+        try:
+            asyncio.create_task(asyncio.to_thread(
+                PostResponseReflector().reflect,
+                user_id,
+                text,
+                response or "",
+                emotion,
+                recent_openings_before,
+            ))
+        except Exception as e:
+            print(f"[Reflection] Scheduling error (non-fatal): {e}")
     finally:
         # Mark idle for hot reload
         if hasattr(self, '_hot_reload') and self._hot_reload:
@@ -813,7 +829,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     import os
     from core.directives import get_directives_prompt, get_owner_name
 
-    mood_instruction = build_mood_instruction(emotion, msg, pet_name)
+    mood_instruction = build_mood_instruction(emotion, msg, pet_name, include_humanizer=False)
     if not self._llm: return fallback_response(emotion, msg)
     max_tokens = int(os.environ.get("LLM_MAX_TOKENS", "150"))
     temperature = float(os.environ.get("LLM_TEMPERATURE", "0.95"))
@@ -845,6 +861,12 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
             print(f"[Think] Skills prompt error: {e}")
 
     system_parts = [directives, self_definition]
+    state_signals = []
+
+    def add_signal(source: str, kind: str, content: str, priority: float = 0.55):
+        signal = signal_from_prompt(source, kind, content, priority=priority)
+        if signal:
+            state_signals.append(signal)
 
     # Add skills section after self-definition
     if skills_section:
@@ -861,8 +883,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if INTEROCEPTION_AVAILABLE:
         try:
             intero_prompt = get_interoceptive_prompt_section()
-            if intero_prompt:
-                system_parts.append(intero_prompt)
+            add_signal("interoception", "body_state", intero_prompt, priority=0.70)
         except Exception as e:
             print(f"[Think] Interoception prompt error: {e}")
 
@@ -870,8 +891,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if DEFAULT_MODE_AVAILABLE:
         try:
             idle_prompt = get_idle_thoughts_prompt_section(user_id=user_id, limit=3)
-            if idle_prompt:
-                system_parts.append(idle_prompt)
+            add_signal("default_mode", "idle_thought", idle_prompt, priority=0.58)
         except Exception as e:
             print(f"[Think] Default mode prompt error: {e}")
 
@@ -880,8 +900,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if BID_DETECTOR_AVAILABLE and detected_bids:
         try:
             bid_prompt = get_bid_awareness_prompt_section(bids=detected_bids)
-            if bid_prompt:
-                system_parts.append(bid_prompt)
+            add_signal("bids", "connection_bid", bid_prompt, priority=0.92)
         except Exception as e:
             print(f"[Think] Bid awareness prompt error: {e}")
 
@@ -893,8 +912,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
                 current_emotion=emotion,
                 max_memories=3
             )
-            if memory_prompt:
-                system_parts.append(memory_prompt)
+            add_signal("emotional_memory", "memory", memory_prompt, priority=0.76)
         except Exception as e:
             print(f"[Think] Emotional memory prompt error: {e}")
 
@@ -902,8 +920,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if INCONSISTENCY_AVAILABLE:
         try:
             inconsistency_prompt = get_inconsistency_prompt_section()
-            if inconsistency_prompt:
-                system_parts.append(inconsistency_prompt)
+            add_signal("inconsistency", "conflict", inconsistency_prompt, priority=0.84)
         except Exception as e:
             print(f"[Think] Inconsistency prompt error: {e}")
 
@@ -915,8 +932,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if AFTERGLOW_AVAILABLE:
         try:
             ag_prompt = get_afterglow_prompt_section()
-            if ag_prompt:
-                system_parts.append(ag_prompt)
+            add_signal("afterglow", "emotional_residue", ag_prompt, priority=0.70)
         except Exception as e:
             print(f"[Think] Afterglow prompt error: {e}")
 
@@ -924,8 +940,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if CIRCADIAN_AVAILABLE:
         try:
             circ_prompt = get_circadian_prompt_section()
-            if circ_prompt:
-                system_parts.append(circ_prompt)
+            add_signal("circadian", "sleep_pressure", circ_prompt, priority=0.90)
         except Exception as e:
             print(f"[Think] Circadian prompt error: {e}")
 
@@ -933,8 +948,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if MOOD_SHIFTS_AVAILABLE:
         try:
             shift_prompt = get_mood_shift_prompt_section()
-            if shift_prompt:
-                system_parts.append(shift_prompt)
+            add_signal("mood_shift", "transition", shift_prompt, priority=0.66)
         except Exception as e:
             print(f"[Think] Mood shift prompt error: {e}")
 
@@ -942,8 +956,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if ATTACHMENT_AVAILABLE:
         try:
             att_prompt = get_attachment_prompt_section()
-            if att_prompt:
-                system_parts.append(att_prompt)
+            add_signal("attachment", "relationship_security", att_prompt, priority=0.72)
         except Exception as e:
             print(f"[Think] Attachment prompt error: {e}")
 
@@ -951,8 +964,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if PHANTOM_SOMATIC_AVAILABLE:
         try:
             phantom_prompt = get_phantom_prompt_section()
-            if phantom_prompt:
-                system_parts.append(phantom_prompt)
+            add_signal("phantom_somatic", "body_memory", phantom_prompt, priority=0.68)
         except Exception as e:
             print(f"[Think] Phantom somatic prompt error: {e}")
 
@@ -960,8 +972,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if NARRATIVE_AVAILABLE:
         try:
             narr_prompt = get_narrative_prompt_section(user_id)
-            if narr_prompt:
-                system_parts.append(narr_prompt)
+            add_signal("narrative", "relationship_story", narr_prompt, priority=0.74)
         except Exception as e:
             print(f"[Think] Narrative prompt error: {e}")
 
@@ -969,8 +980,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if DREAMS_AVAILABLE:
         try:
             dream_prompt = get_dream_prompt_section()
-            if dream_prompt:
-                system_parts.append(dream_prompt)
+            add_signal("dreams", "dream_residue", dream_prompt, priority=0.78)
         except Exception as e:
             print(f"[Think] Dreams prompt error: {e}")
 
@@ -978,8 +988,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if LINGUISTIC_AVAILABLE:
         try:
             ling_prompt = get_linguistic_prompt_section(user_id)
-            if ling_prompt:
-                system_parts.append(ling_prompt)
+            add_signal("linguistic", "style_absorption", ling_prompt, priority=0.48)
         except Exception as e:
             print(f"[Think] Linguistic prompt error: {e}")
 
@@ -987,8 +996,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if CURIOSITY_AVAILABLE:
         try:
             curiosity_prompt = get_curiosity_prompt_section(user_id)
-            if curiosity_prompt:
-                system_parts.append(curiosity_prompt)
+            add_signal("curiosity", "knowledge_gap", curiosity_prompt, priority=0.80)
         except Exception as e:
             print(f"[Think] Curiosity prompt error: {e}")
 
@@ -998,8 +1006,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
             from datetime import datetime
             hour = datetime.now().hour
             almost_prompt = get_almost_said_prompt_section(emotion, hour)
-            if almost_prompt:
-                system_parts.append(almost_prompt)
+            add_signal("almost_said", "subvocalization", almost_prompt, priority=0.62)
         except Exception as e:
             print(f"[Think] Almost-said prompt error: {e}")
 
@@ -1007,10 +1014,18 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if CONVERSATION_FLOW_AVAILABLE:
         try:
             revival_prompt = check_conversation_health(user_id)
-            if revival_prompt:
-                system_parts.append(revival_prompt)
+            add_signal("conversation_flow", "revival", revival_prompt, priority=0.64)
         except Exception as e:
             print(f"[Think] Conversation flow error: {e}")
+
+    response_plan = InnerStateCompiler().compile(
+        emotion,
+        msg,
+        state_signals,
+        has_bid=bool(detected_bids),
+    )
+    ctx["response_plan"] = response_plan
+    system_parts.append(response_plan.to_prompt())
 
     # Opening variety hint (positive framing)
     recent_openings = _get_recent_openings(user_id)

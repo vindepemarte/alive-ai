@@ -36,7 +36,7 @@ for (const page of ["home", "chat", "settings"]) {
     process.exit(1);
   }
 }
-for (const required of ["/static/manifest.json", "/static/icon.svg"]) {
+for (const required of ["/static/manifest.json", "/static/favicon.png", "/static/alive-ai-512.png"]) {
   if (!html.includes(required)) {
     console.error(`Missing static asset reference: ${required}`);
     process.exit(1);

@@ -90,6 +90,24 @@ class TerminalListener:
     async def _send_proactive(self, data: dict):
         text = data.get("message") or data.get("text") or data.get("thought") or ""
         if text:
+            if not data.get("arbiter_accepted"):
+                try:
+                    from core.proactive_arbiter import get_proactive_arbiter
+                    emotion = self.heart.get_state() if self.heart else {}
+                    decision = get_proactive_arbiter().decide(
+                        user_id=str(data.get("user_id") or self.user_id),
+                        reason=data.get("reason") or data.get("type") or "proactive",
+                        anchor=data.get("anchor") or data.get("original_reminder") or "",
+                        emotion=emotion,
+                        circadian=emotion.get("circadian", {}),
+                        silence_minutes=float(data.get("silence_minutes") or 0),
+                        scheduled=bool(data.get("scheduled")),
+                    )
+                    if not decision.accepted:
+                        self._display(f"[proactive blocked: {decision.rejection_reason}]", role="system")
+                        return
+                except Exception as e:
+                    self._display(f"[proactive arbiter error: {e}]", role="system")
             self._display(text, role="proactive")
 
     async def _handle_command(self, raw: str) -> bool:

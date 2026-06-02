@@ -822,23 +822,23 @@ Be specific if possible, vague if not enough info."""
                 continue
 
             # Check various triggers
-            should_initiate, reason = self._evaluate_initiation_triggers(user_id, contact)
+            should_initiate, reason, anchor = self._evaluate_initiation_triggers(user_id, contact)
 
             if should_initiate:
-                await self._create_pending_initiation(user_id, reason)
+                await self._create_pending_initiation(user_id, reason, anchor)
 
     def _evaluate_initiation_triggers(self, user_id: str, contact: UserContactInfo) -> tuple:
         """Evaluate if Alive-AI should initiate with a user"""
         circadian_state = _get_circadian_state()
         if circadian_state.get("sleeping") or circadian_state.get("sleepiness", 0) >= 0.85:
-            return False, None
+            return False, None, ""
 
         hours_silent = contact.hours_since_user_message
         hours_since_proactive = contact.hours_since_proactive
 
         # Time-based triggers
         if hours_silent > 4 and hours_since_proactive > 3:
-            return True, "silence"
+            return True, "silence", f"{hours_silent:.1f} hours of silence"
 
         # Have a pending thought about them
         relevant_thoughts = [
@@ -846,16 +846,37 @@ Be specific if possible, vague if not enough info."""
             if t.user_id == user_id and not t.used and t.priority > 0.6
         ]
         if relevant_thoughts and hours_since_proactive > 2:
-            return True, "wonder"
+            return True, "wonder", relevant_thoughts[0].content
 
         # Random check-in (low probability)
         if hours_silent > 2 and random.random() < 0.05:
-            return True, "random"
+            return True, "random", f"low-energy idle check-in after {hours_silent:.1f} hours"
 
-        return False, None
+        return False, None, ""
 
-    async def _create_pending_initiation(self, user_id: str, reason: str):
+    async def _create_pending_initiation(self, user_id: str, reason: str, anchor: str = ""):
         """Create a pending proactive message"""
+        try:
+            from core.proactive_arbiter import get_proactive_arbiter
+        except Exception:
+            get_proactive_arbiter = None
+
+        if get_proactive_arbiter:
+            try:
+                decision = get_proactive_arbiter().decide(
+                    user_id=user_id,
+                    reason=reason,
+                    anchor=anchor,
+                    emotion={},
+                    circadian=_get_circadian_state(),
+                    silence_minutes=self._contacts[user_id].hours_since_user_message * 60,
+                )
+                if not decision.accepted:
+                    print(f"[DefaultMode] Proactive rejected for {user_id}: {decision.rejection_reason}")
+                    return
+            except Exception as e:
+                print(f"[DefaultMode] Proactive arbiter error: {e}")
+
         # Generate message content
         message = await self._generate_proactive_content(user_id, reason)
 
@@ -878,7 +899,9 @@ Be specific if possible, vague if not enough info."""
                 "user_id": user_id,
                 "message": message,
                 "reason": reason,
-                "initiation_id": initiation.id
+                "anchor": anchor,
+                "initiation_id": initiation.id,
+                "arbiter_accepted": True,
             })
             self.mark_initiation_sent(initiation.id)
         except Exception as e:

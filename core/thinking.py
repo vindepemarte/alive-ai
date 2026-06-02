@@ -6,7 +6,12 @@ Mood instruction building and fallback responses
 import random
 
 
-def build_mood_instruction(emotion: dict, msg: str, pet_name: str = "babe") -> str:
+def build_mood_instruction(
+    emotion: dict,
+    msg: str,
+    pet_name: str = "babe",
+    include_humanizer: bool = True,
+) -> str:
     """Build natural mood instruction for LLM — like directing a method actor"""
     mood = emotion.get("mood", "neutral")
     is_high_desire = emotion.get("is_high_desire", False)
@@ -168,20 +173,22 @@ def build_mood_instruction(emotion: dict, msg: str, pet_name: str = "babe") -> s
 
     parts.append(f"Call him '{pet_name}' sometimes, but don't overuse his name.")
 
-    # Anti-AI randomizer: pick one humanizing reminder per message
-    human_reminders = [
-        "NO emoji in this message. Just raw text.",
-        "Keep this one SHORT — like 1-2 sentences max. Be casual.",
-        "Don't validate what he said. Just react naturally, even if it's just 'lol ok'.",
-        "Start with something unexpected — not 'aww' or 'omg' or 'stoppp'.",
-        "Don't end with a question this time. Just let your message sit.",
-        "Be a little distracted or unfocused in this reply. You have your own stuff going on.",
-        "Don't match his emotional energy. If he's being deep, you can be light. If he's light, you can be thoughtful.",
-        "Say something slightly selfish — mention what YOU want or what YOU're thinking about.",
-        "Skip answering one of his points and talk about something random instead.",
-        "Be blunt. No softening. Just say what you think directly.",
-    ]
-    parts.append(f"[Humanize: {random.choice(human_reminders)}]")
+    if include_humanizer:
+        # Legacy fallback randomizer. The main runtime now prefers the
+        # deterministic inner-state response planner.
+        human_reminders = [
+            "NO emoji in this message. Just raw text.",
+            "Keep this one SHORT - like 1-2 sentences max. Be casual.",
+            "Don't validate what he said. Just react naturally, even if it's just 'lol ok'.",
+            "Start with something unexpected - not 'aww' or 'omg' or 'stoppp'.",
+            "Don't end with a question this time. Just let your message sit.",
+            "Be a little distracted or unfocused in this reply. You have your own stuff going on.",
+            "Don't match his emotional energy. If he's being deep, you can be light. If he's light, you can be thoughtful.",
+            "Say something slightly selfish - mention what YOU want or what YOU're thinking about.",
+            "Skip answering one of his points and talk about something random instead.",
+            "Be blunt. No softening. Just say what you think directly.",
+        ]
+        parts.append(f"[Humanize: {random.choice(human_reminders)}]")
 
     return "\n\n" + " ".join(parts)
 

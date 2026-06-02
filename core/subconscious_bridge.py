@@ -47,6 +47,22 @@ async def handle_subconscious_impulse(self, impulse):
 
     emotion = self._heart.get_state() if self._heart else {}
 
+    try:
+        from core.proactive_arbiter import get_proactive_arbiter
+        decision = get_proactive_arbiter().decide(
+            user_id=str(target_user_id or target_chat_id),
+            reason=impulse.type.value,
+            anchor=impulse.thought,
+            emotion=emotion,
+            circadian=emotion.get("circadian", {}),
+            silence_minutes=0,
+        )
+        if not decision.accepted:
+            print(f"[Subconscious] Proactive blocked: {decision.rejection_reason}")
+            return
+    except Exception as e:
+        print(f"[Subconscious] Proactive arbiter error (non-fatal): {e}")
+
     await self.nervous.emit("send_text", {
         "text": message,
         "mood": emotion.get("mood", "neutral"),
