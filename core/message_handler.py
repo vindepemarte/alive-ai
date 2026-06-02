@@ -264,11 +264,11 @@ def _get_or_create_user_memory(self, user_id: str):
     if cache_key in _user_memories:
         return _user_memories[cache_key]
 
-    # Create new memory instance for this user using INSTANCE-SPECIFIC data path
+    # Create new memory instance for this user using the canonical per-user path.
     from brain.memory import Memory
+    from core.user_manager import UserManager
 
-    # Use instance's data path (self.base / "data") for proper isolation
-    instance_data_path = self.base / "data"
+    instance_data_path = UserManager().get_user_paths(user_id)["base"]
 
     memory = Memory(
         nervous=self.nervous,
@@ -462,6 +462,7 @@ async def _process_single_message(self, data: dict):
         if self._subconscious: self._subconscious.register_interaction()
         if chat_id: self._default_chat_id = chat_id
         text = data.get("text", "")
+        message_id = data.get("message_id")
 
         circadian_interaction = {}
         if CIRCADIAN_AVAILABLE:
@@ -786,7 +787,7 @@ async def _process_single_message(self, data: dict):
         # Track if we asked a question (for follow-ups)
         _follow_up.record_message_sent(response)
 
-        await _send_response(self, response, emotion, chat_id, text, user_id)
+        await _send_response(self, response, emotion, chat_id, text, user_id, message_id=message_id)
         if self._subconscious: _feed_learning(self._subconscious, text)
 
         # Actually send the media (we already decided what to send)
@@ -1094,7 +1095,7 @@ IMPORTANT: You are sending this media ALONG with your message. Reference it natu
         return fallback_response(emotion, msg)
 
 
-async def _send_response(self, response, emotion, chat_id, text, user_id="default"):
+async def _send_response(self, response, emotion, chat_id, text, user_id="default", message_id=None):
     mood = emotion.get("mood", "neutral")
 
     # Process any action tags in the response (pass instance config path)
@@ -1123,9 +1124,19 @@ async def _send_response(self, response, emotion, chat_id, text, user_id="defaul
                 "chat_id": chat_id,
                 "fallback_text": response,
                 "mood": mood,
+                "user_id": user_id,
+                "reply_to_message_id": message_id,
+                "source": "runtime",
             })
             return
-    await self.nervous.emit("send_text", {"text": response, "mood": mood, "chat_id": chat_id})
+    await self.nervous.emit("send_text", {
+        "text": response,
+        "mood": mood,
+        "chat_id": chat_id,
+        "user_id": user_id,
+        "reply_to_message_id": message_id,
+        "source": "runtime",
+    })
 
 
 def _process_self_authorship_actions(response: str, user_id: str = "default", self_path: Path = None) -> tuple:

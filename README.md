@@ -277,7 +277,11 @@ The real WebUI streams local runtime state over Server-Sent Events and shows:
 - attachment, circadian rhythm, sleepiness, body memory, dreams, curiosity, and conflicts,
 - runtime health through local endpoints.
 
-The WebUI script is intentionally shipped as a single static file because the npm package has to run locally without a frontend build step. `npm run smoke` compiles the Python modules and checks the CLI; release validation also parses the embedded dashboard script so tab navigation, chat, settings, and thought rendering cannot be broken by a syntax error.
+The WebUI hydrates from durable runtime stores instead of only the current browser session. Chat rows are journaled per active user under `data/users/<user>/webui_chat.jsonl`, with fallback to episodic conversation history. `/state` and the SSE stream now use the same composed snapshot: visible chat, runtime state, soul state, aliveness state, current thoughts, memory counters, and the active dashboard user.
+
+Settings edits validate JSON before saving and write atomically, so a bad edit cannot corrupt the existing config file. The Settings tab also protects unsaved edits while switching tabs.
+
+The WebUI script is intentionally shipped as a single static file because the npm package has to run locally without a frontend build step. `npm run smoke` compiles the Python modules and checks the CLI; release validation also parses the embedded dashboard script and verifies required dashboard hooks so tab navigation, chat, settings, and thought rendering cannot be broken by a syntax error.
 
 GitHub Pages cannot run the Python/FastAPI backend, so the public page includes a static export of the actual WebUI with mocked state:
 

@@ -13,6 +13,12 @@ from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from core.paths import data_dir, media_dir
+from .persistence import (
+    append_chat_message,
+    load_chat_messages,
+    new_message_id,
+    resolve_active_user_id,
+)
 
 
 app = FastAPI(title="Alive-AI Dashboard")
@@ -245,6 +251,75 @@ aliveness_state = {
 }
 
 
+def _active_user_id(explicit=None) -> str:
+    return resolve_active_user_id(explicit, self_ref=_self_ref, dashboard_state=alive_ai_state)
+
+
+def _runtime_state_dict() -> dict:
+    runtime_state = getattr(_self_ref, "state", None)
+    if runtime_state and hasattr(runtime_state, "to_dict"):
+        try:
+            return runtime_state.to_dict()
+        except Exception:
+            return {}
+    return {}
+
+
+def _runtime_chat_ready() -> bool:
+    nervous = getattr(_self_ref, "nervous", None)
+    listeners = getattr(nervous, "listeners", {}) if nervous else {}
+    # Bridge registers one listener; the runtime handler is attached during Self.start().
+    return len(listeners.get("message_received", [])) > 1
+
+
+def _subconscious_thoughts(limit: int = 10) -> list:
+    thoughts = []
+    sub = getattr(_self_ref, "_subconscious", None)
+    wm = getattr(sub, "working_memory", None)
+    if wm and hasattr(wm, "get_recent_thoughts"):
+        try:
+            for thought in wm.get_recent_thoughts(limit):
+                thoughts.append({
+                    "thought": getattr(thought, "content", ""),
+                    "type": getattr(thought, "type", "reflection"),
+                    "emotion": getattr(thought, "emotion", {}) or {},
+                    "time": _format_time(getattr(thought, "created_at", None)),
+                })
+        except Exception:
+            thoughts = []
+    if thoughts:
+        return thoughts[-limit:]
+    return alive_ai_state.get("recent_thoughts", [])[-limit:]
+
+
+def _format_time(value) -> str:
+    if not value:
+        return datetime.now().strftime("%H:%M:%S")
+    try:
+        if isinstance(value, datetime):
+            return value.strftime("%H:%M:%S")
+        return datetime.fromisoformat(str(value)).strftime("%H:%M:%S")
+    except Exception:
+        text = str(value)
+        return text[11:19] if len(text) >= 19 else text
+
+
+def build_snapshot(user_id: str = None) -> dict:
+    """Compose the dashboard state from live and durable runtime stores."""
+    active_user = _active_user_id(user_id)
+    snapshot = dict(alive_ai_state)
+    snapshot["active_user"] = active_user
+    snapshot["runtime"] = _runtime_state_dict()
+    snapshot["soul"] = soul_state
+    snapshot["aliveness"] = aliveness_state
+    snapshot["conversation"] = load_chat_messages(active_user)
+    thoughts = _subconscious_thoughts()
+    snapshot["recent_thoughts"] = thoughts
+    snapshot["current_thought"] = thoughts[-1]["thought"] if thoughts else alive_ai_state.get("current_thought")
+    snapshot["updated_at"] = datetime.now().isoformat()
+    return snapshot
+
+
 def update_state(data: dict):
     """Called by nervous system to update state"""
     global alive_ai_state
@@ -255,15 +330,24 @@ def update_state(data: dict):
         client.set()
 
 
-def add_conversation(role: str, content: str):
+def add_conversation(role: str, content: str, message_id: str = None,
+                     status: str = "sent", user_id: str = None,
+                     source: str = "runtime"):
     """Add a message to conversation history"""
+    if message_id and any(m.get("message_id") == message_id for m in alive_ai_state["conversation"]):
+        return
     alive_ai_state["conversation"].append({
+        "message_id": message_id or new_message_id(role),
         "role": role,
         "content": content,
-        "time": datetime.now().strftime("%H:%M:%S")
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "status": status,
+        "source": source,
     })
     # Keep last 20 messages
     alive_ai_state["conversation"] = alive_ai_state["conversation"][-20:]
+    if user_id:
+        alive_ai_state["active_user"] = user_id
     if role == "user":
         alive_ai_state["last_user_message"] = content
     else:
@@ -316,7 +400,7 @@ async def event_generator(request: Request):
 
     try:
         # Send initial state
-        yield f"event: state\ndata: {json.dumps(alive_ai_state)}\n\n"
+        yield f"event: state\ndata: {json.dumps(build_snapshot())}\n\n"
 
         while True:
             if await request.is_disconnected():
@@ -331,7 +415,7 @@ async def event_generator(request: Request):
                 continue
 
             # Send updated state
-            yield f"event: state\ndata: {json.dumps(alive_ai_state)}\n\n"
+            yield f"event: state\ndata: {json.dumps(build_snapshot())}\n\n"
     except asyncio.CancelledError:
         pass  # Client disconnected normally
     except Exception as e:
@@ -372,7 +456,7 @@ async def sse_events(request: Request):
 @app.get("/state")
 async def get_state():
     """Get current state (for polling fallback)"""
-    return alive_ai_state
+    return build_snapshot()
 
 
 @app.get("/avatar")
@@ -456,9 +540,10 @@ async def get_memory_status():
 @app.get("/thoughts")
 async def get_thoughts():
     """Get recent thoughts from subconscious"""
+    thoughts = _subconscious_thoughts()
     return {
-        "current_thought": alive_ai_state.get("current_thought"),
-        "recent_thoughts": alive_ai_state.get("recent_thoughts", [])
+        "current_thought": thoughts[-1]["thought"] if thoughts else alive_ai_state.get("current_thought"),
+        "recent_thoughts": thoughts
     }
 
 
@@ -726,7 +811,7 @@ async def get_memory_state():
     # Try to get fresh data from emotional memory system
     try:
         from brain.emotional_memory import get_emotional_memory_system
-        system = get_emotional_memory_system()
+        system = get_emotional_memory_system(_active_user_id())
         stats = system.get_stats()
         recent_high = system.get_recent_high_emotion(hours=24, limit=1)
 
@@ -966,22 +1051,35 @@ async def get_new_aliveness():
 async def chat_endpoint(request: Request, background_tasks: BackgroundTasks):
     data = await request.json()
     text = data.get("text", "").strip()
-    if not text or not _self_ref:
+    if not text or not _self_ref or not _runtime_chat_ready():
         return JSONResponse({"status": "error", "message": "No text or AI not ready"}, 400)
-    # Add user message immediately to conversation
-    add_conversation("user", text)
+    user_id = _active_user_id(data.get("user_id"))
+    message_id = data.get("message_id") or new_message_id("webui_user")
+    append_chat_message(user_id, "user", text, message_id=message_id, status="pending", source="webui")
+    add_conversation("user", text, message_id=message_id, status="pending", user_id=user_id, source="webui")
     update_state({})
-    # Fire message handler in background
+
     async def _send():
-        from core.message_handler import handle_message
-        await handle_message(_self_ref, {
-            "user_id": "webui",
-            "text": text,
-            "chat_id": "webui",
-            "source": "webui"
-        })
+        try:
+            await _self_ref.nervous.emit("message_received", {
+                "message_id": message_id,
+                "user_id": user_id,
+                "webui_user_id": user_id,
+                "text": text,
+                "chat_id": "webui",
+                "source": "webui"
+            })
+        except Exception as e:
+            append_chat_message(
+                user_id,
+                "alive_ai",
+                f"Something went wrong while processing that message: {e}",
+                status="error",
+                source="webui",
+            )
+            update_state({"thinking": False})
     background_tasks.add_task(_send)
-    return JSONResponse({"status": "sent"})
+    return JSONResponse({"status": "sent", "message_id": message_id, "user_id": user_id})
 
 
 @app.get("/api/settings")
@@ -1013,13 +1111,18 @@ async def save_settings(request: Request):
     if fname not in allowed:
         return JSONResponse({"status": "error", "message": "Invalid file"}, 400)
     config_dir = Path(os.environ.get("ALIVE_AI_ROOT", ".")) / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
     p = config_dir / fname
     content = data.get("content")
     try:
         if fname.endswith(".json"):
-            p.write_text(json.dumps(content, indent=2, ensure_ascii=False))
+            text = json.dumps(content, indent=2, ensure_ascii=False) + "\n"
+            json.loads(text)
         else:
-            p.write_text(content)
+            text = str(content or "")
+        tmp = p.with_suffix(p.suffix + ".tmp")
+        tmp.write_text(text)
+        tmp.replace(p)
         return {"status": "saved"}
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, 500)

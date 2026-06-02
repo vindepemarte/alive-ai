@@ -251,7 +251,8 @@ class DefaultModeProcessor:
         if data_path:
             self.data_path = data_path
         else:
-            self.data_path = Path(__file__).parent.parent / "data"
+            from core.paths import data_dir
+            self.data_path = data_dir()
 
         self.data_path.mkdir(parents=True, exist_ok=True)
 

@@ -10,6 +10,7 @@ from .app import (
     update_interoceptive_state, update_idle_state, update_bids_state,
     update_memory_state, update_inconsistency_state
 )
+from .persistence import append_chat_message, new_message_id, resolve_active_user_id
 
 _webui_server = None
 
@@ -46,16 +47,25 @@ def init_bridge(nervous, ai=None):
 
     async def on_message_sent(data):
         """Track outgoing messages"""
-        text = data.get("text", "")
-        add_conversation("alive_ai", text)
+        text = data.get("text") or data.get("fallback_text", "")
+        user_id = resolve_active_user_id(data.get("user_id"), dashboard_state=alive_ai_state)
+        message_id = data.get("message_id") or new_message_id("alive_ai")
+        append_chat_message(user_id, "alive_ai", text, message_id=message_id,
+                            status="sent", source=data.get("source", "runtime"))
+        add_conversation("alive_ai", text, message_id=message_id, user_id=user_id,
+                         source=data.get("source", "runtime"))
         alive_ai_state["stats"]["messages"] = alive_ai_state["stats"].get("messages", 0) + 1
         update_state({})
 
     async def on_message_received(data):
         """Track incoming messages"""
         text = data.get("text", "")
-        user_id = data.get("user_id", "unknown")
-        add_conversation("user", text)
+        user_id = resolve_active_user_id(data.get("webui_user_id") or data.get("user_id"), dashboard_state=alive_ai_state)
+        message_id = data.get("message_id") or new_message_id("user")
+        append_chat_message(user_id, "user", text, message_id=message_id,
+                            status="sent", source=data.get("source", "runtime"))
+        add_conversation("user", text, message_id=message_id, user_id=user_id,
+                         source=data.get("source", "runtime"))
         # Track active user
         alive_ai_state["active_user"] = user_id
 

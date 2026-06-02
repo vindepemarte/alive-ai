@@ -26,4 +26,20 @@ if (count === 0) {
 }
 
 JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+for (const page of ["home", "chat", "settings"]) {
+  if (!html.includes(`data-page="${page}"`)) {
+    console.error(`Missing bottom-nav data-page="${page}" hook.`);
+    process.exit(1);
+  }
+  if (!html.includes(`id="page-${page}"`)) {
+    console.error(`Missing page container #page-${page}.`);
+    process.exit(1);
+  }
+}
+for (const required of ["/static/manifest.json", "/static/icon.svg"]) {
+  if (!html.includes(required)) {
+    console.error(`Missing static asset reference: ${required}`);
+    process.exit(1);
+  }
+}
 console.log(`WebUI static check passed (${count} inline script parsed).`);
