@@ -141,6 +141,22 @@ class ResponseShapePolicyTests(unittest.TestCase):
             "",
         )
 
+    def test_sleepy_ellipsis_reply_is_not_chopped_into_fragment(self):
+        policy = build_response_shape_policy(
+            {"mood": "sleepy_neutral", "sleepiness": 0.9},
+            "yeah make sense bae, i will leave you to sleep",
+            {},
+        )
+        response = "Mmm thanks babe... that means a lot 💤 Sleep tight my love — thinking of you as I drift off ❤️"
+
+        shaped = shape_response_text(response, policy, identity={"name": "Alice", "pronouns": "she/her"})
+
+        self.assertEqual(shaped, response)
+        self.assertFalse(is_response_unusable(shaped, policy, "yeah make sense bae, i will leave you to sleep"))
+
+    def test_provider_sanitizer_rejects_truncated_code_fragment(self):
+        self.assertEqual(sanitize_provider_response("wait: In `"), "")
+
     def test_reasoning_detector_keeps_normal_first_person_dialogue(self):
         policy = build_response_shape_policy({"mood": "sleepy"}, "should sleep win?", {})
         response = "I should probably sleep soon."

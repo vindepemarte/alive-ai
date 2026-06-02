@@ -98,8 +98,10 @@ def _sentence_split(text: str) -> list[str]:
     normalized = re.sub(r"\s+", " ", (text or "").strip())
     if not normalized:
         return []
-    parts = re.split(r"(?<=[.!?])\s+", normalized)
-    return [part.strip() for part in parts if part.strip()]
+    ellipsis_marker = "<ELLIPSIS>"
+    protected = normalized.replace("...", ellipsis_marker)
+    parts = re.split(r"(?<=[.!?])\s+", protected)
+    return [part.replace(ellipsis_marker, "...").strip() for part in parts if part.strip()]
 
 
 def _count_questions(text: str) -> int:
@@ -436,6 +438,8 @@ def sanitize_provider_response(text: str) -> str:
     if not cleaned:
         return ""
     if contains_reasoning_artifact(cleaned):
+        return ""
+    if re.search(r"`[^`]*$", cleaned) or re.search(r"\b(?:in|with|for|to|from|of|at|by)$", cleaned, re.IGNORECASE):
         return ""
     return cleaned.strip()
 
