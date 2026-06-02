@@ -132,6 +132,7 @@ class TelegramListener:
                     BotCommand("reset", "Reset emotions"),
                     BotCommand("settings", "Runtime settings"),
                     BotCommand("advanced", "Advanced mode"),
+                    BotCommand("thinking", "Toggle model thinking"),
                     BotCommand("impulse", "Force proactive msg"),
                     # Self-Authorship
                     BotCommand("self", "Who I am"),

@@ -1,0 +1,117 @@
+import unittest
+import asyncio
+import tempfile
+from pathlib import Path
+from types import SimpleNamespace
+
+from brain.llm.openrouter import _extract_openrouter_answer, _has_reasoning_activity
+from brain.llm.reasoning import has_reasoning_payload, visible_answer_from_message
+from core.settings import ACTIVE_SETTINGS_PATH, get_bool
+from core.thinking import sanitize_provider_response
+from input.telegram.commands import OwnerCommands
+
+
+class LLMReasoningExtractionTests(unittest.TestCase):
+    def test_normal_content_is_answer(self):
+        message = {"content": "I'm here with you."}
+
+        self.assertEqual(visible_answer_from_message(message), "I'm here with you.")
+        self.assertFalse(has_reasoning_payload(message))
+
+    def test_deepseek_zai_reasoning_content_is_ignored(self):
+        message = {
+            "reasoning_content": "private reasoning",
+            "content": "Just the visible answer.",
+        }
+
+        self.assertEqual(visible_answer_from_message(message), "Just the visible answer.")
+        self.assertTrue(has_reasoning_payload(message))
+
+    def test_ollama_thinking_field_is_ignored(self):
+        message = {
+            "thinking": "private thoughts",
+            "content": "yeah, I'm awake.",
+        }
+
+        self.assertEqual(visible_answer_from_message(message), "yeah, I'm awake.")
+        self.assertTrue(has_reasoning_payload(message))
+
+    def test_anthropic_openrouter_blocks_skip_thinking_and_keep_text(self):
+        message = {
+            "content": [
+                {"type": "thinking", "text": "private chain"},
+                {"type": "redacted_thinking", "data": "opaque"},
+                {"type": "text", "text": "I'm here."},
+            ]
+        }
+
+        self.assertEqual(visible_answer_from_message(message), "I'm here.")
+        self.assertTrue(has_reasoning_payload(message))
+
+    def test_openrouter_answer_extracts_only_message_content(self):
+        data = {
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "role": "assistant",
+                        "reasoning": "private",
+                        "content": [{"type": "text", "text": "Short answer."}],
+                    },
+                }
+            ],
+            "usage": {"completion_tokens_details": {"reasoning_tokens": 12}},
+        }
+
+        self.assertEqual(_extract_openrouter_answer(data), "Short answer.")
+        self.assertTrue(_has_reasoning_activity(data))
+
+    def test_inline_think_block_is_stripped_from_visible_content(self):
+        self.assertEqual(
+            sanitize_provider_response("<think>private chain</think>\nFinal answer only."),
+            "Final answer only.",
+        )
+
+    def test_reasoning_without_answer_returns_empty(self):
+        message = {"reasoning": "private chain", "content": None}
+
+        self.assertEqual(visible_answer_from_message(message), "")
+        self.assertTrue(has_reasoning_payload(message))
+
+
+class _FakeMessage:
+    def __init__(self):
+        self.replies = []
+
+    async def reply_text(self, text, **_kwargs):
+        self.replies.append(text)
+
+
+class _FakeUpdate:
+    def __init__(self):
+        self.message = _FakeMessage()
+
+
+class ThinkingCommandTests(unittest.TestCase):
+    def test_thinking_command_updates_hot_reload_setting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "settings.json"
+            settings_path.write_text("{}")
+            token = ACTIVE_SETTINGS_PATH.set(settings_path)
+            try:
+                owner = OwnerCommands(SimpleNamespace(), SimpleNamespace())
+                update = _FakeUpdate()
+
+                asyncio.run(owner._cmd_thinking(update, ["false"]))
+                self.assertFalse(get_bool("LLM_THINKING_ENABLED", True))
+                self.assertIn("OFF", update.message.replies[-1])
+
+                asyncio.run(owner._cmd_thinking(update, ["true"]))
+                self.assertTrue(get_bool("LLM_THINKING_ENABLED", False))
+                self.assertIn("ON", update.message.replies[-1])
+            finally:
+                ACTIVE_SETTINGS_PATH.reset(token)
+
+
+if __name__ == "__main__":
+    unittest.main()

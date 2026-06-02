@@ -5,9 +5,45 @@ OpenRouter provides unified access to many LLM providers
 
 import aiohttp
 import asyncio
+import os
 import time
 from typing import Optional, List, Dict
 from .base import BaseLLM
+from .reasoning import has_reasoning_payload, visible_answer_from_message
+
+
+def _settings_bool(key: str, default: bool) -> bool:
+    if key in os.environ:
+        return os.environ[key].strip().lower() not in ("0", "false", "no", "off")
+    try:
+        from core.settings import get_bool
+        return get_bool(key, default)
+    except Exception:
+        return default
+
+
+def _extract_openrouter_answer(data: dict) -> str:
+    """Extract only visible assistant answer text, never reasoning fields."""
+    choices = data.get("choices") or []
+    if not choices:
+        return ""
+    message = choices[0].get("message") or {}
+    return visible_answer_from_message(message)
+
+
+def _has_reasoning_activity(data: dict) -> bool:
+    usage = data.get("usage") or {}
+    details = usage.get("completion_tokens_details") or {}
+    try:
+        if int(details.get("reasoning_tokens") or 0) > 0:
+            return True
+    except (TypeError, ValueError):
+        pass
+    choices = data.get("choices") or []
+    if not choices:
+        return False
+    message = choices[0].get("message") or {}
+    return has_reasoning_payload(message)
 
 
 class OpenRouterClient(BaseLLM):
@@ -75,7 +111,6 @@ class OpenRouterClient(BaseLLM):
         temperature: float = None
     ) -> Optional[str]:
         """Send chat completion request via OpenRouter"""
-        import os
         # Use passed temperature, or environment variable, or default high value
         if temperature is None:
             temperature = float(os.environ.get("LLM_TEMPERATURE", "0.95"))
@@ -96,11 +131,15 @@ class OpenRouterClient(BaseLLM):
             "temperature": temperature,
             "frequency_penalty": 0.8,  # Penalize repeated phrases - increased from 0.5
             "presence_penalty": 0.6,   # Encourage topic diversity - increased from 0.3
-            "reasoning": {
+        }
+        thinking_enabled = _settings_bool("LLM_THINKING_ENABLED", True)
+        if thinking_enabled:
+            payload["reasoning"] = {
                 "effort": "low",
                 "exclude": True,
-            },
-        }
+            }
+        else:
+            payload["reasoning"] = {"enabled": False}
 
         try:
             async def post_chat(payload_to_send: dict) -> tuple[int, object]:
@@ -116,7 +155,7 @@ class OpenRouterClient(BaseLLM):
 
             status, result = await post_chat(payload)
             if status != 200 and "reasoning" in payload and status in (400, 422):
-                print("[OpenRouter] reasoning.exclude rejected, retrying without reasoning control")
+                print("[OpenRouter] reasoning control rejected, retrying without reasoning control")
                 retry_payload = dict(payload)
                 retry_payload.pop("reasoning", None)
                 status, result = await post_chat(retry_payload)
@@ -141,10 +180,29 @@ class OpenRouterClient(BaseLLM):
                     print(f"[OpenRouter] No choices in response: {list(data.keys())}")
                     return None
 
-                content = data["choices"][0]["message"].get("content")
+                content = _extract_openrouter_answer(data)
+                if (not content or not content.strip()) and thinking_enabled and _has_reasoning_activity(data):
+                    print("[OpenRouter] Thinking produced no answer field, retrying with thinking disabled")
+                    retry_payload = dict(payload)
+                    retry_payload["reasoning"] = {"enabled": False}
+                    status, result = await post_chat(retry_payload)
+                    if status == 200 and isinstance(result, dict):
+                        data = result
+                        if "usage" in data:
+                            usage = data["usage"]
+                            print(f"[LLM] Retry tokens - Input: {usage.get('prompt_tokens', '?')} | Output: {usage.get('completion_tokens', '?')} | Total: {usage.get('total_tokens', '?')}")
+                        content = _extract_openrouter_answer(data)
+                    elif status in (400, 422):
+                        retry_payload.pop("reasoning", None)
+                        status, result = await post_chat(retry_payload)
+                        if status == 200 and isinstance(result, dict):
+                            data = result
+                            content = _extract_openrouter_answer(data)
 
                 if not content or not content.strip():
-                    print(f"[OpenRouter] Empty content! Raw response data: {data}")
+                    choice = data["choices"][0] if data.get("choices") else {}
+                    finish_reason = choice.get("finish_reason") or choice.get("native_finish_reason")
+                    print(f"[OpenRouter] Empty answer content (finish_reason={finish_reason})")
                     return None
 
                 try:

@@ -95,6 +95,22 @@ def get_int(key: str, default: int = 0) -> int:
         return default
 
 
+def get_bool(key: str, default: bool = False) -> bool:
+    """Get setting as boolean."""
+    val = get(key, default)
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return bool(val)
+    if isinstance(val, str):
+        lowered = val.strip().lower()
+        if lowered in ("1", "true", "yes", "on", "enabled"):
+            return True
+        if lowered in ("0", "false", "no", "off", "disabled"):
+            return False
+    return default
+
+
 def get_percent(key: str, default: int = 50) -> float:
     """
     Get setting as percentage (0-100) and convert to multiplier (0.0-1.0).
@@ -166,4 +182,3 @@ def get_trigger_boost(trigger_type: str) -> float:
     """Get boost multiplier for triggers (0-100% -> 0.0-1.0)"""
     key = f"TRIGGER_BOOST_{trigger_type.upper()}"
     return get_percent(key, 100)
-

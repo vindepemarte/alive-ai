@@ -5,8 +5,20 @@ Local LLM support via Ollama for ultimate fallback
 
 import aiohttp
 import asyncio
+import os
 from typing import Optional, List, Dict
 from .base import BaseLLM
+from .reasoning import has_reasoning_payload, visible_answer_from_message
+
+
+def _settings_bool(key: str, default: bool) -> bool:
+    if key in os.environ:
+        return os.environ[key].strip().lower() not in ("0", "false", "no", "off")
+    try:
+        from core.settings import get_bool
+        return get_bool(key, default)
+    except Exception:
+        return default
 
 
 class OllamaClient(BaseLLM):
@@ -112,7 +124,6 @@ class OllamaClient(BaseLLM):
         temperature: float = None
     ) -> Optional[str]:
         """Send chat completion request via Ollama API"""
-        import os
         import time
 
         # Use passed temperature, or environment variable, or default
@@ -144,7 +155,6 @@ class OllamaClient(BaseLLM):
             "model": self.model,
             "messages": ollama_messages,
             "stream": False,
-            "think": False,
             "options": {
                 "num_predict": max_tokens,
                 "temperature": temperature,
@@ -152,6 +162,9 @@ class OllamaClient(BaseLLM):
                 "repeat_penalty": 1.1,
             }
         }
+        thinking_enabled = _settings_bool("LLM_THINKING_ENABLED", True)
+        if not thinking_enabled:
+            payload["think"] = False
 
         print(f"[Ollama] Request to {url} with model {self.model}")
 
@@ -168,13 +181,16 @@ class OllamaClient(BaseLLM):
                         return resp.status, await resp.text()
                     return resp.status, await resp.json()
 
-            status, result = await post_chat(payload)
-            if status != 200 and "think" in payload and status in (400, 422):
-                print("[Ollama] think=false rejected, retrying without reasoning control")
-                retry_payload = dict(payload)
-                retry_payload.pop("think", None)
-                status, result = await post_chat(retry_payload)
+            async def post_with_compat(payload_to_send: Dict) -> tuple[int, object]:
+                status, result = await post_chat(payload_to_send)
+                if status != 200 and "think" in payload_to_send and status in (400, 422):
+                    print("[Ollama] think control rejected, retrying without reasoning control")
+                    retry_payload = dict(payload_to_send)
+                    retry_payload.pop("think", None)
+                    return await post_chat(retry_payload)
+                return status, result
 
+            status, result = await post_with_compat(payload)
             if status != 200:
                 print(f"[Ollama] Error {status}: {str(result)[:300]}")
                 return None
@@ -190,14 +206,21 @@ class OllamaClient(BaseLLM):
 
                 # Ollama response format
                 message = data.get("message", {})
-                content = message.get("content", "")
+                content = visible_answer_from_message(message)
 
                 # Some models expose private reasoning in a separate `thinking`
                 # field. Do not send that as visible chat content.
                 if not content or not content.strip():
-                    thinking = message.get("thinking", "")
-                    if thinking and thinking.strip():
-                        print("[Ollama] Response had thinking but no visible content")
+                    if has_reasoning_payload(message):
+                        print("[Ollama] Response had thinking but no visible answer content")
+                        if thinking_enabled:
+                            retry_payload = dict(payload)
+                            retry_payload["think"] = False
+                            status, result = await post_with_compat(retry_payload)
+                            if status == 200 and isinstance(result, dict):
+                                data = result
+                                message = data.get("message", {})
+                                content = visible_answer_from_message(message)
 
                 if not content or not content.strip():
                     print(f"[Ollama] Empty content in response: {data}")

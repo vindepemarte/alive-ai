@@ -211,6 +211,7 @@ class ResponseShapePolicy:
             f"- Emoji tendency: {self.emoji_tendency}. Abbreviation tendency: {self.abbreviation_tendency}.\n"
             f"- Questions: {self.question_policy}; ask at most {self.max_questions} question(s).\n"
             f"- Hesitation/deflection: {self.hesitation_instruction}.\n"
+            "- If your model has private thinking/reasoning, keep it private; visible content must be only the final chat reply.\n"
             "- Do not stack paragraphs. Do not repeat the same image in different words.\n"
             "- If the user did not ask about systems, do not mention Alive-AI, runtime, framework, model, or project details.\n"
         )

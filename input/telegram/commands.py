@@ -169,7 +169,7 @@ class OwnerCommands:
         # Moved from public commands (admin only)
         "status", "10min", "impulse", "stats", "reset",
         # Advanced mode (advanced access)
-        "advanced",
+        "advanced", "thinking",
         # Dashboard command
         "dashboard",
         # Memory management (dangerous - owner only)
@@ -239,6 +239,7 @@ class OwnerCommands:
             "reset": self._cmd_reset,
             # Advanced mode
             "advanced": self._cmd_advanced,
+            "thinking": self._cmd_thinking,
             # Self-authorship (Alive-AI's identity)
             "self": self._cmd_self,
             "discover": self._cmd_discover,
@@ -289,6 +290,8 @@ class OwnerCommands:
         # Get current advanced status
         user_manager = get_user_manager()
         advanced_status = "ON 🔥" if user_manager.is_advanced_enabled() else "OFF"
+        from core.settings import get_bool
+        thinking_status = "ON" if get_bool("LLM_THINKING_ENABLED", True) else "OFF"
 
         msg = (
             "OWNER COMMANDS\n\n"
@@ -300,6 +303,7 @@ class OwnerCommands:
             "  /10min - Generate long voice test\n"
             "  /impulse - Force proactive message\n"
             f"  /advanced - Toggle advanced mode ({advanced_status})\n"
+            f"  /thinking true|false - Model thinking ({thinking_status})\n"
             "  /dashboard - Open WebUI dashboard\n\n"
             "Self-Authorship (Alive-AI's Identity):\n"
             "  /self - Who I am right now\n"
@@ -532,6 +536,30 @@ Make it personal, reflective, and heartfelt. Use paragraphs and natural speech."
             )
 
         await update.message.reply_text(msg)
+
+    async def _cmd_thinking(self, update: Update, args: list):
+        """Enable or disable provider thinking/reasoning mode."""
+        from core.settings import get_bool, set_value
+
+        if not args:
+            current = get_bool("LLM_THINKING_ENABLED", True)
+            await update.message.reply_text(
+                f"Model thinking is currently {'ON' if current else 'OFF'}.\n"
+                "Use /thinking true or /thinking false."
+            )
+            return
+
+        value = args[0].strip().lower()
+        if value not in ("true", "false", "on", "off", "1", "0", "yes", "no"):
+            await update.message.reply_text("Use /thinking true or /thinking false.")
+            return
+
+        enabled = value in ("true", "on", "1", "yes")
+        set_value("LLM_THINKING_ENABLED", enabled)
+        await update.message.reply_text(
+            f"Model thinking is now {'ON' if enabled else 'OFF'}.\n"
+            "Change is instant; no restart needed."
+        )
 
     async def _cmd_dashboard(self, update: Update, args: list):
         """Open WebUI dashboard as Telegram Mini App"""

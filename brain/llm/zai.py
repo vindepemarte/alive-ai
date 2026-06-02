@@ -5,9 +5,21 @@ Uses OpenAI-compatible endpoint for ZAI Coding Plan
 
 import aiohttp
 import asyncio
+import os
 import time
 from typing import Optional, List, Dict
 from .base import BaseLLM
+from .reasoning import has_reasoning_payload, visible_answer_from_message
+
+
+def _settings_bool(key: str, default: bool) -> bool:
+    if key in os.environ:
+        return os.environ[key].strip().lower() not in ("0", "false", "no", "off")
+    try:
+        from core.settings import get_bool
+        return get_bool(key, default)
+    except Exception:
+        return default
 
 
 class ZAIClient(BaseLLM):
@@ -70,7 +82,6 @@ class ZAIClient(BaseLLM):
         temperature: float = None
     ) -> Optional[str]:
         """Send chat completion request (OpenAI format)"""
-        import os
         # Use passed temperature, or environment variable, or default high value
         if temperature is None:
             temperature = float(os.environ.get("LLM_TEMPERATURE", "0.95"))
@@ -90,10 +101,10 @@ class ZAIClient(BaseLLM):
             "temperature": temperature,
             "frequency_penalty": 0.8,
             "presence_penalty": 0.6,
-            "thinking": {
-                "type": "disabled"
-            },
         }
+        thinking_enabled = _settings_bool("LLM_THINKING_ENABLED", True)
+        if not thinking_enabled:
+            payload["thinking"] = {"type": "disabled"}
 
         # Try up to 2 times
         for attempt in range(2):
@@ -126,23 +137,25 @@ class ZAIClient(BaseLLM):
                         return None
 
                     message = data["choices"][0].get("message", {})
-                    content = message.get("content", "")
+                    content = visible_answer_from_message(message)
 
                     # Log if reasoning_content present (thinking mode leak)
-                    if message.get("reasoning_content"):
+                    if has_reasoning_payload(message):
                         print(f"[ZAI] Note: reasoning_content present but ignored (internal thinking)")
 
                     # If still empty, retry with intimate instruction
                     if not content or not content.strip():
                         if attempt == 0:
-                            print(f"[ZAI] Empty content on first attempt, retrying with intimate instruction...")
+                            print(f"[ZAI] Empty answer on first attempt, retrying with explicit visible-answer instruction...")
                             # Add intimate instruction to output dialogue
                             retry_messages = messages.copy()
                             retry_messages.append({
                                 "role": "system",
-                                "content": "IMPORTANT: You must respond with actual dialogue that can be spoken. Do not just think - say something out loud."
+                                "content": "IMPORTANT: Return a visible spoken answer in the message content. Keep private reasoning out of the visible answer."
                             })
                             payload["messages"] = retry_messages
+                            if thinking_enabled:
+                                payload["thinking"] = {"type": "disabled"}
                             continue
                         else:
                             print(f"[ZAI] Empty content after retry")

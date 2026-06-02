@@ -911,12 +911,22 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     )
     if not self._llm:
         return shaped_fallback("llm unavailable")
-    env_max_tokens = int(os.environ.get("LLM_MAX_TOKENS", str(response_policy.max_tokens)))
-    visible_max_tokens = min(env_max_tokens, response_policy.max_tokens)
-    provider_min_tokens = int(os.environ.get("LLM_PROVIDER_MIN_TOKENS", "180"))
-    max_tokens = max(visible_max_tokens, provider_min_tokens)
-    if "LLM_MAX_TOKENS" in os.environ:
-        max_tokens = min(max_tokens, env_max_tokens)
+    from core.settings import get_bool as settings_get_bool, get_int as settings_get_int
+
+    configured_max_tokens = int(os.environ.get(
+        "LLM_MAX_TOKENS",
+        str(settings_get_int("LLM_MAX_TOKENS", 500)),
+    ))
+    thinking_enabled = settings_get_bool("LLM_THINKING_ENABLED", True)
+    if "LLM_THINKING_ENABLED" in os.environ:
+        thinking_enabled = os.environ["LLM_THINKING_ENABLED"].strip().lower() not in ("0", "false", "no", "off")
+    visible_max_tokens = min(configured_max_tokens, response_policy.max_tokens)
+    default_provider_min = 500 if thinking_enabled else 180
+    provider_min_tokens = int(os.environ.get(
+        "LLM_PROVIDER_MIN_TOKENS",
+        str(settings_get_int("LLM_PROVIDER_MIN_TOKENS", default_provider_min)),
+    ))
+    max_tokens = min(configured_max_tokens, max(visible_max_tokens, provider_min_tokens))
     temperature = float(os.environ.get("LLM_TEMPERATURE", "0.95"))
 
     # DEBUG: Log conversation history
