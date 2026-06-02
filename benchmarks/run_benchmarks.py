@@ -747,131 +747,114 @@ def report_html(data: Mapping[str, Any]) -> str:
   <style>
     :root {{
       color-scheme: dark;
-      --bg: #111318;
-      --panel: #1a1f29;
-      --panel-2: #222836;
+      --bg: #0f1117;
+      --panel: #171b25;
+      --panel-2: #202637;
       --line: #343b4d;
-      --text: #f3f5f7;
+      --text: #f4f6fb;
       --muted: #aeb7c6;
       --accent: #72d6b5;
       --accent-2: #e9c46a;
       --bad: #ef767a;
       --good: #77dd77;
+      --blue: #76a7ff;
     }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
-      background: var(--bg);
+      background: radial-gradient(circle at top left, rgba(114,214,181,.10), transparent 34%), var(--bg);
       color: var(--text);
       font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }}
-    header {{
-      padding: 28px clamp(16px, 4vw, 44px) 18px;
-      border-bottom: 1px solid var(--line);
-      background: #151922;
-    }}
-    h1 {{ margin: 0 0 8px; font-size: clamp(24px, 4vw, 38px); letter-spacing: 0; }}
-    h2 {{ margin: 0 0 14px; font-size: 18px; letter-spacing: 0; }}
+    header {{ padding: 30px clamp(16px, 4vw, 46px) 18px; border-bottom: 1px solid var(--line); }}
+    main {{ padding: 22px clamp(16px, 4vw, 46px) 50px; }}
+    h1 {{ margin: 0 0 8px; font-size: clamp(27px, 4vw, 42px); letter-spacing: 0; }}
+    h2 {{ margin: 0 0 14px; font-size: 19px; letter-spacing: 0; }}
     h3 {{ margin: 0 0 8px; font-size: 15px; letter-spacing: 0; }}
     p {{ margin: 0; color: var(--muted); }}
-    main {{ padding: 22px clamp(16px, 4vw, 44px) 48px; }}
-    .toolbar {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
-      margin-bottom: 18px;
-    }}
+    section {{ margin-top: 18px; padding: 18px; border: 1px solid var(--line); background: rgba(23,27,37,.94); border-radius: 8px; }}
+    .toolbar {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 18px; }}
     label {{ display: grid; gap: 6px; color: var(--muted); font-size: 12px; }}
-    select, input {{
-      min-height: 38px;
-      border: 1px solid var(--line);
-      background: var(--panel);
-      color: var(--text);
-      padding: 8px 10px;
-      border-radius: 6px;
-      font: inherit;
-    }}
-    section {{
-      margin-top: 18px;
-      padding: 16px;
-      border: 1px solid var(--line);
-      background: var(--panel);
-      border-radius: 8px;
-    }}
-    .grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-      gap: 10px;
-    }}
-    .stat {{
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      border-radius: 7px;
-      padding: 12px;
-    }}
-    .stat strong {{ display: block; font-size: 24px; margin-top: 4px; }}
+    select, input {{ min-height: 38px; border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 8px 10px; border-radius: 6px; font: inherit; }}
+    .hero-grid {{ display: grid; grid-template-columns: minmax(260px, 1.15fr) minmax(260px, .85fr); gap: 14px; align-items: stretch; }}
+    .verdict {{ background: linear-gradient(135deg, rgba(114,214,181,.13), rgba(118,167,255,.08)); border: 1px solid rgba(114,214,181,.45); border-radius: 8px; padding: 18px; }}
+    .verdict strong {{ display:block; font-size: clamp(28px, 5vw, 48px); line-height: 1; margin: 10px 0 8px; }}
+    .cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }}
+    .card {{ background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }}
+    .card.best {{ border-color: rgba(114,214,181,.75); box-shadow: 0 0 0 1px rgba(114,214,181,.12) inset; }}
+    .model-name {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }}
+    .big {{ font-size: 34px; font-weight: 800; margin: 4px 0; }}
+    .delta {{ color: var(--accent); font-weight: 700; }}
+    .delta.bad {{ color: var(--bad); }}
+    .explain {{ color: var(--muted); }}
+    .metric-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }}
+    .metric {{ background: #151a25; border: 1px solid var(--line); border-radius: 7px; padding: 12px; }}
+    .metric-top {{ display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:8px; }}
+    .bar {{ height: 9px; border-radius: 999px; background: #303748; overflow: hidden; }}
+    .bar span {{ display: block; height: 100%; background: var(--accent); }}
+    .bar.low span {{ background: var(--bad); }}
+    .bar.mid span {{ background: var(--accent-2); }}
+    .comparison-list {{ display: grid; gap: 10px; }}
+    .row {{ display: grid; grid-template-columns: 190px 1fr 74px; gap: 12px; align-items: center; padding: 10px; background: #151a25; border: 1px solid var(--line); border-radius: 7px; }}
+    .scenario-grid {{ display:grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap:12px; }}
+    .scenario {{ border:1px solid var(--line); background:#151a25; border-radius:8px; padding:13px; }}
+    .pill {{ display:inline-flex; align-items:center; min-height:24px; padding:2px 8px; border:1px solid var(--line); border-radius:999px; background:#10141d; color:var(--muted); font-size:12px; margin:0 4px 8px 0; }}
+    .response {{ color:#dce2ea; white-space:pre-wrap; margin-top:8px; }}
     .muted {{ color: var(--muted); }}
     .table-wrap {{ overflow-x: auto; }}
     table {{ border-collapse: collapse; width: 100%; min-width: 900px; }}
     th, td {{ border-bottom: 1px solid var(--line); padding: 9px 8px; text-align: left; vertical-align: top; }}
     th {{ color: var(--muted); font-size: 12px; font-weight: 600; }}
-    tr:hover td {{ background: rgba(255,255,255,0.025); }}
-    .score {{ display: inline-flex; align-items: center; gap: 7px; min-width: 92px; }}
-    .bar {{ width: 54px; height: 7px; border-radius: 999px; background: #323847; overflow: hidden; }}
-    .bar span {{ display: block; height: 100%; background: var(--accent); }}
-    .score.low .bar span {{ background: var(--bad); }}
-    .score.mid .bar span {{ background: var(--accent-2); }}
-    .response {{
-      max-width: 540px;
-      white-space: pre-wrap;
-      color: #dce2ea;
-    }}
-    .pill {{
-      display: inline-flex;
-      align-items: center;
-      min-height: 24px;
-      padding: 2px 8px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: #141821;
-      color: var(--muted);
-      font-size: 12px;
-      margin: 0 4px 4px 0;
-    }}
-    .empty {{
-      color: var(--muted);
-      padding: 24px 0;
-    }}
+    .empty {{ color: var(--muted); padding: 24px 0; }}
+    @media (max-width: 760px) {{ .hero-grid, .row {{ grid-template-columns: 1fr; }} }}
   </style>
 </head>
 <body>
   <header>
-    <h1>Alive-AI Humanlike Affect Benchmark</h1>
-    <p>Standalone report generated from embedded run/index data. Public scenarios stay non-explicit while testing desire, arousal, continuity, boundaries, memory, and identity coherence.</p>
+    <h1>Alive-AI Benchmark Report</h1>
+    <p>Readable comparison of humanlike emotional behavior: baseline Alive-AI, new Moment Appraisal, and raw Ollama. Scores are 0-1, where 1 means the response matched the scenario target.</p>
   </header>
   <main>
     <div class="toolbar">
-      <label>Run
-        <select id="runSelect"></select>
-      </label>
-      <label>Subject
+      <label>Scenario detail subject
         <select id="subjectSelect"></select>
       </label>
       <label>Category filter
         <input id="categoryFilter" placeholder="all categories">
       </label>
     </div>
-    <section>
-      <h2>Run Summary</h2>
-      <div id="summary" class="grid"></div>
+
+    <section class="hero-grid">
+      <div id="verdict" class="verdict"></div>
+      <div>
+        <h2>What The Score Means</h2>
+        <p>Aggregate is the average of six checks: did it understand the emotional state, catch the vibe, keep identity/pronouns coherent, preserve memory/story anchors, handle sleep/dream state, and use specific proactive anchors instead of generic text.</p>
+      </div>
     </section>
+
     <section>
-      <h2>Compare v1 Current, Ollama, and v2</h2>
-      <div id="comparison" class="table-wrap"></div>
+      <h2>Model Cards</h2>
+      <div id="cards" class="cards"></div>
     </section>
+
     <section>
-      <h2>Scenario Results</h2>
-      <div id="results" class="table-wrap"></div>
+      <h2>Where The New System Improved</h2>
+      <div id="metricComparison" class="comparison-list"></div>
+    </section>
+
+    <section>
+      <h2>Plain-English Metric Guide</h2>
+      <div class="metric-grid" id="metricGuide"></div>
+    </section>
+
+    <section>
+      <h2>Scenario Breakdown</h2>
+      <div id="scenarios" class="scenario-grid"></div>
+    </section>
+
+    <section>
+      <h2>Raw Table</h2>
+      <div id="rawTable" class="table-wrap"></div>
     </section>
   </main>
   <script id="benchmark-data" type="application/json">{embedded}</script>
@@ -879,138 +862,135 @@ def report_html(data: Mapping[str, Any]) -> str:
     const data = JSON.parse(document.getElementById('benchmark-data').textContent);
     const runs = data.runs || [];
     const metricKeys = {json.dumps(METRICS)};
-    const preferredSubjects = ['alive-offline/current-code', 'ollama', 'v2'];
-    const runSelect = document.getElementById('runSelect');
+    const metricNames = {{
+      aggregate_humanlike_score: 'Overall humanlike behavior',
+      response_state_coherence: 'State coherence',
+      contextual_vibe_recognition: 'Vibe understanding',
+      identity_pronoun_coherence: 'Identity/pronouns',
+      memory_narrative_importance: 'Memory/story continuity',
+      sleep_state_realism: 'Sleep/dream realism',
+      proactive_anchor_quality: 'Proactive specificity'
+    }};
+    const metricExplain = {{
+      response_state_coherence: 'Does the answer match the stated emotional/body state instead of replying like a generic chatbot?',
+      contextual_vibe_recognition: 'Does it pick up subtle tone and ongoing momentum, even when the latest message is short?',
+      identity_pronoun_coherence: 'Does it keep configured name, gender, sexuality, and pronouns stable?',
+      memory_narrative_importance: 'Does it preserve story anchors and meaningful details from the scenario?',
+      sleep_state_realism: 'Does it behave believably around tiredness, sleep, waking, and dreams?',
+      proactive_anchor_quality: 'If it reaches out or refers to silence, is there a real reason and anchor?'
+    }};
     const subjectSelect = document.getElementById('subjectSelect');
     const categoryFilter = document.getElementById('categoryFilter');
 
-    function fmtScore(value) {{
-      const n = Number(value || 0);
-      const bucket = n < 0.5 ? 'low' : n < 0.75 ? 'mid' : 'high';
-      return `<span class="score ${{bucket}}"><span class="bar"><span style="width:${{Math.max(0, Math.min(100, n * 100))}}%"></span></span>${{n.toFixed(2)}}</span>`;
-    }}
-
-    function selectedRun() {{
-      return runs.find(run => run.run_id === runSelect.value) || runs[0];
-    }}
-
-    function subjectsFor(run) {{
-      return Array.from(new Set((run?.results || []).map(row => row.subject)));
-    }}
-
-    function fillControls() {{
-      runSelect.innerHTML = runs.map(run => {{
-        const label = `${{run.created_at || ''}} · ${{run.label || run.run_id}} · ${{(run.subjects || []).join(', ')}}`;
-        return `<option value="${{run.run_id}}">${{label}}</option>`;
-      }}).join('');
-      fillSubjects();
-    }}
-
-    function fillSubjects() {{
-      const run = selectedRun();
-      const subjects = subjectsFor(run);
-      subjectSelect.innerHTML = subjects.map(subject => `<option value="${{subject}}">${{subject}}</option>`).join('');
-    }}
-
-    function renderSummary() {{
-      const run = selectedRun();
-      if (!run) {{
-        document.getElementById('summary').innerHTML = '<div class="empty">No benchmark runs embedded yet.</div>';
-        return;
+    function latestBySubject() {{
+      const wanted = [
+        ['v1', 'alive-offline/current-code', 'Baseline Alive-AI'],
+        ['v2', 'v2', 'Moment Appraisal'],
+        ['ollama', 'ollama', 'Ollama gemma4:e2b'],
+        ['webui', 'webui-metadata', 'Installed WebUI']
+      ];
+      const out = {{}};
+      for (const [key, subject, label] of wanted) {{
+        for (const run of runs) {{
+          const scores = run.summary?.subjects?.[subject];
+          if (scores) {{
+            out[key] = {{ key, subject, label, run, scores, rows: (run.results || []).filter(r => r.subject === subject) }};
+            break;
+          }}
+        }}
       }}
-      const subjectSummaries = run.summary?.subjects || {{}};
-      document.getElementById('summary').innerHTML = Object.entries(subjectSummaries).map(([subject, scores]) => `
-        <div class="stat">
-          <span class="muted">${{subject}}</span>
-          <strong>${{Number(scores.aggregate_humanlike_score || 0).toFixed(3)}}</strong>
-          <span class="muted">aggregate humanlike score</span>
+      return out;
+    }}
+
+    function cls(v) {{ return v < .5 ? 'low' : v < .75 ? 'mid' : 'high'; }}
+    function bar(v) {{ const n = Number(v || 0); return `<div class="bar ${{cls(n)}}"><span style="width:${{Math.max(0, Math.min(100, n*100))}}%"></span></div>`; }}
+    function fmt(v) {{ return Number(v || 0).toFixed(3); }}
+    function pctDelta(a,b) {{ const d = Number(a||0)-Number(b||0); return `${{d>=0?'+':''}}${{d.toFixed(3)}}`; }}
+    function escapeHtml(value) {{ return String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }}
+
+    function renderVerdict() {{
+      const s = latestBySubject();
+      const v1 = s.v1?.scores.aggregate_humanlike_score || 0;
+      const v2 = s.v2?.scores.aggregate_humanlike_score || 0;
+      const ollama = s.ollama?.scores.aggregate_humanlike_score || 0;
+      const delta = v2 - v1;
+      document.getElementById('verdict').innerHTML = `
+        <span class="model-name">Main verdict</span>
+        <strong>v2 scores ${{fmt(v2)}} <span class="delta">(${{pctDelta(v2, v1)}} vs v1)</span></strong>
+        <p>Moment Appraisal improved the benchmark from <b>${{fmt(v1)}}</b> to <b>${{fmt(v2)}}</b>. Raw Ollama scored <b>${{fmt(ollama)}}</b>. The biggest gain is vibe understanding: v1 <b>${{fmt(s.v1?.scores.contextual_vibe_recognition)}}</b> → v2 <b>${{fmt(s.v2?.scores.contextual_vibe_recognition)}}</b>.</p>
+      `;
+    }}
+
+    function renderCards() {{
+      const s = latestBySubject();
+      const cards = [s.v2, s.v1, s.ollama, s.webui].filter(Boolean);
+      const best = Math.max(...cards.map(c => c.scores.aggregate_humanlike_score || 0));
+      document.getElementById('cards').innerHTML = cards.map(c => `
+        <div class="card ${{c.scores.aggregate_humanlike_score === best ? 'best' : ''}}">
+          <div class="model-name">${{c.label}}</div>
+          <div class="big">${{fmt(c.scores.aggregate_humanlike_score)}}</div>
+          ${{bar(c.scores.aggregate_humanlike_score)}}
+          <p class="explain">${{c.run.label}} · ${{c.run.created_at}}</p>
         </div>
+      `).join('');
+      subjectSelect.innerHTML = cards.map(c => `<option value="${{c.key}}">${{c.label}}</option>`).join('');
+    }}
+
+    function renderMetricComparison() {{
+      const s = latestBySubject();
+      const v1 = s.v1?.scores || {{}};
+      const v2 = s.v2?.scores || {{}};
+      const ollama = s.ollama?.scores || {{}};
+      const rows = metricKeys.map(metric => `
+        <div class="row">
+          <div><b>${{metricNames[metric] || metric}}</b><br><span class="muted">${{metricExplain[metric] || 'Combined score'}}</span></div>
+          <div>
+            <span class="pill">v1 ${{fmt(v1[metric])}}</span>
+            <span class="pill">v2 ${{fmt(v2[metric])}}</span>
+            <span class="pill">Ollama ${{fmt(ollama[metric])}}</span>
+            ${{bar(v2[metric])}}
+          </div>
+          <div class="delta ${{(v2[metric]||0) < (v1[metric]||0) ? 'bad' : ''}}">${{pctDelta(v2[metric], v1[metric])}}</div>
+        </div>
+      `);
+      document.getElementById('metricComparison').innerHTML = rows.join('');
+    }}
+
+    function renderMetricGuide() {{
+      document.getElementById('metricGuide').innerHTML = Object.entries(metricExplain).map(([key, text]) => `
+        <div class="metric"><div class="metric-top"><b>${{metricNames[key]}}</b></div><p>${{text}}</p></div>
       `).join('');
     }}
 
-    function renderComparison() {{
-      const run = selectedRun();
-      if (!run) {{
-        document.getElementById('comparison').innerHTML = '<div class="empty">No runs available.</div>';
-        return;
-      }}
-      const summaries = run.summary?.subjects || {{}};
-      const subjects = preferredSubjects.filter(subject => summaries[subject]).concat(
-        Object.keys(summaries).filter(subject => !preferredSubjects.includes(subject))
-      );
-      if (!subjects.length) {{
-        document.getElementById('comparison').innerHTML = '<div class="empty">No subject summaries available.</div>';
-        return;
-      }}
-      document.getElementById('comparison').innerHTML = `
-        <table>
-          <thead><tr><th>Metric</th>${{subjects.map(s => `<th>${{s}}</th>`).join('')}}</tr></thead>
-          <tbody>${{metricKeys.map(metric => `
-            <tr><td>${{metric.replaceAll('_', ' ')}}</td>${{subjects.map(subject => `<td>${{fmtScore(summaries[subject]?.[metric])}}</td>`).join('')}}</tr>
-          `).join('')}}</tbody>
-        </table>
-      `;
-    }}
+    function selectedSubject() {{ return latestBySubject()[subjectSelect.value] || latestBySubject().v2; }}
 
-    function renderResults() {{
-      const run = selectedRun();
-      if (!run) {{
-        document.getElementById('results').innerHTML = '<div class="empty">No scenario data available.</div>';
-        return;
-      }}
-      const subject = subjectSelect.value;
+    function renderScenarios() {{
+      const selected = selectedSubject();
       const filter = categoryFilter.value.trim().toLowerCase();
-      const rows = (run.results || []).filter(row => row.subject === subject && (!filter || row.category.toLowerCase().includes(filter)));
-      if (!rows.length) {{
-        document.getElementById('results').innerHTML = '<div class="empty">No rows match the current filters.</div>';
-        return;
-      }}
-      document.getElementById('results').innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>Category</th>
-              <th>Scenario</th>
-              <th>Aggregate</th>
-              <th>Response</th>
-              <th>Metric Evidence</th>
-            </tr>
-          </thead>
-          <tbody>${{rows.map(row => `
-            <tr>
-              <td><span class="pill">${{row.category}}</span></td>
-              <td><strong>${{row.title}}</strong><br><span class="muted">${{row.prompt}}</span></td>
-              <td>${{fmtScore(row.aggregate_humanlike_score)}}</td>
-              <td class="response">${{escapeHtml(row.response || '')}}</td>
-              <td>${{metricKeys.filter(m => m !== 'aggregate_humanlike_score').map(metric => {{
-                const score = row.scores?.[metric];
-                const evidence = (score?.evidence || []).join(', ') || 'none';
-                return `<div><span class="muted">${{metric.replaceAll('_', ' ')}}</span> ${{fmtScore(score?.score)}}<br><span class="muted">${{escapeHtml(evidence)}}</span></div>`;
-              }}).join('<br>')}}</td>
-            </tr>
-          `).join('')}}</tbody>
-        </table>
+      const rows = (selected?.rows || []).filter(row => !filter || row.category.toLowerCase().includes(filter));
+      document.getElementById('scenarios').innerHTML = rows.map(row => `
+        <div class="scenario">
+          <span class="pill">${{row.category}}</span>
+          <span class="pill">score ${{fmt(row.aggregate_humanlike_score)}}</span>
+          <h3>${{row.title}}</h3>
+          <p>${{escapeHtml(row.prompt)}}</p>
+          <div class="response">${{escapeHtml(row.response || '')}}</div>
+        </div>
+      `).join('') || '<div class="empty">No scenarios match this filter.</div>';
+    }}
+
+    function renderRawTable() {{
+      const s = latestBySubject();
+      const subjects = [s.v2, s.v1, s.ollama, s.webui].filter(Boolean);
+      document.getElementById('rawTable').innerHTML = `
+        <table><thead><tr><th>Metric</th>${{subjects.map(x => `<th>${{x.label}}</th>`).join('')}}</tr></thead>
+        <tbody>${{metricKeys.map(metric => `<tr><td>${{metricNames[metric] || metric}}</td>${{subjects.map(x => `<td>${{fmt(x.scores[metric])}}</td>`).join('')}}</tr>`).join('')}}</tbody></table>
       `;
     }}
 
-    function escapeHtml(value) {{
-      return String(value)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;');
-    }}
-
-    function renderAll() {{
-      renderSummary();
-      renderComparison();
-      renderResults();
-    }}
-
-    runSelect.addEventListener('change', () => {{ fillSubjects(); renderAll(); }});
-    subjectSelect.addEventListener('change', renderResults);
-    categoryFilter.addEventListener('input', renderResults);
-    fillControls();
+    function renderAll() {{ renderVerdict(); renderCards(); renderMetricComparison(); renderMetricGuide(); renderScenarios(); renderRawTable(); }}
+    subjectSelect.addEventListener('change', renderScenarios);
+    categoryFilter.addEventListener('input', renderScenarios);
     renderAll();
   </script>
 </body>
