@@ -58,6 +58,8 @@ The public Pages site is an interactive static portal with a presentation, simul
 
 Alive-AI now ships a local benchmark harness under `benchmarks/` so emotional upgrades can be measured instead of guessed. The suite compares subjects across non-explicit scenarios for subtle continuation, affectionate goodnight rituals, playful teasing, vulnerability, conflict repair, boredom, jealousy, sleepiness, dream residue, proactive silence, and female/male/nonbinary identity coherence.
 
+Benchmark outputs are local-only artifacts. `benchmarks/report.html` and `benchmarks/results/` are ignored because runs against a live WebUI can include private memory, state, or conversation snippets. Publish only sanitized screenshots or manually curated aggregate numbers.
+
 Run it locally:
 
 ```bash

@@ -15,6 +15,10 @@ myvids/*
 !mypics/.gitkeep
 !myvids/.gitkeep
 
+# Local benchmark artifacts may include private runtime conversations.
+benchmarks/report.html
+benchmarks/results/
+
 # Python
 __pycache__/
 *.py[cod]
