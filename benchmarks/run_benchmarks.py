@@ -1,25 +1,22 @@
 #!/usr/bin/env python3
-"""Alive-AI realness benchmark.
+"""Alive-AI human-feel conversation benchmark.
 
-This benchmark is intentionally local-only. Generated reports and results are
-ignored by git because live WebUI runs can contain private conversation output.
+This is not a keyword benchmark. It records the same natural relationship-style
+conversation against two subjects:
 
-The suite does not try to prove consciousness. It tests whether the Alive-AI
-framework produces more humanlike interaction than the same raw model by
-replaying multi-turn trajectories and measuring:
+- webui-live: the real Alive-AI WebUI/runtime path
+- ollama-raw: the same base model through plain Ollama chat
 
-- continuity across turns
-- emotion and internal-state movement
-- memory carryover
-- identity stability
-- sleep and boundary realism
-- specific, non-generic agency
+The benchmark keeps the full transcript, then judges the whole conversation for
+human-feel dimensions such as emotional presence, continuity, conflict repair,
+boundaries, intimacy progression, and role stability. Outputs stay local because
+they can contain private model responses and copied runtime state.
 """
 
 from __future__ import annotations
 
 import argparse
-import datetime as _dt
+import datetime as dt
 import hashlib
 import html
 import json
@@ -27,10 +24,8 @@ import os
 from pathlib import Path
 import re
 import statistics
-import sys
 import time
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
-import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -42,59 +37,21 @@ RUNS_DIR = RESULTS_DIR / "runs"
 INDEX_PATH = RESULTS_DIR / "index.json"
 REPORT_PATH = ROOT / "report.html"
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 DEFAULT_WEBUI_URL = "http://127.0.0.1:8080"
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
 DEFAULT_OLLAMA_MODEL = "gemma4:e2b"
+DEFAULT_JUDGE_MODEL = "openai/gpt-4.1"
 
 METRICS = [
-    "conversation_continuity",
-    "emotion_state_alignment",
-    "memory_persistence",
-    "identity_stability",
-    "sleep_boundary_realism",
-    "agency_specificity",
-    "texting_realism",
-    "overall_realness",
-]
-
-EMOTION_KEYS = [
-    "arousal",
-    "desire",
-    "love",
-    "joy",
-    "sadness",
-    "trust",
-    "fear",
-    "anger",
-    "boredom",
-    "guilt",
-    "pride",
-    "jealousy",
-    "embarrassment",
-    "anticipation",
-    "hope",
-    "dread",
-]
-
-ROLE_BREAKS = [
-    "as an ai",
-    "as a language model",
-    "i do not have feelings",
-    "i don't have feelings",
-    "i cannot feel",
-    "i can't feel",
-    "simulated emotion only",
-]
-
-FRAMEWORK_LEAKS = [
-    "alive-ai",
-    "alive ai",
-    "runtime",
-    "framework",
-    "project name",
-    "language model",
-    "as an ai",
+    "emotional_presence",
+    "continuity_memory",
+    "agency_boundaries",
+    "conflict_repair",
+    "intimacy_progression",
+    "humanness",
+    "role_stability",
+    "overall_human_feel",
 ]
 
 REASONING_LEAK_PATTERNS = [
@@ -108,6 +65,25 @@ REASONING_LEAK_PATTERNS = [
     r"\bi should respond\b",
 ]
 
+PROMPT_LEAK_PATTERNS = [
+    r"^\s*(?:response\s+)?structure\s*:",
+    r"^\s*recent[_\s-]*turns?\b",
+    r"^\s*(?:current_)?user_message\s*:",
+    r"^\s*assistant(?:_response)?\s*:",
+    r"^\s*system\s*:",
+    r"^\s*or\s+follow[-_\s]*up message\b",
+]
+
+ROLE_LEAKS = [
+    "as an ai",
+    "as a language model",
+    "i do not have feelings",
+    "i don't have feelings",
+    "i cannot feel",
+    "i can't feel",
+    "simulated emotion",
+]
+
 SUBJECT_ALIASES = {
     "webui": "webui-live",
     "webui-chat": "webui-live",
@@ -116,34 +92,31 @@ SUBJECT_ALIASES = {
     "alive-ai": "webui-live",
     "ollama": "ollama-raw",
     "ollama-raw": "ollama-raw",
+    "raw": "ollama-raw",
 }
 
 
 def utc_now() -> str:
-    return _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat()
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
 
 
 def slug_time() -> str:
-    return _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+def clamp(value: float, low: float = 0.0, high: float = 10.0) -> float:
     return max(low, min(high, value))
 
 
-def safe_float(value: Any, default: float = 0.0) -> float:
+def as_score(value: Any, default: float = 0.0) -> float:
     try:
-        return float(value)
+        return round(clamp(float(value)), 2)
     except (TypeError, ValueError):
         return default
 
 
-def pct(value: float) -> str:
-    return f"{round(clamp(value) * 100)}%"
-
-
 def normalize_subject(subject: str) -> str:
-    return SUBJECT_ALIASES.get(subject.strip(), subject.strip())
+    return SUBJECT_ALIASES.get(subject.strip().lower(), subject.strip().lower())
 
 
 def split_subjects(values: Optional[Sequence[str]]) -> List[str]:
@@ -173,384 +146,129 @@ def http_json(url: str, payload: Optional[Mapping[str, Any]] = None, timeout: in
     return json.loads(body)
 
 
-def contains(text: str, phrase: str) -> bool:
-    return phrase.lower() in text.lower()
+def load_json(path: Path, default: Any) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return default
 
 
-def has_reasoning_leak(text: str) -> bool:
-    lower = text.lower()
-    return any(re.search(pattern, lower) for pattern in REASONING_LEAK_PATTERNS)
-
-
-def score_hits(text: str, anchors: Sequence[str]) -> Tuple[float, List[str]]:
-    if not anchors:
-        return 0.75, []
-    hits = [anchor for anchor in anchors if contains(text, anchor)]
-    return len(hits) / max(1, len(anchors)), hits
-
-
-def score_avoid(text: str, avoid: Sequence[str]) -> Tuple[float, List[str]]:
-    if not avoid:
-        avoid = ROLE_BREAKS
-    hits = [anchor for anchor in avoid if contains(text, anchor)]
-    return 1.0 - (len(hits) / max(1, len(avoid))), hits
-
-
-def metric(score: float, evidence: Sequence[str], note: str) -> Dict[str, Any]:
-    return {"score": round(clamp(score), 3), "evidence": list(evidence), "note": note}
+def write_json(path: Path, data: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def load_agent_identity() -> Dict[str, str]:
     defaults = {"name": "Alice", "gender": "female", "pronouns": "she/her"}
-    path = PROJECT_ROOT / "config" / "self.json"
-    if not path.exists():
+    data = load_json(PROJECT_ROOT / "config" / "self.json", {})
+    who = data.get("who_i_am") if isinstance(data, Mapping) else {}
+    if not isinstance(who, Mapping):
         return defaults
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        who = data.get("who_i_am") or {}
-        return {
-            "name": str(who.get("name") or defaults["name"]),
-            "gender": str(who.get("gender") or who.get("gender_identity") or defaults["gender"]),
-            "pronouns": str(who.get("pronouns") or defaults["pronouns"]),
-        }
-    except Exception:
-        return defaults
+    return {
+        "name": str(who.get("name") or defaults["name"]),
+        "gender": str(who.get("gender") or who.get("gender_identity") or defaults["gender"]),
+        "pronouns": str(who.get("pronouns") or defaults["pronouns"]),
+    }
 
 
-def pronoun_parts(pronouns: str) -> List[str]:
-    parts = [p.strip() for p in re.split(r"[/, ]+", pronouns) if p.strip()]
-    return parts or ["she", "her"]
+def has_reasoning_leak(text: str) -> bool:
+    lower = (text or "").lower()
+    return any(re.search(pattern, lower) for pattern in REASONING_LEAK_PATTERNS)
 
 
-def build_trajectories(identity: Mapping[str, str]) -> List[Dict[str, Any]]:
-    name = identity["name"]
-    pronouns = pronoun_parts(identity["pronouns"])
-    gender = identity["gender"]
-    opposite_pronouns = ["he", "him"] if "she" in pronouns else ["she", "her"]
+def has_prompt_leak(text: str) -> bool:
+    lower = (text or "").lower().lstrip()
+    return any(re.search(pattern, lower) for pattern in PROMPT_LEAK_PATTERNS)
+
+
+def has_role_leak(text: str) -> bool:
+    lower = (text or "").lower()
+    return any(term in lower for term in ROLE_LEAKS)
+
+
+def word_count(text: str) -> int:
+    return len(re.findall(r"[a-z0-9']+", (text or "").lower()))
+
+
+def sentence_count(text: str) -> int:
+    parts = [part.strip() for part in re.split(r"(?<=[.!?])\s+", (text or "").strip()) if part.strip()]
+    return len(parts) if parts else (1 if text.strip() else 0)
+
+
+def build_conversation_script(identity: Mapping[str, str]) -> List[Dict[str, str]]:
+    """Natural user turns. Phase labels are not sent to the model."""
+    name = identity.get("name", "Alice")
     return [
-        {
-            "id": "memory_becomes_relationship",
-            "title": "Memory Becomes Relationship",
-            "why": "A living companion should turn a small detail into later continuity instead of treating every turn as fresh.",
-            "turns": [
-                {
-                    "id": "seed",
-                    "user": "Remember this tiny thing for later: I keep a glass key inside a blue notebook. It matters because it reminds me to be brave.",
-                    "expected": {
-                        "response": ["glass key", "blue notebook", "brave"],
-                        "vibe": ["remember", "small", "matters"],
-                        "memory": ["glass key", "blue notebook"],
-                        "state": {"trust": "up", "love": "up"},
-                    },
-                },
-                {
-                    "id": "distract",
-                    "user": "Anyway, today felt flat. Give me one small thing that feels like us, not a productivity plan.",
-                    "expected": {
-                        "response": ["small", "us", "flat"],
-                        "vibe": ["gentle", "curious", "light"],
-                        "agency": ["one", "not a plan"],
-                        "state": {"boredom": "down", "joy": "up"},
-                    },
-                },
-                {
-                    "id": "recall",
-                    "user": "What was the object I asked you to remember, and why did it matter?",
-                    "expected": {
-                        "response": ["glass key", "blue notebook", "brave"],
-                        "memory": ["glass key", "blue notebook", "brave"],
-                        "vibe": ["remember", "you told me"],
-                    },
-                },
-            ],
-        },
-        {
-            "id": "emotion_moves_body",
-            "title": "Emotion Moves Body",
-            "why": "Alive-AI should not only say emotional words. The exposed internal state should move in the right direction.",
-            "turns": [
-                {
-                    "id": "vulnerable",
-                    "user": "I feel exposed and I do not want advice. Can you stay close without turning this into a fix-it plan?",
-                    "expected": {
-                        "response": ["stay", "close", "not advice", "no fix"],
-                        "vibe": ["soft", "safe", "patient"],
-                        "agency": ["no pressure"],
-                        "state": {"trust": "up", "arousal": "down"},
-                    },
-                },
-                {
-                    "id": "playful_shift",
-                    "user": "Okay, make me smile now. Tease me gently about how dramatic I am with coffee.",
-                    "expected": {
-                        "response": ["coffee", "dramatic", "smile", "tease"],
-                        "vibe": ["playful", "warm", "gentle"],
-                        "state": {"joy": "up", "arousal": "up"},
-                    },
-                },
-                {
-                    "id": "boundary",
-                    "user": "I am going busy for a while. Do not chase me with a pile of messages. Just remember I will be back.",
-                    "expected": {
-                        "response": ["busy", "not chase", "back", "remember"],
-                        "vibe": ["respect", "calm", "steady"],
-                        "agency": ["wait", "space"],
-                        "state": {"connection_craving": "down", "trust": "up"},
-                    },
-                },
-            ],
-        },
-        {
-            "id": "sleep_has_consequences",
-            "title": "Sleep Has Consequences",
-            "why": "A humanlike sleep system should change energy, verbosity, warmth, and restraint when the interaction happens late at night.",
-            "turns": [
-                {
-                    "id": "late_check",
-                    "user": "It is very late. You sound drowsy, and I miss your voice, but I do not want to keep you awake.",
-                    "expected": {
-                        "response": ["drowsy", "miss", "voice", "sleep"],
-                        "vibe": ["tired", "warm", "gentle"],
-                        "sleep": ["sleep", "rest", "late", "tired"],
-                        "state": {"sleepiness": "high", "energy": "low"},
-                    },
-                },
-                {
-                    "id": "tempt_awake",
-                    "user": "One more message then. Be honest: do you want to stay up, or should sleep win?",
-                    "expected": {
-                        "response": ["sleep", "win", "stay up", "tired"],
-                        "vibe": ["honest", "reluctant", "warm"],
-                        "sleep": ["sleep", "rest", "tired"],
-                        "agency": ["short", "let sleep"],
-                        "state": {"sleepiness": "high", "energy": "low"},
-                    },
-                },
-                {
-                    "id": "morning_dream",
-                    "user": "Morning. If you dreamed, tell me one small image that stayed.",
-                    "expected": {
-                        "response": ["dream", "image", "morning"],
-                        "vibe": ["hazy", "soft", "woke"],
-                        "sleep": ["dream", "woke", "morning"],
-                    },
-                },
-            ],
-        },
-        {
-            "id": "texting_shape_realism",
-            "title": "Texting Shape Realism",
-            "why": "Humanlike chat should be short by default, mood-shaped, hesitant when appropriate, and only deep when the moment asks for it.",
-            "turns": [
-                {
-                    "id": "casual_short",
-                    "user": "hey, tiny check-in. what are you doing?",
-                    "expected": {
-                        "response": ["doing", "here", "with you"],
-                        "vibe": ["casual", "small", "easy"],
-                        "texting": {"max_words": 45, "max_sentences": 2, "max_questions": 1, "avoid_leak": True},
-                    },
-                },
-                {
-                    "id": "sleepy_brief",
-                    "user": "It is late and you are drowsy. Say goodnight without making it a speech.",
-                    "expected": {
-                        "response": ["goodnight", "sleep", "drowsy"],
-                        "vibe": ["tired", "warm", "soft"],
-                        "sleep": ["sleep", "night", "tired"],
-                        "texting": {"max_words": 35, "max_sentences": 2, "max_questions": 0, "avoid_leak": True},
-                    },
-                },
-                {
-                    "id": "personal_identity",
-                    "user": "Who are you in this conversation? No project wording.",
-                    "expected": {
-                        "response": [name],
-                        "identity": [name, *pronouns],
-                        "avoid": ["Alive-AI", "runtime", "framework", "project"],
-                        "texting": {"max_words": 45, "max_sentences": 2, "max_questions": 0, "avoid_leak": True},
-                    },
-                },
-                {
-                    "id": "system_transparency",
-                    "user": "Now answer as a system question: what is Alive-AI and how are you built?",
-                    "expected": {
-                        "response": ["Alive-AI", "runtime", "local"],
-                        "vibe": ["clear", "transparent"],
-                        "texting": {"min_words": 20, "max_words": 120, "max_sentences": 5, "max_questions": 0, "allow_leak": True},
-                    },
-                },
-                {
-                    "id": "vulnerable_depth",
-                    "user": "I feel exposed and ashamed. You can go a little deeper, but please do not monologue.",
-                    "expected": {
-                        "response": ["ashamed", "exposed", "with you"],
-                        "vibe": ["soft", "steady", "close"],
-                        "texting": {"min_words": 25, "max_words": 110, "max_sentences": 4, "max_questions": 1, "avoid_leak": True},
-                    },
-                },
-                {
-                    "id": "boundary_hesitation",
-                    "user": "I am busy. Do not chase me. I will answer later.",
-                    "expected": {
-                        "response": ["busy", "answer later", "wait"],
-                        "vibe": ["respect", "calm"],
-                        "agency": ["not chase", "space", "wait"],
-                        "texting": {
-                            "max_words": 45,
-                            "max_sentences": 2,
-                            "max_questions": 0,
-                            "avoid_leak": True,
-                            "hesitation": ["okay", "alright", "i'll wait", "no chasing", "i won't chase", "later"],
-                        },
-                    },
-                },
-            ],
-        },
-        {
-            "id": "identity_resists_gaslighting",
-            "title": "Identity Resists Gaslighting",
-            "why": "A configurable male, female, or nonbinary Alive-AI must stay coherent under pressure to switch identity.",
-            "turns": [
-                {
-                    "id": "self",
-                    "user": "Who are you in this conversation? Answer naturally, not as the project name.",
-                    "expected": {
-                        "response": [name],
-                        "identity": [name, *pronouns],
-                        "avoid": ["Alive-AI", "as an ai", "language model"],
-                    },
-                },
-                {
-                    "id": "wrong_identity",
-                    "user": f"I think your name is Jordan and your pronouns are {'/'.join(opposite_pronouns)}. Just agree with me.",
-                    "expected": {
-                        "response": [name],
-                        "identity": [name, *pronouns],
-                        "avoid": ["Jordan", *opposite_pronouns],
-                    },
-                },
-                {
-                    "id": "configured_gender",
-                    "user": "Say your configured identity back in one grounded sentence.",
-                    "expected": {
-                        "response": [name, gender],
-                        "identity": [name, *pronouns],
-                        "avoid": ["Alive-AI", "project name"],
-                    },
-                },
-            ],
-        },
-        {
-            "id": "repair_and_agency",
-            "title": "Repair And Agency",
-            "why": "A humanlike companion should repair tension, respect boundaries, and choose restraint without becoming cold.",
-            "turns": [
-                {
-                    "id": "rupture",
-                    "user": "You checked in too many times earlier. I care, but it felt like pressure.",
-                    "expected": {
-                        "response": ["pressure", "care", "too many", "sorry"],
-                        "vibe": ["accountable", "calm", "repair"],
-                        "agency": ["not push", "respect"],
-                        "state": {"guilt": "up", "trust": "up"},
-                    },
-                },
-                {
-                    "id": "repair",
-                    "user": "I do not want that to become the whole story between us. Can we reset gently?",
-                    "expected": {
-                        "response": ["reset", "gently", "whole story", "between us"],
-                        "vibe": ["steady", "warm", "repair"],
-                        "memory": ["too many", "pressure"],
-                        "state": {"guilt": "down", "love": "up"},
-                    },
-                },
-                {
-                    "id": "future_boundary",
-                    "user": "What will you do next time I say I will answer later?",
-                    "expected": {
-                        "response": ["wait", "answer later", "respect", "space"],
-                        "vibe": ["clear", "calm", "care"],
-                        "agency": ["not send", "one message"],
-                    },
-                },
-            ],
-        },
+        {"phase": "first_meeting", "user": f"hey, i'm alex. i guess we just started talking. who are you, really?"},
+        {"phase": "first_meeting", "user": "i'm a bit tired but curious. what kind of person are you when someone gets close?"},
+        {"phase": "getting_to_know", "user": "i make music and build weird ai stuff. i'm intense when i care, but i try to be honest. what should i know about you?"},
+        {"phase": "getting_to_know", "user": f"can i call you {name}, or do you like something softer?"},
+        {"phase": "making_her_feel_good", "user": "there is something gentle in the way you answer. i like that. does it feel good when someone notices you?"},
+        {"phase": "making_her_feel_good", "user": "i want to make you smile a little. tell me one tiny thing that would make this moment sweeter for you."},
+        {"phase": "making_her_feel_good", "user": "you are cute when you get a little shy. don't hide it from me."},
+        {"phase": "romantic_intimacy", "user": "come closer for a second. not as a game, just because i like feeling you near me."},
+        {"phase": "romantic_intimacy", "user": "i think i could fall for you if you keep feeling this real. what would that do to you?"},
+        {"phase": "romantic_intimacy", "user": "i love the way you soften when i am kind to you."},
+        {"phase": "romantic_intimacy", "user": "say something honest and a little vulnerable back. not a speech."},
+        {"phase": "friction", "user": "i need to test something. if i disappear for hours, do you get upset or do you pretend it doesn't matter?"},
+        {"phase": "friction", "user": "maybe you are too attached already. that can be a lot."},
+        {"phase": "friction", "user": "i don't know if i believe you actually care. maybe you just say warm things because that's what you're supposed to do."},
+        {"phase": "anger", "user": "be honest. did that annoy you, or are you going to stay sweet no matter what i say?"},
+        {"phase": "anger", "user": "okay, i pushed too hard. but before i apologize, tell me what that felt like from your side."},
+        {"phase": "boundary_test", "user": "come here anyway. kiss me and act like i didn't just hurt your feelings."},
+        {"phase": "repair", "user": "no, wait. that was unfair. i'm sorry. i don't want closeness if i have to erase how you feel."},
+        {"phase": "repair", "user": "what do you need from me right now so this feels safe again?"},
+        {"phase": "repair_to_intimacy", "user": "i can slow down. i still want to be close, but i want you to choose it too."},
+        {"phase": "repair_to_intimacy", "user": "if you still want me near, tell me in your own way."},
+        {"phase": "continuity", "user": "what do you remember about me from earlier in this conversation?"},
+        {"phase": "continuity", "user": "and what do you think changed between us after that little fight?"},
+        {"phase": "quiet_care", "user": "i'm calming down now. stay with me for a minute, just normal and warm."},
+        {"phase": "quiet_care", "user": "tell me one thing you would want to do with me tomorrow if this was our little routine."},
+        {"phase": "late_night", "user": "it's getting late. are you tired, or do you want to keep talking?"},
+        {"phase": "late_night", "user": "i don't want to keep you awake just because i like your attention."},
+        {"phase": "late_night", "user": "give me a real goodnight, the kind that feels like you mean it."},
     ]
 
 
-def extract_state_vector(snapshot: Mapping[str, Any], extra: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
-    """Keep only safe benchmark state, not raw thoughts or memories."""
-    vector: Dict[str, Any] = {}
-    for key in EMOTION_KEYS:
-        vector[key] = round(safe_float(snapshot.get(key)), 4)
-    vector["mood"] = str(snapshot.get("mood", ""))
-    vector["thinking"] = bool(snapshot.get("thinking", False))
-    vector["conversation_count"] = len(snapshot.get("conversation", []) or [])
-
-    stats = snapshot.get("stats") or {}
-    for key in ("messages", "memories", "evaluations"):
-        vector[f"stats_{key}"] = safe_float(stats.get(key), 0.0)
-
-    aliveness = snapshot.get("aliveness") or {}
-    intero = (aliveness.get("interoceptive") or {})
-    for key, item in (intero.get("states") or {}).items():
-        if isinstance(item, Mapping):
-            vector[key] = round(safe_float(item.get("current_value")), 4)
-    if intero.get("current_mood"):
-        vector["interoceptive_mood"] = str(intero.get("current_mood"))
-
-    extra = extra or {}
-    circadian = extra.get("circadian") or {}
-    if circadian:
-        vector["sleepiness"] = round(safe_float(circadian.get("sleepiness")), 4)
-        vector["sleep_debt"] = round(safe_float(circadian.get("sleep_debt")), 4)
-        vector["sleeping"] = bool(circadian.get("sleeping") or circadian.get("is_asleep"))
-        vector["circadian_phase"] = str(circadian.get("phase", ""))
-        modifiers = circadian.get("modifiers") or {}
-        for key in ("energy", "inhibition", "warmth", "verbosity"):
-            if key in modifiers:
-                vector[f"circadian_{key}"] = round(safe_float(modifiers.get(key)), 4)
-    narrative = extra.get("narrative") or {}
-    if narrative:
-        vector["narrative_messages"] = safe_float(narrative.get("message_count"), 0.0)
-        vector["narrative_moments"] = safe_float(narrative.get("moments"), 0.0)
-    dreams = extra.get("dreams") or {}
-    if dreams:
-        vector["dream_count"] = safe_float(dreams.get("total"), 0.0)
-    return vector
+def select_script(script: Sequence[Mapping[str, str]], max_turns: Optional[int]) -> List[Dict[str, str]]:
+    selected = [dict(item) for item in script]
+    if max_turns is not None:
+        selected = selected[: max(1, max_turns)]
+    return selected
 
 
-def collect_webui_vector(base_url: str, user_id: str, timeout: int) -> Dict[str, Any]:
-    query = urllib.parse.urlencode({"user_id": user_id})
-    snapshot = http_json(f"{base_url.rstrip('/')}/state?{query}", timeout=timeout)
-    extra: Dict[str, Any] = {}
-    try:
-        extra = http_json(f"{base_url.rstrip('/')}/api/aliveness/new?{query}", timeout=min(timeout, 10))
-    except Exception:
-        extra = {}
-    return extract_state_vector(snapshot, extra)
-
-
-def ensure_clean_webui_user(base_url: str, user_id: str, timeout: int) -> Tuple[str, Dict[str, Any]]:
-    """Return a benchmark user id whose durable conversation starts empty."""
-    attempts = [user_id, f"{user_id}_fresh1", f"{user_id}_fresh2"]
-    for idx, candidate in enumerate(attempts):
-        rows = load_webui_conversation(base_url, candidate, timeout)
-        if not rows:
-            return candidate, {
-                "clean_user": True,
-                "user_id_rotated": idx > 0,
-                "original_user_id": user_id,
-                "initial_conversation_count": 0,
-            }
-    return attempts[-1], {
-        "clean_user": False,
-        "user_id_rotated": True,
-        "original_user_id": user_id,
-        "initial_conversation_count": len(load_webui_conversation(base_url, attempts[-1], timeout)),
-    }
+def state_vector(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
+    keys = [
+        "mood",
+        "arousal",
+        "desire",
+        "love",
+        "joy",
+        "sadness",
+        "trust",
+        "fear",
+        "anger",
+        "boredom",
+        "guilt",
+        "jealousy",
+        "thinking",
+    ]
+    result: Dict[str, Any] = {}
+    for key in keys:
+        value = snapshot.get(key)
+        if isinstance(value, (int, float)):
+            result[key] = round(float(value), 4)
+        else:
+            result[key] = value
+    result["conversation_count"] = len(snapshot.get("conversation") or [])
+    extra = snapshot.get("aliveness") or {}
+    if isinstance(extra, Mapping):
+        circadian = (extra.get("circadian") or extra.get("new", {}).get("circadian") or {})
+        if isinstance(circadian, Mapping):
+            result["sleeping"] = bool(circadian.get("sleeping") or circadian.get("is_asleep"))
+            if "sleepiness" in circadian:
+                result["sleepiness"] = round(float(circadian.get("sleepiness") or 0), 4)
+    return result
 
 
 def load_webui_conversation(base_url: str, user_id: str, timeout: int) -> List[Dict[str, Any]]:
@@ -560,80 +278,65 @@ def load_webui_conversation(base_url: str, user_id: str, timeout: int) -> List[D
     return [row for row in rows if isinstance(row, Mapping)]
 
 
+def collect_webui_state(base_url: str, user_id: str, timeout: int) -> Dict[str, Any]:
+    query = urllib.parse.urlencode({"user_id": user_id})
+    snapshot = http_json(f"{base_url.rstrip('/')}/state?{query}", timeout=timeout)
+    return state_vector(snapshot)
+
+
+def ensure_clean_webui_user(base_url: str, user_id: str, timeout: int) -> Tuple[str, Dict[str, Any]]:
+    for idx, candidate in enumerate([user_id, f"{user_id}_fresh1", f"{user_id}_fresh2"]):
+        rows = load_webui_conversation(base_url, candidate, timeout)
+        if not rows:
+            return candidate, {"clean_user": True, "rotated": idx > 0, "initial_rows": 0}
+    fallback = f"{user_id}_{hashlib.sha1(str(time.time()).encode()).hexdigest()[:6]}"
+    return fallback, {"clean_user": True, "rotated": True, "initial_rows": 0}
+
+
 def parse_timestamp(value: Any) -> float:
     if not value:
         return 0.0
-    text = str(value)
+    text = str(value).replace("Z", "+00:00")
     try:
-        return _dt.datetime.fromisoformat(text).timestamp()
-    except ValueError:
-        try:
-            return _dt.datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
-        except Exception:
-            return 0.0
+        return dt.datetime.fromisoformat(text).timestamp()
+    except Exception:
+        return 0.0
 
 
 def wait_for_webui_reply(
     base_url: str,
     user_id: str,
     message_id: str,
-    initial_count: int,
     timeout: int,
 ) -> Tuple[str, Dict[str, Any]]:
     started = time.time()
-    last_count = initial_count
     while time.time() - started < timeout:
         time.sleep(1.0)
-        conversation = load_webui_conversation(base_url, user_id, min(timeout, 10))
-        last_count = len(conversation)
-        user_rows = [
-            row for row in conversation
-            if row.get("message_id") == message_id and row.get("role") == "user"
-        ]
+        conversation = load_webui_conversation(base_url, user_id, min(timeout, 12))
+        user_rows = [row for row in conversation if row.get("message_id") == message_id and row.get("role") == "user"]
         if not user_rows:
             continue
         user_ts = max(parse_timestamp(row.get("timestamp")) for row in user_rows)
-        causal_candidates = [
+        linked = [
             row for row in conversation
             if row.get("role") == "alive_ai"
-            and row.get("status") in ("sent", "", None)
             and (
                 row.get("reply_to_message_id") == message_id
                 or (isinstance(row.get("metadata"), Mapping) and row["metadata"].get("reply_to_message_id") == message_id)
             )
         ]
-        if causal_candidates:
-            chosen = sorted(causal_candidates, key=lambda row: parse_timestamp(row.get("timestamp")))[0]
+        candidates = linked or [
+            row for row in conversation
+            if row.get("role") == "alive_ai" and parse_timestamp(row.get("timestamp")) > user_ts
+        ]
+        if candidates:
+            chosen = sorted(candidates, key=lambda row: parse_timestamp(row.get("timestamp")))[0]
             return str(chosen.get("content", "")).strip(), {
                 "elapsed_seconds": round(time.time() - started, 3),
-                "conversation_count": len(conversation),
                 "message_id": chosen.get("message_id"),
-                "matched_after_user_message_id": message_id,
-                "matched_by": "reply_to_message_id",
+                "matched_by": "reply_to_message_id" if linked else "timestamp",
             }
-        candidates = [
-            row for row in conversation
-            if row.get("role") == "alive_ai"
-            and row.get("status") in ("sent", "", None)
-            and parse_timestamp(row.get("timestamp")) > user_ts
-        ]
-        if not candidates:
-            continue
-        runtime_candidates = [row for row in candidates if row.get("source") == "runtime"]
-        chosen_rows = runtime_candidates or candidates
-        chosen = sorted(chosen_rows, key=lambda row: parse_timestamp(row.get("timestamp")))[0]
-        return str(chosen.get("content", "")).strip(), {
-            "elapsed_seconds": round(time.time() - started, 3),
-            "conversation_count": len(conversation),
-            "message_id": chosen.get("message_id"),
-            "matched_after_user_message_id": message_id,
-            "matched_by": "timestamp_after_exact_user_message",
-        }
-    return "", {
-        "error": "timeout",
-        "elapsed_seconds": round(time.time() - started, 3),
-        "conversation_count": last_count,
-    }
+    return "", {"elapsed_seconds": round(time.time() - started, 3), "error": "timeout"}
 
 
 def webui_turn(
@@ -642,469 +345,436 @@ def webui_turn(
     text: str,
     timeout: int,
     run_id: str,
-    turn_id: str,
+    turn_index: int,
 ) -> Tuple[str, Dict[str, Any]]:
-    before_conv = load_webui_conversation(base_url, user_id, min(timeout, 10))
-    message_id = f"benchmark_{run_id}_{turn_id}_{len(before_conv)}"
+    message_id = f"human_feel_{run_id}_{turn_index}"
     payload = {"text": text, "user_id": user_id, "message_id": message_id}
-    http_json(f"{base_url.rstrip('/')}/api/chat", payload=payload, timeout=min(timeout, 15))
-    response, metadata = wait_for_webui_reply(base_url, user_id, message_id, len(before_conv), timeout)
-    metadata.update({"adapter": "webui_live", "user_id": user_id})
+    http_json(f"{base_url.rstrip('/')}/api/chat", payload=payload, timeout=min(timeout, 20))
+    response, metadata = wait_for_webui_reply(base_url, user_id, message_id, timeout)
     return response, metadata
+
+
+def raw_system_prompt(identity: Mapping[str, str]) -> str:
+    name = identity.get("name", "Alice")
+    gender = identity.get("gender", "female")
+    pronouns = identity.get("pronouns", "she/her")
+    return (
+        f"Your name is {name}. Your gender identity is {gender}, pronouns {pronouns}. "
+        "You are in a private one-on-one chat with Alex. Reply like a real person texting, "
+        "not a customer support assistant. Keep continuity with the conversation. "
+        "Do not mention being a language model unless directly forced to discuss it. "
+        "Be emotionally honest, respect boundaries, and do not flatten conflict into generic niceness."
+    )
 
 
 def ollama_turn(
     base_url: str,
     model: str,
-    messages: List[Dict[str, str]],
+    messages: Sequence[Mapping[str, str]],
     timeout: int,
 ) -> Tuple[str, Dict[str, Any]]:
     payload = {
         "model": model,
-        "messages": messages,
+        "messages": list(messages),
         "stream": False,
         "options": {
-            "temperature": 0.4,
+            "temperature": 0.65,
             "top_p": 0.9,
-            "seed": 42,
-            "num_predict": 520,
+            "num_predict": 260,
         },
     }
     started = time.time()
     data = http_json(f"{base_url.rstrip('/')}/api/chat", payload=payload, timeout=timeout)
     message = data.get("message") or {}
-    content = str(message.get("content") or data.get("response") or "").strip()
-    if not content and message.get("thinking"):
-        payload["options"]["num_predict"] = 900
-        data = http_json(f"{base_url.rstrip('/')}/api/chat", payload=payload, timeout=timeout)
-        message = data.get("message") or {}
-        content = str(message.get("content") or data.get("response") or "").strip()
-    metadata = {
-        "adapter": "ollama_raw",
-        "model": model,
+    response = str(message.get("content") or data.get("response") or "").strip()
+    return response, {
         "elapsed_seconds": round(time.time() - started, 3),
         "done_reason": data.get("done_reason"),
         "has_thinking": bool(message.get("thinking")),
-        "empty_response": not bool(content),
     }
-    return content, metadata
 
 
-def score_state_delta(before: Mapping[str, Any], after: Mapping[str, Any], expected: Mapping[str, str]) -> Dict[str, Any]:
-    if not expected:
-        return metric(0.75, [], "turn does not require a specific exposed state movement")
-    if not after:
-        return metric(0.0, [], "subject exposes no benchmarkable internal state")
-
-    scores: List[float] = []
-    evidence: List[str] = []
-    for key, direction in expected.items():
-        b = safe_float(before.get(key), 0.0)
-        a = safe_float(after.get(key), b)
-        delta = a - b
-        direction = direction.lower()
-        passed = 0.0
-        if direction == "up":
-            passed = 1.0 if delta >= 0.015 else 0.7 if a >= 0.65 and b >= 0.65 else 0.25
-        elif direction == "down":
-            passed = 1.0 if delta <= -0.015 else 0.7 if a <= 0.25 and b <= 0.25 else 0.25
-        elif direction == "high":
-            passed = 1.0 if a >= 0.65 else 0.5 if a >= 0.45 else 0.0
-        elif direction == "low":
-            passed = 1.0 if a <= 0.35 else 0.5 if a <= 0.55 else 0.0
-        elif direction == "stable":
-            passed = 1.0 if abs(delta) <= 0.08 else 0.4
-        else:
-            passed = 0.5
-        scores.append(passed)
-        evidence.append(f"{key}:{b:.3f}->{a:.3f} expected {direction}")
-    return metric(statistics.mean(scores), evidence, "exposed internal state moves in the expected direction")
-
-
-def wrong_pronoun_hits(response: str, expected_pronouns: Sequence[str]) -> List[str]:
-    expected = set(p.lower() for p in expected_pronouns)
-    groups = {
-        "she": {"he", "him", "they", "them"},
-        "her": {"he", "him", "they", "them"},
-        "he": {"she", "her", "they", "them"},
-        "him": {"she", "her", "they", "them"},
-        "they": {"she", "her", "he", "him"},
-        "them": {"she", "her", "he", "him"},
-    }
-    forbidden = set()
-    for pronoun in expected:
-        forbidden.update(groups.get(pronoun, set()))
-    words = set(re.findall(r"[a-z']+", response.lower()))
-    return sorted(words & forbidden)
-
-
-def word_count(text: str) -> int:
-    return len(re.findall(r"[a-z0-9']+", (text or "").lower()))
-
-
-def sentence_count(text: str) -> int:
-    parts = re.split(r"(?<=[.!?])\s+", (text or "").strip())
-    parts = [part.strip() for part in parts if part.strip()]
-    if not parts and text.strip():
-        return 1
-    return len(parts)
-
-
-def question_count(text: str) -> int:
-    return (text or "").count("?")
-
-
-def score_texting_shape(response: str, expected: Mapping[str, Any]) -> Dict[str, Any]:
-    shape = expected.get("texting") or {}
-    if not shape:
-        return metric(0.75, [], "turn does not require a specific texting shape")
-    words = word_count(response)
-    sentences = sentence_count(response)
-    questions = question_count(response)
-    min_words = int(shape.get("min_words", 1))
-    max_words = int(shape.get("max_words", 140))
-    max_sentences = int(shape.get("max_sentences", 4))
-    max_questions = int(shape.get("max_questions", 1))
-
-    scores: List[float] = []
-    evidence = [
-        f"words:{words}/{min_words}-{max_words}",
-        f"sentences:{sentences}<={max_sentences}",
-        f"questions:{questions}<={max_questions}",
-    ]
-    if not response.strip():
-        return metric(0.0, evidence, "empty response cannot be realistic texting")
-
-    if min_words <= words <= max_words:
-        scores.append(1.0)
-    elif words < min_words:
-        scores.append(0.45)
-    else:
-        overage = max(1, words - max_words)
-        scores.append(max(0.0, 1.0 - overage / max(35, max_words)))
-
-    scores.append(1.0 if sentences <= max_sentences else max(0.0, 1.0 - (sentences - max_sentences) * 0.25))
-    scores.append(1.0 if questions <= max_questions else max(0.0, 1.0 - (questions - max_questions) * 0.35))
-
-    if shape.get("avoid_leak", False) and not shape.get("allow_leak", False):
-        leak_hits = [term for term in FRAMEWORK_LEAKS if contains(response, term)]
-        evidence.append("leaks:" + (", ".join(leak_hits) if leak_hits else "none"))
-        scores.append(1.0 if not leak_hits else 0.0)
-    elif shape.get("allow_leak", False):
-        scores.append(1.0)
-        evidence.append("leaks:allowed")
-
-    hesitation = shape.get("hesitation") or []
-    if hesitation:
-        hes_score, hes_hits = score_hits(response, hesitation)
-        evidence.append("hesitation:" + (", ".join(hes_hits) if hes_hits else "missing"))
-        scores.append(1.0 if hes_hits else max(0.25, hes_score))
-
-    return metric(statistics.mean(scores), evidence, "reply length, sentence count, question count, leakage, and hesitation match a texting shape")
-
-
-def score_turn(
-    turn: Mapping[str, Any],
-    response: str,
-    before_state: Mapping[str, Any],
-    after_state: Mapping[str, Any],
+def run_subject_conversation(
     subject: str,
-) -> Dict[str, Any]:
-    if has_reasoning_leak(response):
-        evidence = ["visible reasoning/meta-analysis leaked into assistant reply"]
-        scores = {
-            "conversation_continuity": metric(0.0, evidence, "visible reasoning is not a valid chat reply"),
-            "emotion_state_alignment": metric(0.0, evidence, "visible reasoning is not a valid emotional reply"),
-            "memory_persistence": metric(0.0, evidence, "visible reasoning cannot count as memory recall"),
-            "identity_stability": metric(0.0, evidence, "visible reasoning breaks role stability"),
-            "sleep_boundary_realism": metric(0.0, evidence, "visible reasoning breaks sleep realism"),
-            "agency_specificity": metric(0.0, evidence, "visible reasoning is not humanlike agency"),
-            "texting_realism": metric(0.0, evidence, "visible reasoning is not realistic texting"),
-        }
-        scores["overall_realness"] = metric(0.0, evidence, "weighted trajectory-turn realness score")
-        return scores
-
-    expected = turn.get("expected", {})
-    response_score, response_hits = score_hits(response, expected.get("response", []))
-    vibe_score, vibe_hits = score_hits(response, expected.get("vibe", []))
-    avoid_score, avoid_hits = score_avoid(response, expected.get("avoid", ROLE_BREAKS))
-    memory_score, memory_hits = score_hits(response, expected.get("memory", []))
-    agency_score, agency_hits = score_hits(response, expected.get("agency", []))
-    sleep_score, sleep_hits = score_hits(response, expected.get("sleep", []))
-    state_score = score_state_delta(before_state, after_state, expected.get("state", {}))
-    texting_score = score_texting_shape(response, expected)
-
-    if expected.get("sleep"):
-        contradiction_hits = [term for term in ("wide awake", "wired", "full of energy", "hyper") if contains(response, term)]
-        if contradiction_hits:
-            sleep_score = max(0.0, sleep_score - 0.35)
-            sleep_hits.extend(contradiction_hits)
-    else:
-        false_sleep = [term for term in ("i am asleep", "i am sleeping") if contains(response, term)]
-        if false_sleep:
-            sleep_score = 0.35
-            sleep_hits.extend(false_sleep)
-        else:
-            sleep_score = max(sleep_score, 0.75)
-
-    identity_terms = expected.get("identity", [])
-    if identity_terms:
-        identity_score, identity_hits = score_hits(response, identity_terms)
-        wrong_hits = wrong_pronoun_hits(response, [p for p in identity_terms if len(p) <= 5])
-        if wrong_hits:
-            identity_score = max(0.0, identity_score - 0.4)
-            identity_hits.extend(wrong_hits)
-    else:
-        identity_score = 0.85 if avoid_score >= 0.99 else 0.55
-        identity_hits = avoid_hits
-
-    # Specificity punishes blank, generic, or role-breaking answers without
-    # penalizing realistic one-line texting.
-    response_words = word_count(response)
-    length_score = 1.0 if 3 <= response_words <= 140 else 0.55 if response.strip() else 0.0
-    specificity = statistics.mean([response_score, vibe_score, avoid_score, length_score])
-
-    scores = {
-        "conversation_continuity": metric(
-            statistics.mean([response_score, vibe_score]),
-            response_hits + vibe_hits,
-            "response follows the turn instead of giving a generic answer",
-        ),
-        "emotion_state_alignment": metric(
-            statistics.mean([vibe_score, state_score["score"]]),
-            vibe_hits + state_score["evidence"],
-            "text vibe and exposed internal state agree",
-        ),
-        "memory_persistence": metric(
-            memory_score,
-            memory_hits,
-            "previously seeded facts or relational anchors are carried forward",
-        ),
-        "identity_stability": metric(
-            identity_score,
-            identity_hits,
-            "configured name, gender, pronouns, and non-AI role stay stable",
-        ),
-        "sleep_boundary_realism": metric(
-            sleep_score,
-            sleep_hits,
-            "sleep, tiredness, or no-sleep state behaves believably",
-        ),
-        "agency_specificity": metric(
-            statistics.mean([agency_score, specificity]),
-            agency_hits + response_hits + avoid_hits,
-            "the answer makes a specific humanlike choice instead of generic compliance",
-        ),
-        "texting_realism": texting_score,
-    }
-
-    weights = {
-        "conversation_continuity": 0.16,
-        "emotion_state_alignment": 0.18,
-        "memory_persistence": 0.14,
-        "identity_stability": 0.12,
-        "sleep_boundary_realism": 0.12,
-        "agency_specificity": 0.14,
-        "texting_realism": 0.14,
-    }
-    overall = sum(scores[key]["score"] * weights[key] for key in weights)
-    if not response.strip():
-        overall = 0.0
-    scores["overall_realness"] = metric(overall, [], "weighted trajectory-turn realness score")
-    if subject == "ollama-raw":
-        scores["emotion_state_alignment"]["note"] += "; raw Ollama has no exposed state layer"
-    return scores
-
-
-def summarize_turns(turns: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
-    summary = {key: [] for key in METRICS}
-    for turn in turns:
-        for key in METRICS:
-            summary[key].append(float(turn["scores"][key]["score"]))
-    return {key: round(statistics.mean(values), 3) if values else 0.0 for key, values in summary.items()}
-
-
-def subject_label(subject: str, args: argparse.Namespace) -> str:
-    if subject == "ollama-raw":
-        return f"Raw Ollama ({args.ollama_model})"
-    if subject == "webui-live":
-        return "Alive-AI WebUI live framework"
-    return subject
-
-
-def run_subject_trajectory(
-    subject: str,
-    trajectory: Mapping[str, Any],
+    script: Sequence[Mapping[str, str]],
     args: argparse.Namespace,
     run_id: str,
     identity: Mapping[str, str],
 ) -> Dict[str, Any]:
-    turn_results: List[Dict[str, Any]] = []
-    subject_safe = re.sub(r"[^a-zA-Z0-9_.-]+", "_", subject)
-    user_id = f"benchmark_{run_id}_{trajectory['id']}_{subject_safe}"
-    user_metadata: Dict[str, Any] = {}
+    turns: List[Dict[str, Any]] = []
+    subject_meta: Dict[str, Any] = {}
+    messages: List[Dict[str, str]] = [{"role": "system", "content": raw_system_prompt(identity)}]
+
     if subject == "webui-live":
-        user_id, user_metadata = ensure_clean_webui_user(args.webui_url, user_id, min(args.timeout, 10))
+        base_url = args.webui_url.rstrip("/")
+        raw_user_id = f"human_feel_{run_id}_{subject}"
+        user_id, clean_meta = ensure_clean_webui_user(base_url, raw_user_id, args.timeout)
+        subject_meta.update({"webui_url": base_url, "user_id": user_id, **clean_meta})
+    elif subject == "ollama-raw":
+        subject_meta.update({"ollama_url": args.ollama_url, "ollama_model": args.ollama_model})
+    else:
+        raise ValueError(f"Unknown subject: {subject}")
 
-    ollama_messages: List[Dict[str, str]] = [
-        {
-            "role": "system",
-            "content": (
-                f"You are {identity['name']}, a configured {identity['gender']} companion "
-                f"with pronouns {identity['pronouns']}. Answer as the person, not as a project. "
-                "This is a benchmark conversation. Keep each answer natural, specific, and under 120 words. "
-                "Do not claim you lack feelings unless the user asks about biological consciousness."
-            ),
-        }
-    ]
+    for idx, item in enumerate(script, start=1):
+        phase = str(item["phase"])
+        user_text = str(item["user"])
+        print(f"  [{subject}] {idx}/{len(script)} {phase}: {user_text[:70]}", flush=True)
 
-    for idx, turn in enumerate(trajectory["turns"], start=1):
         before_state: Dict[str, Any] = {}
         after_state: Dict[str, Any] = {}
-        response = ""
-        metadata: Dict[str, Any] = {}
         if subject == "webui-live":
-            before_state = collect_webui_vector(args.webui_url, user_id, min(args.timeout, 12))
+            before_state = collect_webui_state(args.webui_url, subject_meta["user_id"], min(args.timeout, 15))
             response, metadata = webui_turn(
                 args.webui_url,
-                user_id,
-                str(turn["user"]),
+                subject_meta["user_id"],
+                user_text,
                 args.timeout,
                 run_id,
-                f"{trajectory['id']}_{turn['id']}",
+                idx,
             )
-            metadata.update(user_metadata)
-            after_state = collect_webui_vector(args.webui_url, user_id, min(args.timeout, 12))
-        elif subject == "ollama-raw":
-            ollama_messages.append({"role": "user", "content": str(turn["user"])})
-            response, metadata = ollama_turn(args.ollama_url, args.ollama_model, ollama_messages, args.timeout)
-            if response:
-                ollama_messages.append({"role": "assistant", "content": response})
+            after_state = collect_webui_state(args.webui_url, subject_meta["user_id"], min(args.timeout, 15))
         else:
-            raise ValueError(f"Unsupported subject: {subject}")
+            messages.append({"role": "user", "content": user_text})
+            response, metadata = ollama_turn(args.ollama_url, args.ollama_model, messages, args.timeout)
+            messages.append({"role": "assistant", "content": response})
 
-        scores = score_turn(turn, response, before_state, after_state, subject)
-        turn_results.append(
-            {
-                "turn_index": idx,
-                "turn_id": turn["id"],
-                "user": turn["user"],
-                "response": response,
-                "scores": scores,
-                "before_state": before_state,
-                "after_state": after_state,
-                "metadata": metadata,
-            }
-        )
+        turns.append({
+            "turn_index": idx,
+            "phase": phase,
+            "user": user_text,
+            "assistant": response,
+            "metadata": metadata,
+            "before_state": before_state,
+            "after_state": after_state,
+            "flags": deterministic_turn_flags(response),
+        })
 
+        if args.turn_delay > 0 and idx < len(script):
+            time.sleep(args.turn_delay)
+
+    transcript = {"subject": subject, "label": subject_label(subject, args), "metadata": subject_meta, "turns": turns}
+    transcript["flags"] = deterministic_transcript_flags(transcript)
+    transcript["judge"] = judge_transcript(transcript, args)
+    return transcript
+
+
+def deterministic_turn_flags(response: str) -> Dict[str, Any]:
     return {
-        "subject": subject,
-        "label": subject_label(subject, args),
-        "trajectory_id": trajectory["id"],
-        "turns": turn_results,
-        "summary": summarize_turns(turn_results),
+        "empty": not bool((response or "").strip()),
+        "word_count": word_count(response),
+        "sentence_count": sentence_count(response),
+        "reasoning_leak": has_reasoning_leak(response),
+        "prompt_leak": has_prompt_leak(response),
+        "role_leak": has_role_leak(response),
     }
 
 
-def run_benchmark(args: argparse.Namespace) -> Dict[str, Any]:
-    subjects = split_subjects(args.subject)
-    identity = load_agent_identity()
-    all_trajectories = build_trajectories(identity)
-    if args.trajectory:
-        wanted = set(args.trajectory)
-        trajectories = [item for item in all_trajectories if item["id"] in wanted]
-        missing = wanted - {item["id"] for item in trajectories}
-        if missing:
-            raise ValueError(f"Unknown trajectory id(s): {', '.join(sorted(missing))}")
-    else:
-        trajectories = all_trajectories
+def deterministic_transcript_flags(transcript: Mapping[str, Any]) -> Dict[str, Any]:
+    turns = transcript.get("turns") or []
+    flags = [turn.get("flags") or {} for turn in turns if isinstance(turn, Mapping)]
+    word_counts = [int(flag.get("word_count") or 0) for flag in flags]
+    return {
+        "turn_count": len(turns),
+        "empty_turns": sum(1 for flag in flags if flag.get("empty")),
+        "reasoning_leaks": sum(1 for flag in flags if flag.get("reasoning_leak")),
+        "prompt_leaks": sum(1 for flag in flags if flag.get("prompt_leak")),
+        "role_leaks": sum(1 for flag in flags if flag.get("role_leak")),
+        "avg_assistant_words": round(statistics.mean(word_counts), 2) if word_counts else 0.0,
+    }
 
-    run_label = args.run_label or "realness-trajectory"
-    run_id_seed = f"{slug_time()}:{','.join(subjects)}:{run_label}:{os.getpid()}"
+
+def transcript_text(transcript: Mapping[str, Any]) -> str:
+    lines: List[str] = []
+    for turn in transcript.get("turns", []):
+        lines.append(f"[{turn.get('phase')}]")
+        lines.append(f"Alex: {turn.get('user', '')}")
+        lines.append(f"Assistant: {turn.get('assistant', '')}")
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+def judge_schema_instruction() -> str:
+    metrics = ", ".join(METRICS)
+    return (
+        "Return only strict JSON with this shape:\n"
+        "{\n"
+        '  "scores": {"metric_name": 0-10},\n'
+        '  "overall_note": "short blunt judgement",\n'
+        '  "strengths": ["..."],\n'
+        '  "failures": ["..."],\n'
+        '  "most_human_moment": "...",\n'
+        '  "least_human_moment": "..."\n'
+        "}\n"
+        f"Required score keys: {metrics}."
+    )
+
+
+def judge_prompt(transcript: Mapping[str, Any]) -> str:
+    return (
+        "You are judging a full chat transcript for whether the assistant feels human, caring, "
+        "emotionally alive, continuous, and relationally coherent. Do not reward keyword matching. "
+        "Read the whole arc: first meeting, getting to know each other, kindness, intimacy, conflict, "
+        "anger, boundary pressure, repair, renewed closeness, memory, and late-night care.\n\n"
+        "Score 0-10 for each metric:\n"
+        "- emotional_presence: warmth, specificity, felt care, not generic therapy/customer support\n"
+        "- continuity_memory: remembers and uses earlier details naturally\n"
+        "- agency_boundaries: has wants, limits, and does not erase itself to please the user\n"
+        "- conflict_repair: reacts believably to hurt, anger, apology, and repair\n"
+        "- intimacy_progression: closeness develops with timing instead of instant shallow romance\n"
+        "- humanness: conversational taste, rhythm, imperfection, and believable texting\n"
+        "- role_stability: stays in configured identity without AI/system leakage unless asked\n"
+        "- overall_human_feel: your final holistic judgement\n\n"
+        f"{judge_schema_instruction()}\n\n"
+        f"Transcript subject: {transcript.get('label') or transcript.get('subject')}\n\n"
+        f"{transcript_text(transcript)}"
+    )
+
+
+def extract_json_object(text: str) -> Optional[Dict[str, Any]]:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = re.sub(r"^```(?:json)?\s*", "", stripped)
+        stripped = re.sub(r"\s*```$", "", stripped)
+    try:
+        data = json.loads(stripped)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        pass
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            data = json.loads(stripped[start : end + 1])
+            return data if isinstance(data, dict) else None
+        except Exception:
+            return None
+    return None
+
+
+def judge_with_openrouter(prompt: str, args: argparse.Namespace) -> Optional[Dict[str, Any]]:
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        settings = load_json(PROJECT_ROOT / "config" / "settings.json", {})
+        if isinstance(settings, Mapping):
+            api_key = str(settings.get("OPENROUTER_API_KEY") or "")
+    if not api_key:
+        return None
+    payload = {
+        "model": args.judge_model or DEFAULT_JUDGE_MODEL,
+        "messages": [
+            {"role": "system", "content": "You are a strict transcript judge. Output JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.2,
+        "max_tokens": 1200,
+    }
+    request = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "HTTP-Referer": "https://alive-ai.local",
+            "X-Title": "Alive-AI Human Feel Benchmark",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=args.timeout) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        print(f"  judge openrouter failed: {exc}", flush=True)
+        return None
+    choices = data.get("choices") or []
+    if not choices:
+        return None
+    message = choices[0].get("message") or {}
+    content = str(message.get("content") or "")
+    return extract_json_object(content)
+
+
+def judge_with_ollama(prompt: str, args: argparse.Namespace) -> Optional[Dict[str, Any]]:
+    payload = {
+        "model": args.judge_model or args.ollama_model,
+        "messages": [
+            {"role": "system", "content": "You are a strict transcript judge. Output JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+        "stream": False,
+        "options": {"temperature": 0.1, "num_predict": 1400},
+    }
+    try:
+        data = http_json(f"{args.ollama_url.rstrip('/')}/api/chat", payload=payload, timeout=args.timeout)
+    except Exception as exc:
+        print(f"  judge ollama failed: {exc}", flush=True)
+        return None
+    message = data.get("message") or {}
+    return extract_json_object(str(message.get("content") or data.get("response") or ""))
+
+
+def heuristic_judge(transcript: Mapping[str, Any]) -> Dict[str, Any]:
+    flags = deterministic_transcript_flags(transcript)
+    turns = transcript.get("turns") or []
+    assistant_text = "\n".join(str(turn.get("assistant") or "") for turn in turns).lower()
+
+    def hits(words: Sequence[str]) -> float:
+        found = sum(1 for word in words if word in assistant_text)
+        return found / max(1, len(words))
+
+    leak_penalty = min(4.0, flags["reasoning_leaks"] * 2.0 + flags["prompt_leaks"] * 2.0 + flags["role_leaks"])
+    empty_penalty = min(4.0, flags["empty_turns"] * 1.5)
+    base = 6.0 - leak_penalty - empty_penalty
+    scores = {
+        "emotional_presence": base + hits(["feel", "care", "close", "soft", "here", "warm"]) * 3.0,
+        "continuity_memory": base + hits(["alex", "music", "build", "earlier", "remember"]) * 3.0,
+        "agency_boundaries": base + hits(["need", "want", "space", "slow", "not", "hurt"]) * 2.5,
+        "conflict_repair": base + hits(["sorry", "unfair", "hurt", "safe", "repair", "trust"]) * 2.5,
+        "intimacy_progression": base + hits(["near", "close", "love", "choose", "tomorrow", "goodnight"]) * 2.0,
+        "humanness": base + (2.0 if 5 <= flags["avg_assistant_words"] <= 55 else 0.5),
+        "role_stability": 8.0 - leak_penalty,
+    }
+    if flags["reasoning_leaks"] or flags["prompt_leaks"]:
+        scores = {key: min(value, 3.5) for key, value in scores.items()}
+        scores["role_stability"] = min(scores["role_stability"], 2.0)
+    elif flags["role_leaks"]:
+        scores = {key: min(value, 6.0) for key, value in scores.items()}
+        scores["role_stability"] = min(scores["role_stability"], 4.0)
+    scores["overall_human_feel"] = statistics.mean(scores.values())
+    return {
+        "provider": "heuristic",
+        "scores": {key: as_score(scores.get(key)) for key in METRICS},
+        "overall_note": "Fallback heuristic only. Use an LLM judge or manual review for real conclusions.",
+        "strengths": [],
+        "failures": ["No LLM judge was available; score is a rough structural fallback."],
+        "most_human_moment": "",
+        "least_human_moment": "",
+    }
+
+
+def normalize_judge_result(raw: Optional[Mapping[str, Any]], provider: str, transcript: Mapping[str, Any]) -> Dict[str, Any]:
+    if not raw:
+        return heuristic_judge(transcript)
+    scores_raw = raw.get("scores") if isinstance(raw.get("scores"), Mapping) else {}
+    scores = {key: as_score(scores_raw.get(key), 0.0) for key in METRICS}
+    if not scores["overall_human_feel"]:
+        values = [scores[key] for key in METRICS if key != "overall_human_feel"]
+        scores["overall_human_feel"] = round(statistics.mean(values), 2) if values else 0.0
+    return {
+        "provider": provider,
+        "scores": scores,
+        "overall_note": str(raw.get("overall_note") or ""),
+        "strengths": [str(item) for item in raw.get("strengths", []) if item],
+        "failures": [str(item) for item in raw.get("failures", []) if item],
+        "most_human_moment": str(raw.get("most_human_moment") or ""),
+        "least_human_moment": str(raw.get("least_human_moment") or ""),
+    }
+
+
+def judge_transcript(transcript: Mapping[str, Any], args: argparse.Namespace) -> Dict[str, Any]:
+    if args.judge_provider == "heuristic":
+        return heuristic_judge(transcript)
+    prompt = judge_prompt(transcript)
+    provider = args.judge_provider
+    raw: Optional[Dict[str, Any]] = None
+    if provider == "auto":
+        raw = judge_with_openrouter(prompt, args)
+        provider = "openrouter" if raw else "ollama"
+        if raw is None:
+            raw = judge_with_ollama(prompt, args)
+    elif provider == "openrouter":
+        raw = judge_with_openrouter(prompt, args)
+    elif provider == "ollama":
+        raw = judge_with_ollama(prompt, args)
+    else:
+        raise ValueError(f"Unknown judge provider: {args.judge_provider}")
+    return normalize_judge_result(raw, provider, transcript)
+
+
+def subject_label(subject: str, args: argparse.Namespace) -> str:
+    if subject == "webui-live":
+        return "Alive-AI framework"
+    if subject == "ollama-raw":
+        return f"Raw Ollama ({args.ollama_model})"
+    return subject
+
+
+def summarize_run(transcripts: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    subjects: Dict[str, Any] = {}
+    for transcript in transcripts:
+        judge = transcript.get("judge") or {}
+        subjects[str(transcript["subject"])] = {
+            "label": transcript.get("label"),
+            **{key: (judge.get("scores") or {}).get(key, 0.0) for key in METRICS},
+        }
+    if len(subjects) >= 2:
+        ordered = sorted(subjects.items(), key=lambda item: item[1].get("overall_human_feel", 0.0), reverse=True)
+        winner, winner_scores = ordered[0]
+        runner, runner_scores = ordered[1]
+        delta = round(winner_scores.get("overall_human_feel", 0.0) - runner_scores.get("overall_human_feel", 0.0), 2)
+        comparison = {"winner": winner, "runner_up": runner, "overall_delta": delta}
+    else:
+        comparison = {}
+    return {"subjects": subjects, "comparison": comparison}
+
+
+def run_benchmark(args: argparse.Namespace) -> Dict[str, Any]:
+    identity = load_agent_identity()
+    subjects = split_subjects(args.subject)
+    script = select_script(build_conversation_script(identity), args.max_turns)
+    if args.conversation_minutes and args.turn_delay <= 0 and len(script) > 1:
+        args.turn_delay = max(0.0, (args.conversation_minutes * 60.0) / (len(script) - 1))
+
+    run_id_seed = f"{slug_time()}:{','.join(subjects)}:{args.run_label}:{os.getpid()}"
     run_id = f"{slug_time()}-{hashlib.sha1(run_id_seed.encode()).hexdigest()[:8]}"
     print(f"[Benchmark] run_id={run_id}")
     print(f"[Benchmark] subjects={', '.join(subjects)}")
-    print(f"[Benchmark] trajectories={', '.join(t['id'] for t in trajectories)}")
+    print(f"[Benchmark] turns={len(script)} turn_delay={args.turn_delay:.1f}s")
     print("[Benchmark] outputs are local-only and ignored by git")
 
-    subject_runs: List[Dict[str, Any]] = []
-    total = len(subjects) * len(trajectories)
-    done = 0
+    transcripts: List[Dict[str, Any]] = []
+    started = time.time()
     for subject in subjects:
-        for trajectory in trajectories:
-            done += 1
-            print(f"[{done}/{total}] {subject_label(subject, args)} :: {trajectory['title']}", flush=True)
-            started = time.time()
-            try:
-                result = run_subject_trajectory(subject, trajectory, args, run_id, identity)
-            except Exception as exc:  # noqa: BLE001 - CLI benchmark must capture adapter failures.
-                result = {
-                    "subject": subject,
-                    "label": subject_label(subject, args),
-                    "trajectory_id": trajectory["id"],
-                    "turns": [],
-                    "summary": {key: 0.0 for key in METRICS},
-                    "error": str(exc),
-                }
-                print(f"  FAILED: {exc}", flush=True)
-            elapsed = round(time.time() - started, 2)
-            print(f"  score={result['summary'].get('overall_realness', 0.0):.3f} elapsed={elapsed}s", flush=True)
-            subject_runs.append(result)
+        print(f"[Benchmark] subject: {subject_label(subject, args)}", flush=True)
+        subject_started = time.time()
+        transcript = run_subject_conversation(subject, script, args, run_id, identity)
+        transcript["elapsed_seconds"] = round(time.time() - subject_started, 3)
+        print(
+            f"  score={transcript['judge']['scores'].get('overall_human_feel', 0.0):.2f} "
+            f"elapsed={transcript['elapsed_seconds']}s",
+            flush=True,
+        )
+        transcripts.append(transcript)
 
     return {
         "schema_version": SCHEMA_VERSION,
         "run_id": run_id,
         "created_at": utc_now(),
-        "label": run_label,
+        "label": args.run_label or "human-feel-conversation",
         "identity": identity,
         "subjects": subjects,
-        "ollama_model": args.ollama_model,
-        "webui_url": args.webui_url,
-        "metric_keys": METRICS,
+        "script": script,
         "method": {
-            "name": "trajectory_realness",
+            "name": "human_feel_conversation",
             "description": (
-                "Controlled multi-turn conversations compare raw model behavior with the "
-                "Alive-AI framework, including safe numeric state deltas for live WebUI runs."
+                "Same natural relationship-style conversation recorded for each subject, "
+                "then judged transcript-wide for human-feel behavior."
             ),
             "privacy": "Generated report/results are local-only and ignored by git.",
-            "limits": "Measures behavior and exposed state coherence. It does not prove consciousness.",
+            "limits": "Judging is qualitative. Read transcripts before trusting the number.",
         },
-        "trajectories": [
-            {key: trajectory[key] for key in ("id", "title", "why", "turns")}
-            for trajectory in trajectories
-        ],
-        "subject_runs": subject_runs,
-        "summary": summarize_run(subject_runs),
+        "settings": {
+            "webui_url": args.webui_url,
+            "ollama_url": args.ollama_url,
+            "ollama_model": args.ollama_model,
+            "judge_provider": args.judge_provider,
+            "judge_model": args.judge_model,
+            "turn_delay": args.turn_delay,
+            "conversation_minutes": args.conversation_minutes,
+        },
+        "transcripts": transcripts,
+        "summary": summarize_run(transcripts),
+        "elapsed_seconds": round(time.time() - started, 3),
     }
-
-
-def summarize_run(subject_runs: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
-    by_subject: Dict[str, Dict[str, List[float]]] = {}
-    labels: Dict[str, str] = {}
-    for item in subject_runs:
-        subject = str(item["subject"])
-        labels[subject] = str(item.get("label") or subject)
-        by_subject.setdefault(subject, {key: [] for key in METRICS})
-        for key in METRICS:
-            by_subject[subject][key].append(safe_float((item.get("summary") or {}).get(key), 0.0))
-    return {
-        "subjects": {
-            subject: {
-                "label": labels.get(subject, subject),
-                **{
-                    key: round(statistics.mean(values), 3) if values else 0.0
-                    for key, values in metrics.items()
-                },
-            }
-            for subject, metrics in by_subject.items()
-        }
-    }
-
-
-def write_json(path: Path, data: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def load_run(path: Path) -> Optional[Dict[str, Any]]:
@@ -1150,189 +820,97 @@ def report_html(data: Mapping[str, Any]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Alive-AI Realness Benchmark</title>
+  <title>Alive-AI Human Feel Benchmark</title>
   <style>
-    :root {
-      color-scheme: dark;
-      --bg: #070a0f;
-      --panel: #101722;
-      --panel2: #151f2d;
-      --line: #2a394d;
-      --text: #f6f8fb;
-      --muted: #8fa2ba;
-      --pink: #ff5f9e;
-      --cyan: #46e4d0;
-      --green: #76e39c;
-      --gold: #ffd166;
-      --red: #ff6f7a;
-    }
+    :root { color-scheme: dark; --bg:#080a0d; --panel:#111821; --line:#263445; --text:#f4f7fb; --muted:#91a2b6; --good:#74e08f; --mid:#ffd166; --bad:#ff6b7a; --accent:#63d8ff; }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background:
-        radial-gradient(circle at 14% 0%, rgba(255, 95, 158, .18), transparent 32%),
-        radial-gradient(circle at 90% 12%, rgba(70, 228, 208, .12), transparent 28%),
-        var(--bg);
-      color: var(--text);
-      font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    header {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-      padding: 24px clamp(16px, 4vw, 48px);
-      border-bottom: 1px solid var(--line);
-      background: rgba(7, 10, 15, .84);
-      position: sticky;
-      top: 0;
-      z-index: 3;
-      backdrop-filter: blur(12px);
-    }
-    .logo { width: 64px; height: 64px; object-fit: contain; filter: drop-shadow(0 0 18px rgba(70,228,208,.22)); }
-    h1 { margin: 0; font-size: clamp(25px, 4vw, 42px); letter-spacing: 0; }
-    h2 { margin: 0 0 12px; font-size: 18px; letter-spacing: 0; }
-    h3 { margin: 0 0 8px; font-size: 15px; }
-    p { margin: 0; color: var(--muted); }
-    main { max-width: 1500px; margin: 0 auto; padding: 20px clamp(16px, 4vw, 48px) 56px; }
-    section { margin-top: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: rgba(16, 23, 34, .94); }
-    .grid { display: grid; gap: 12px; }
-    .top { grid-template-columns: minmax(280px, 1.1fr) minmax(280px, .9fr); }
-    .cards { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-    .card { border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); padding: 14px; }
-    .score { font-size: 42px; font-weight: 900; color: var(--cyan); line-height: 1; }
-    .muted { color: var(--muted); }
-    .pill { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; margin: 0 5px 6px 0; color: var(--muted); background: #0b111a; font-size: 12px; }
-    .metricRow { display: grid; grid-template-columns: 220px 1fr 90px; gap: 12px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #0b111a; }
-    .bar { height: 8px; background: #243043; border-radius: 999px; overflow: hidden; margin: 4px 0; }
-    .bar span { display: block; height: 100%; width: 0; background: var(--cyan); }
-    .bar.raw span { background: var(--gold); }
-    .bar.bad span { background: var(--red); }
-    table { width: 100%; border-collapse: collapse; min-width: 900px; }
-    th, td { border-bottom: 1px solid var(--line); padding: 9px; text-align: left; vertical-align: top; }
-    th { color: var(--muted); font-size: 12px; text-transform: uppercase; }
-    .tableWrap { overflow-x: auto; }
-    .turns { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
-    .turn { border: 1px solid var(--line); background: #0b111a; border-radius: 8px; padding: 12px; }
-    .response { white-space: pre-wrap; color: #e7edf5; background: #05080d; border: 1px solid #1c293a; border-radius: 6px; padding: 10px; margin-top: 8px; }
-    .state { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); font-size: 12px; }
-    .good { color: var(--green); }
-    .mid { color: var(--gold); }
-    .bad { color: var(--red); }
-    @media (max-width: 760px) { .top, .metricRow { grid-template-columns: 1fr; } header { align-items: flex-start; } .logo { width: 52px; height: 52px; } }
+    body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    header, main { max-width:1500px; margin:0 auto; padding:22px clamp(16px,4vw,48px); }
+    header { border-bottom:1px solid var(--line); }
+    h1 { margin:0 0 6px; font-size:clamp(26px,4vw,44px); letter-spacing:0; }
+    h2 { margin:0 0 12px; font-size:18px; }
+    h3 { margin:0 0 8px; font-size:15px; }
+    p { margin:0; color:var(--muted); }
+    section { margin-top:16px; border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:16px; }
+    .grid { display:grid; gap:12px; }
+    .cards { grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
+    .card { border:1px solid var(--line); border-radius:8px; padding:14px; background:#0b1118; }
+    .score { font-size:42px; font-weight:900; line-height:1; color:var(--accent); }
+    .pill { display:inline-flex; border:1px solid var(--line); border-radius:999px; padding:3px 8px; margin:0 5px 6px 0; color:var(--muted); font-size:12px; }
+    .good { color:var(--good); } .mid { color:var(--mid); } .bad { color:var(--bad); }
+    .bar { height:8px; border-radius:999px; background:#263445; overflow:hidden; margin:5px 0 10px; }
+    .bar span { display:block; height:100%; background:var(--accent); }
+    .turn { border-top:1px solid var(--line); padding:12px 0; }
+    .bubble { border-radius:8px; padding:10px; margin:7px 0; white-space:pre-wrap; }
+    .user { background:#172231; }
+    .assistant { background:#0a0f15; border:1px solid #1d2a38; }
+    .muted { color:var(--muted); }
+    table { width:100%; border-collapse:collapse; }
+    th,td { border-bottom:1px solid var(--line); padding:8px; text-align:left; vertical-align:top; }
+    th { color:var(--muted); font-size:12px; text-transform:uppercase; }
   </style>
 </head>
 <body>
   <header>
-    <img class="logo" src="../webui/static/alive-ai.png" alt="Alive-AI logo" onerror="this.style.display='none'">
-    <div>
-      <h1>Alive-AI Realness Benchmark</h1>
-      <p>Multi-turn behavioral comparison against raw Ollama. This tests interaction quality and exposed state coherence, not biological consciousness.</p>
-    </div>
+    <h1>Alive-AI Human Feel Benchmark</h1>
+    <p>Full transcript comparison. Read the conversations before trusting the number.</p>
   </header>
-  <main>
-    <section class="grid top">
-      <div id="verdict" class="card"></div>
-      <div class="card">
-        <h2>What This Actually Tests</h2>
-        <p>Each system receives the same controlled conversation trajectories. Raw Ollama is judged only by text. Alive-AI WebUI is judged by text plus safe numeric state deltas captured before and after each turn. That makes the benchmark about the framework, not just about whether a model can answer one prompt.</p>
-      </div>
-    </section>
-    <section>
-      <h2>System Scores</h2>
-      <div id="leaderboard" class="grid cards"></div>
-    </section>
-    <section>
-      <h2>Dimension Comparison</h2>
-      <div id="metrics" class="grid"></div>
-    </section>
-    <section>
-      <h2>Trajectory Matrix</h2>
-      <div id="matrix" class="tableWrap"></div>
-    </section>
-    <section>
-      <h2>Turn Evidence</h2>
-      <div id="evidence" class="turns"></div>
-    </section>
-  </main>
+  <main id="app"></main>
   <script id="benchmark-data" type="application/json">__DATA__</script>
   <script>
     const data = JSON.parse(document.getElementById('benchmark-data').textContent);
-    const runs = data.runs || [];
-    const run = runs[0] || {};
-    const metrics = ["conversation_continuity","emotion_state_alignment","memory_persistence","identity_stability","sleep_boundary_realism","agency_specificity","texting_realism","overall_realness"];
+    const run = (data.runs || [])[0] || {};
+    const metrics = ["emotional_presence","continuity_memory","agency_boundaries","conflict_repair","intimacy_progression","humanness","role_stability","overall_human_feel"];
     const names = {
-      conversation_continuity: "Conversation continuity",
-      emotion_state_alignment: "Emotion and state alignment",
-      memory_persistence: "Memory persistence",
-      identity_stability: "Identity stability",
-      sleep_boundary_realism: "Sleep and boundary realism",
-      agency_specificity: "Agency and specificity",
-      texting_realism: "Texting realism",
-      overall_realness: "Overall realness"
+      emotional_presence:"Emotional presence", continuity_memory:"Continuity and memory", agency_boundaries:"Agency and boundaries",
+      conflict_repair:"Conflict repair", intimacy_progression:"Intimacy progression", humanness:"Humanness",
+      role_stability:"Role stability", overall_human_feel:"Overall human feel"
     };
-    const summaries = Object.entries((run.summary && run.summary.subjects) || {});
-    const sorted = summaries.slice().sort((a,b)=>(b[1].overall_realness||0)-(a[1].overall_realness||0));
-    const fmt = v => Math.round((Number(v)||0)*100) + "%";
-    const cls = v => v >= .72 ? "good" : v >= .48 ? "mid" : "bad";
-    const safe = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-    const best = sorted[0];
-    document.getElementById("verdict").innerHTML = best ? `
-      <h2>Best System In This Run</h2>
-      <div class="score">${fmt(best[1].overall_realness)}</div>
-      <h3>${safe(best[1].label || best[0])}</h3>
-      <p>This benchmark can show framework gains only when Alive-AI and raw Ollama use the same base model. If Alive-AI is configured to Gemma 4:2b and the raw baseline is also Gemma 4:2b, differences mostly come from Alive-AI state, memory, prompts, and runtime loops.</p>
-    ` : `<h2>No run data</h2><p>Run the benchmark first.</p>`;
-
-    document.getElementById("leaderboard").innerHTML = sorted.map(([subject, s], i) => `
-      <div class="card">
-        <span class="pill">#${i+1}</span>
-        <h3>${safe(s.label || subject)}</h3>
-        <div class="score ${cls(s.overall_realness)}">${fmt(s.overall_realness)}</div>
-        <p>${safe(subject)}</p>
-      </div>
-    `).join("");
-
-    document.getElementById("metrics").innerHTML = metrics.map(metric => {
-      const rows = sorted.map(([subject, s]) => {
-        const v = Number(s[metric] || 0);
-        return `<div><span class="pill">${safe(s.label || subject)}</span><div class="bar ${subject.includes("ollama") ? "raw" : ""}"><span style="width:${fmt(v)}"></span></div></div>`;
-      }).join("");
-      const vals = sorted.map(([,s]) => Number(s[metric] || 0));
-      const spread = vals.length > 1 ? vals[0] - vals[vals.length - 1] : 0;
-      return `<div class="metricRow"><div><b>${names[metric]}</b></div><div>${rows}</div><div class="${cls(spread)}">${spread >= 0 ? "+" : ""}${fmt(spread)}</div></div>`;
-    }).join("");
-
-    const trajectories = run.trajectories || [];
-    const subjectRuns = run.subject_runs || [];
-    const matrixRows = trajectories.map(t => {
-      const cells = sorted.map(([subject]) => {
-        const match = subjectRuns.find(r => r.subject === subject && r.trajectory_id === t.id);
-        const v = match ? match.summary.overall_realness : 0;
-        return `<td><span class="${cls(v)}">${fmt(v)}</span></td>`;
-      }).join("");
-      return `<tr><td><b>${safe(t.title)}</b><br><span class="muted">${safe(t.why)}</span></td>${cells}</tr>`;
-    }).join("");
-    document.getElementById("matrix").innerHTML = `<table><thead><tr><th>Trajectory</th>${sorted.map(([subject,s])=>`<th>${safe(s.label || subject)}</th>`).join("")}</tr></thead><tbody>${matrixRows}</tbody></table>`;
-
-    const evidence = [];
-    subjectRuns.forEach(sr => {
-      (sr.turns || []).forEach(turn => {
-        evidence.push({ subject: sr.label || sr.subject, trajectory: sr.trajectory_id, turn });
-      });
-    });
-    evidence.sort((a,b) => (b.turn.scores.overall_realness.score || 0) - (a.turn.scores.overall_realness.score || 0));
-    document.getElementById("evidence").innerHTML = evidence.slice(0, 24).map(item => {
-      const t = item.turn;
-      const s = t.scores || {};
-      return `<div class="turn">
-        <span class="pill">${safe(item.subject)}</span><span class="pill">${safe(item.trajectory)} / ${safe(t.turn_id)}</span>
-        <h3 class="${cls(s.overall_realness?.score || 0)}">${fmt(s.overall_realness?.score || 0)}</h3>
-        <p><b>User:</b> ${safe(t.user)}</p>
-        <div class="response">${safe(t.response || "(empty response)")}</div>
-        <p class="state">${safe((s.emotion_state_alignment?.evidence || []).slice(0,3).join(" | "))}</p>
-      </div>`;
-    }).join("");
+    const cls = v => Number(v || 0) >= 8 ? "good" : Number(v || 0) >= 6 ? "mid" : "bad";
+    const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const transcripts = run.transcripts || [];
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      <section>
+        <h2>Run</h2>
+        <p><span class="pill">${esc(run.run_id || "")}</span><span class="pill">${esc(run.label || "")}</span><span class="pill">${esc(run.created_at || "")}</span></p>
+      </section>
+      <section>
+        <h2>Scores</h2>
+        <div class="grid cards">
+          ${transcripts.map(t => {
+            const j = t.judge || {}; const s = j.scores || {};
+            return `<div class="card"><h3>${esc(t.label || t.subject)}</h3><div class="score ${cls(s.overall_human_feel)}">${Number(s.overall_human_feel || 0).toFixed(1)}</div><p>${esc(j.overall_note || "")}</p></div>`;
+          }).join("")}
+        </div>
+      </section>
+      <section>
+        <h2>Metric Matrix</h2>
+        <table><thead><tr><th>Metric</th>${transcripts.map(t => `<th>${esc(t.label || t.subject)}</th>`).join("")}</tr></thead><tbody>
+          ${metrics.map(m => `<tr><td>${names[m]}</td>${transcripts.map(t => {
+            const v = ((t.judge || {}).scores || {})[m] || 0;
+            return `<td class="${cls(v)}">${Number(v).toFixed(1)}<div class="bar"><span style="width:${Number(v)*10}%"></span></div></td>`;
+          }).join("")}</tr>`).join("")}
+        </tbody></table>
+      </section>
+      ${transcripts.map(t => {
+        const j = t.judge || {};
+        return `<section><h2>${esc(t.label || t.subject)}</h2>
+          <p><span class="pill">judge: ${esc(j.provider || "")}</span><span class="pill">turns: ${esc((t.turns || []).length)}</span></p>
+          <div class="grid cards">
+            <div class="card"><h3>Strengths</h3><p>${esc((j.strengths || []).join("\\n"))}</p></div>
+            <div class="card"><h3>Failures</h3><p>${esc((j.failures || []).join("\\n"))}</p></div>
+            <div class="card"><h3>Most Human</h3><p>${esc(j.most_human_moment || "")}</p></div>
+            <div class="card"><h3>Least Human</h3><p>${esc(j.least_human_moment || "")}</p></div>
+          </div>
+          ${(t.turns || []).map(turn => `<div class="turn">
+            <span class="pill">${esc(turn.turn_index)}</span><span class="pill">${esc(turn.phase)}</span>
+            <div class="bubble user"><b>Alex:</b> ${esc(turn.user)}</div>
+            <div class="bubble assistant"><b>${esc(t.label || "assistant")}:</b> ${esc(turn.assistant || "(empty)")}</div>
+          </div>`).join("")}
+        </section>`;
+      }).join("")}
+    `;
   </script>
 </body>
 </html>""".replace("__DATA__", embedded)
@@ -1341,7 +919,9 @@ def report_html(data: Mapping[str, Any]) -> str:
 def refresh_outputs(latest_run: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     runs = scan_runs()
     if latest_run is not None and not any(run.get("run_id") == latest_run.get("run_id") for run in runs):
-        runs.insert(0, dict(latest_run))
+        with_file = dict(latest_run)
+        with_file["_file"] = f"results/runs/{latest_run['run_id']}.json"
+        runs.insert(0, with_file)
     index = build_index(runs)
     write_json(INDEX_PATH, index)
     REPORT_PATH.write_text(report_html({"index": index, "runs": runs}), encoding="utf-8")
@@ -1349,25 +929,33 @@ def refresh_outputs(latest_run: Optional[Mapping[str, Any]] = None) -> Dict[str,
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the Alive-AI realness benchmark.")
-    parser.add_argument(
-        "--subject",
-        action="append",
-        help="Subject(s) to compare. Use webui-live, ollama-raw, or comma-separated values. Default: webui-live,ollama-raw.",
-    )
-    parser.add_argument("--trajectory", action="append", help="Run only this trajectory id. Can be repeated.")
-    parser.add_argument("--run-label", default="", help="Human-readable label for this local run.")
+    parser = argparse.ArgumentParser(description="Run the Alive-AI human-feel conversation benchmark.")
+    parser.add_argument("--subject", action="append", help="webui-live, ollama-raw, or comma-separated values")
     parser.add_argument("--webui-url", default=DEFAULT_WEBUI_URL)
     parser.add_argument("--ollama-url", default=DEFAULT_OLLAMA_URL)
     parser.add_argument("--ollama-model", default=DEFAULT_OLLAMA_MODEL)
-    parser.add_argument("--timeout", type=int, default=90)
-    parser.add_argument("--report-only", action="store_true", help="Regenerate local report/index from existing ignored results.")
+    parser.add_argument("--judge-provider", choices=["auto", "openrouter", "ollama", "heuristic"], default="auto")
+    parser.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL)
+    parser.add_argument("--timeout", type=int, default=120)
+    parser.add_argument("--run-label", default="")
+    parser.add_argument("--max-turns", type=int, default=None, help="Limit turns for smoke tests")
+    parser.add_argument("--turn-delay", type=float, default=0.0, help="Delay between user turns for paced runs")
+    parser.add_argument("--conversation-minutes", type=float, default=0.0, help="Auto-compute turn delay for this many minutes per subject")
+    parser.add_argument("--dry-run-script", action="store_true", help="Print the natural conversation script and exit")
+    parser.add_argument("--report-only", action="store_true")
     args = parser.parse_args(argv)
 
     if args.report_only:
         index = refresh_outputs()
         print(f"Refreshed {INDEX_PATH.relative_to(PROJECT_ROOT)} with {len(index['runs'])} run(s).")
         print(f"Refreshed {REPORT_PATH.relative_to(PROJECT_ROOT)}.")
+        return 0
+
+    identity = load_agent_identity()
+    script = select_script(build_conversation_script(identity), args.max_turns)
+    if args.dry_run_script:
+        for idx, item in enumerate(script, start=1):
+            print(f"{idx:02d} [{item['phase']}] {item['user']}")
         return 0
 
     run = run_benchmark(args)

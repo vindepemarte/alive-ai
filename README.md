@@ -54,25 +54,44 @@ The emotional layer now has real runtime consequences:
 
 The public Pages site is an interactive static portal with a presentation, simulator, docs, and a preserved static WebUI demo. The local WebUI is the live version: it streams the actual state from the running Python backend.
 
-## Realness Benchmark
+## Human-Feel Conversation Benchmark
 
-Alive-AI ships a local trajectory benchmark under `benchmarks/` so upgrades can be measured instead of guessed. The benchmark is not a proof of consciousness. It compares how systems behave across multi-turn interactions, checking whether they keep continuity, move exposed internal state coherently, remember seeded details, preserve configured identity, handle sleep/boundaries realistically, keep texting shape human, and make specific humanlike choices instead of generic completions.
+Alive-AI ships a local human-feel benchmark under `benchmarks/` so upgrades can be compared from full transcripts instead of prompt fragments. The benchmark is not a proof of consciousness. It runs the same natural relationship-style conversation against the live Alive-AI runtime and a raw Ollama baseline, then judges the whole transcript for emotional presence, continuity, agency, boundaries, conflict repair, intimacy progression, humanness, and role stability.
+
+The script starts like a fresh first conversation, asks who the agent is, shares who the user is, builds warmth, moves into romantic closeness, creates friction, tries to make the agent angry, repairs the conflict, returns toward closeness, checks memory, and ends with late-night care. User turns are written as normal chat messages, not instructions to the model.
 
 Benchmark outputs are local-only artifacts. `benchmarks/report.html` and `benchmarks/results/` are ignored because runs against a live WebUI can include private memory, state, or conversation snippets. Publish only sanitized screenshots or manually curated aggregate numbers.
 
-Run it locally:
+Preview the conversation script without contacting any model:
+
+```bash
+python3 benchmarks/run_benchmarks.py --dry-run-script
+```
+
+Run a full paced comparison. `--conversation-minutes 30` paces each subject for about 30 minutes, so comparing both subjects takes about an hour. For the cleanest same-model test, configure the running Alive-AI WebUI with `LLM_PROVIDER=ollama`, top-level `OLLAMA_URL=http://localhost:11434`, and top-level `OLLAMA_MODEL=gemma4:e2b`, then compare it against raw Ollama with the same model:
 
 ```bash
 python3 benchmarks/run_benchmarks.py \
   --subject webui-live,ollama-raw \
   --ollama-model gemma4:e2b \
-  --run-label same-model-realness-check
+  --conversation-minutes 30 \
+  --run-label human-feel-same-model
 
 open benchmarks/report.html
 ```
 
-For the cleanest same-model comparison, configure the running Alive-AI WebUI to use the same local Ollama model as the raw baseline. Raw Ollama is scored from text only. `webui-live` is scored from the actual `/api/chat` runtime path plus safe numeric state deltas captured before and after each benchmark turn.
+For a quick smoke run:
 
+```bash
+python3 benchmarks/run_benchmarks.py \
+  --subject ollama-raw \
+  --ollama-model gemma4:e2b \
+  --max-turns 4 \
+  --judge-provider heuristic \
+  --run-label smoke
+```
+
+Raw Ollama is scored from text only. `webui-live` is recorded from the actual `/api/chat` runtime path plus safe numeric state snapshots captured before and after each benchmark turn. The final report includes every sent and received message so the number can be checked against the transcript.
 
 ## Quick Start
 

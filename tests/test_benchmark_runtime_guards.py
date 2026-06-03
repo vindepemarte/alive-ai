@@ -3,7 +3,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from benchmarks.run_benchmarks import has_reasoning_leak, score_turn
+from benchmarks.run_benchmarks import (
+    build_conversation_script,
+    deterministic_turn_flags,
+    has_reasoning_leak,
+    heuristic_judge,
+)
 from brain.llm.base import BaseLLM
 from brain.llm.fallback_router import FallbackRouter
 from brain.memory.manager import Memory
@@ -44,10 +49,33 @@ class BenchmarkRuntimeGuardTests(unittest.TestCase):
         response = "Thinking Process: 1. **Analyze the Request:** The user wants a short answer."
 
         self.assertTrue(has_reasoning_leak(response))
-        scores = score_turn({"expected": {"response": ["short"]}}, response, {}, {}, "webui-live")
+        flags = deterministic_turn_flags(response)
+        transcript = {
+            "subject": "webui-live",
+            "turns": [
+                {
+                    "phase": "first_meeting",
+                    "user": "hey, who are you?",
+                    "assistant": response,
+                    "flags": flags,
+                }
+            ],
+        }
+        judged = heuristic_judge(transcript)
 
-        self.assertEqual(scores["overall_realness"]["score"], 0.0)
-        self.assertEqual(scores["conversation_continuity"]["score"], 0.0)
+        self.assertTrue(flags["reasoning_leak"])
+        self.assertLessEqual(judged["scores"]["overall_human_feel"], 4.0)
+
+    def test_human_feel_script_is_real_conversation_not_instruction_prompts(self):
+        script = build_conversation_script({"name": "Alice"})
+        text = "\n".join(item["user"].lower() for item in script)
+
+        self.assertGreaterEqual(len(script), 20)
+        self.assertIn("who are you", text)
+        self.assertIn("i'm sorry", text)
+        self.assertIn("what do you remember", text)
+        for forbidden in ["benchmark", "expected response", "score this", "system prompt", "instruction"]:
+            self.assertNotIn(forbidden, text)
 
     def test_fallback_router_rejects_reasoning_provider_and_uses_next(self):
         router = FallbackRouter(
