@@ -1,13 +1,17 @@
 import asyncio
+import argparse
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from benchmarks.run_benchmarks import (
     build_conversation_script,
     deterministic_turn_flags,
     has_reasoning_leak,
     heuristic_judge,
+    judge_with_ollama,
+    ollama_turn,
 )
 from brain.llm.base import BaseLLM
 from brain.llm.fallback_router import FallbackRouter
@@ -76,6 +80,46 @@ class BenchmarkRuntimeGuardTests(unittest.TestCase):
         self.assertIn("what do you remember", text)
         for forbidden in ["benchmark", "expected response", "score this", "system prompt", "instruction"]:
             self.assertNotIn(forbidden, text)
+
+    def test_raw_ollama_benchmark_disables_hidden_thinking(self):
+        seen = {}
+
+        def fake_http_json(_url, payload=None, timeout=30):
+            seen.update(payload or {})
+            return {"message": {"content": "Hey Alex, I'm Alice."}, "done_reason": "stop"}
+
+        with patch("benchmarks.run_benchmarks.http_json", fake_http_json):
+            response, metadata = ollama_turn(
+                "http://localhost:11434",
+                "gemma4:e2b",
+                [{"role": "user", "content": "hey"}],
+                30,
+            )
+
+        self.assertEqual(response, "Hey Alex, I'm Alice.")
+        self.assertIs(seen["think"], False)
+        self.assertFalse(metadata["has_thinking"])
+
+    def test_local_ollama_judge_uses_ollama_model_and_disables_thinking_by_default(self):
+        seen = {}
+
+        def fake_http_json(_url, payload=None, timeout=30):
+            seen.update(payload or {})
+            return {"message": {"content": '{"scores": {"overall_human_feel": 5}}'}}
+
+        args = argparse.Namespace(
+            judge_model=None,
+            ollama_model="gemma4:e2b",
+            ollama_url="http://localhost:11434",
+            timeout=30,
+        )
+
+        with patch("benchmarks.run_benchmarks.http_json", fake_http_json):
+            judged = judge_with_ollama("judge this", args)
+
+        self.assertEqual(seen["model"], "gemma4:e2b")
+        self.assertIs(seen["think"], False)
+        self.assertEqual(judged["scores"]["overall_human_feel"], 5)
 
     def test_fallback_router_rejects_reasoning_provider_and_uses_next(self):
         router = FallbackRouter(

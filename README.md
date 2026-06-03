@@ -91,7 +91,7 @@ python3 benchmarks/run_benchmarks.py \
   --run-label smoke
 ```
 
-Raw Ollama is scored from text only. `webui-live` is recorded from the actual `/api/chat` runtime path plus safe numeric state snapshots captured before and after each benchmark turn. The final report includes every sent and received message so the number can be checked against the transcript.
+Raw Ollama is scored from text only and is called with `think:false` so local thinking models produce visible replies instead of spending the whole budget in hidden reasoning. `webui-live` is recorded from the actual `/api/chat` runtime path plus safe numeric state snapshots captured before and after each benchmark turn. The final report includes every sent and received message so the number can be checked against the transcript.
 
 ## Quick Start
 

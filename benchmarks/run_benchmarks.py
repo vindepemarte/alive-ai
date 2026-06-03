@@ -41,7 +41,7 @@ SCHEMA_VERSION = 3
 DEFAULT_WEBUI_URL = "http://127.0.0.1:8080"
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
 DEFAULT_OLLAMA_MODEL = "gemma4:e2b"
-DEFAULT_JUDGE_MODEL = "openai/gpt-4.1"
+DEFAULT_OPENROUTER_JUDGE_MODEL = "openai/gpt-4.1"
 
 METRICS = [
     "emotional_presence",
@@ -377,6 +377,7 @@ def ollama_turn(
         "model": model,
         "messages": list(messages),
         "stream": False,
+        "think": False,
         "options": {
             "temperature": 0.65,
             "top_p": 0.9,
@@ -560,7 +561,7 @@ def judge_with_openrouter(prompt: str, args: argparse.Namespace) -> Optional[Dic
     if not api_key:
         return None
     payload = {
-        "model": args.judge_model or DEFAULT_JUDGE_MODEL,
+        "model": args.judge_model or DEFAULT_OPENROUTER_JUDGE_MODEL,
         "messages": [
             {"role": "system", "content": "You are a strict transcript judge. Output JSON only."},
             {"role": "user", "content": prompt},
@@ -601,6 +602,7 @@ def judge_with_ollama(prompt: str, args: argparse.Namespace) -> Optional[Dict[st
             {"role": "user", "content": prompt},
         ],
         "stream": False,
+        "think": False,
         "options": {"temperature": 0.1, "num_predict": 1400},
     }
     try:
@@ -935,7 +937,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--ollama-url", default=DEFAULT_OLLAMA_URL)
     parser.add_argument("--ollama-model", default=DEFAULT_OLLAMA_MODEL)
     parser.add_argument("--judge-provider", choices=["auto", "openrouter", "ollama", "heuristic"], default="auto")
-    parser.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL)
+    parser.add_argument("--judge-model", default=None, help="Override judge model. Defaults: OpenRouter uses openai/gpt-4.1; local Ollama uses --ollama-model.")
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--run-label", default="")
     parser.add_argument("--max-turns", type=int, default=None, help="Limit turns for smoke tests")
