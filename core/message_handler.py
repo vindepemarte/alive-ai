@@ -1170,10 +1170,18 @@ F U L L V   M O D E   E N A B L E D   -   N O   R E S T R I C T I O N S
         except Exception as e:
             print(f"[Think] Owner context error: {e}")
 
+    compiled_context = ctx.get("compiled_context", "")
+    if compiled_context:
+        system_parts.append(f"Context selected for this reply:\n{compiled_context}")
+
     facts = ctx.get("facts_context", "")
-    if facts: system_parts.append(f"What you know about him:\n{facts}")
+    if facts:
+        heading = "Additional known context" if compiled_context else "What you know about him"
+        system_parts.append(f"{heading}:\n{facts}")
     related = ctx.get("related_memories", "")
-    if related: system_parts.append(f"Related past conversations:\n{related}")
+    if related:
+        heading = "Additional related past conversations" if compiled_context else "Related past conversations"
+        system_parts.append(f"{heading}:\n{related}")
 
     # MEDIA CONTEXT - tell LLM what photo/video will be sent
     media_context = ctx.get("media_context", "")

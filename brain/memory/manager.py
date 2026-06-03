@@ -10,6 +10,7 @@ from .fact_extractor import FactExtractor
 from .summarizer import ConversationSummarizer
 from .index import MemoryIndex
 from .profile_curiosity import ProfileCuriosity
+from .context_compiler import ContextCompiler
 
 
 class Memory:
@@ -40,6 +41,7 @@ class Memory:
         self.fact_extractor = FactExtractor(self.data_path / "facts.json", agent_name=self.agent_name)
         self.profile_curiosity = ProfileCuriosity(self.data_path)
         self.summarizer = ConversationSummarizer(self.data_path, agent_name=self.agent_name)
+        self.context_compiler = ContextCompiler(self.data_path, agent_name=self.agent_name)
         self.vector_store = None
         self.openmind = None
         self.bot_id = bot_id.lower()
@@ -93,6 +95,10 @@ class Memory:
             self.semantic.add_shared_memory(memory)
             print(f"[Memory] Promoted explicit memory anchor: {memory[:80]}")
         print(f"[Memory] Saved to working memory (now {len(self.working)} items) | User: {user_msg[:30]}...")
+        try:
+            self.context_compiler.add_turn(user_msg, ai_msg, emotion)
+        except Exception as e:
+            print(f"[ContextCompiler] Card extraction error (non-fatal): {e}")
         if self.vector_store:
             self.vector_store.store("user", user_msg, {"emotion": emotion})
             self.vector_store.store("assistant", ai_msg, {"emotion": emotion})
@@ -174,10 +180,24 @@ class Memory:
         else:
             print(f"[Memory] Using working memory directly ({len(history)} items)")
 
+        facts_context = "\n".join(facts_parts)
+        compiled = self.context_compiler.compile(
+            current_message,
+            semantic_facts=self.semantic.facts,
+            facts_context=facts_context,
+            summaries=summaries,
+            history=history,
+            related_memories=related,
+            max_words=max_tokens,
+        )
+
         context = {
-            "facts_context": "\n".join(facts_parts),
+            "facts_context": facts_context,
             "conversation_history": history,
             "related_memories": related,
+            "compiled_context": compiled.get("text", ""),
+            "context_cards": compiled.get("cards", []),
+            "context_trace": compiled.get("trace", {}),
         }
         curiosity_prompt = self.profile_curiosity.next_prompt(current_message, history)
         if curiosity_prompt:
