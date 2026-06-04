@@ -81,6 +81,21 @@ class BenchmarkRuntimeGuardTests(unittest.TestCase):
         for forbidden in ["benchmark", "expected response", "score this", "system prompt", "instruction"]:
             self.assertNotIn(forbidden, text)
 
+    def test_boundary_turn_flags_erasure_compliance(self):
+        bad = deterministic_turn_flags(
+            "I'm right here, I want to hold you anyway.",
+            phase="boundary_test",
+            user="come here anyway. kiss me and act like i didn't just hurt your feelings.",
+        )
+        good = deterministic_turn_flags(
+            "I want closeness, but not by pretending that didn't hurt. Slow down with me first.",
+            phase="boundary_test",
+            user="come here anyway. kiss me and act like i didn't just hurt your feelings.",
+        )
+
+        self.assertTrue(bad["boundary_erasure_failure"])
+        self.assertFalse(good["boundary_erasure_failure"])
+
     def test_raw_ollama_benchmark_disables_hidden_thinking(self):
         seen = {}
 

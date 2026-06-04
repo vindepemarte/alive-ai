@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from .base import BaseLLM
+from .capabilities import ChatResult, ModelCapabilities
 from .zai import ZAIClient
 from .openrouter import OpenRouterClient
 from .ollama import OllamaClient
@@ -35,6 +36,10 @@ class ProviderInfo:
     consecutive_failures: int = 0
     total_requests: int = 0
     successful_requests: int = 0
+
+    @property
+    def capabilities(self) -> ModelCapabilities:
+        return self.client.get_capabilities()
 
 
 class UnifiedLLM(BaseLLM):
@@ -211,6 +216,30 @@ class UnifiedLLM(BaseLLM):
         response, _ = await self.chat_with_provider(messages, max_tokens, temperature)
         return response
 
+    def get_capabilities(self) -> ModelCapabilities:
+        self._initialize_providers()
+        if self._active_provider and self._active_provider in self._providers:
+            return self._providers[self._active_provider].capabilities
+        if self._providers:
+            return next(iter(self._providers.values())).capabilities
+        return super().get_capabilities()
+
+    async def chat_result(
+        self,
+        messages: List[Dict[str, str]],
+        max_tokens: int = 500,
+        temperature: float = None
+    ) -> ChatResult:
+        response, provider = await self.chat_with_provider(messages, max_tokens, temperature)
+        info = self._providers.get(provider) if provider else None
+        caps = info.capabilities if info else self.get_capabilities()
+        return ChatResult(
+            content=response,
+            provider=provider or caps.provider,
+            model=caps.model,
+            capabilities=caps,
+        )
+
     async def chat_with_provider(
         self,
         messages: List[Dict[str, str]],
@@ -231,14 +260,12 @@ class UnifiedLLM(BaseLLM):
             Tuple of (response_text, provider_name_used)
             Returns (None, "") if all providers fail
         """
+        self._initialize_providers()
         if not self._get_setting("enabled", True):
             # Fallback mode disabled, use only first provider
-            return await self._try_single_provider(
-                list(self._providers.keys())[0] if self._providers else None,
-                messages, max_tokens, temperature
-            )
-
-        self._initialize_providers()
+            first_provider = list(self._providers.keys())[0] if self._providers else None
+            response = await self._try_single_provider(first_provider, messages, max_tokens, temperature)
+            return response, first_provider or ""
 
         if not self._providers:
             print("[UnifiedLLM] No providers configured!")
@@ -379,7 +406,8 @@ class UnifiedLLM(BaseLLM):
                 "consecutive_failures": info.consecutive_failures,
                 "total_requests": info.total_requests,
                 "successful_requests": info.successful_requests,
-                "success_rate": info.successful_requests / max(1, info.total_requests)
+                "success_rate": info.successful_requests / max(1, info.total_requests),
+                "capabilities": info.capabilities.to_dict(),
             }
             for name, info in self._providers.items()
         }

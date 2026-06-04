@@ -9,6 +9,7 @@ import os
 import time
 from typing import Optional, List, Dict, Any
 from .base import BaseLLM
+from .capabilities import ModelCapabilities, ReasoningCapabilities
 from .reasoning import has_reasoning_payload, visible_answer_from_message
 
 
@@ -86,6 +87,25 @@ class OpenRouterClient(BaseLLM):
         self._available: Optional[bool] = None
         self._last_check: float = 0
 
+    def get_capabilities(self) -> ModelCapabilities:
+        return ModelCapabilities(
+            provider="openrouter",
+            model=self.model,
+            api_style="openai_chat",
+            local=False,
+            requires_api_key=True,
+            supports_streaming=True,
+            supports_tools=False,
+            supports_json_mode=False,
+            supported_params=frozenset({"max_tokens", "temperature", "frequency_penalty", "presence_penalty", "reasoning"}),
+            reasoning=ReasoningCapabilities(
+                supports_hidden_reasoning=True,
+                supports_disable_control=False,
+                supports_exclude_control=True,
+                control_style="openrouter_reasoning",
+            ),
+        )
+
     async def _get_session(self) -> aiohttp.ClientSession:
         if self.session is None or self.session.closed:
             self.session = aiohttp.ClientSession()
@@ -158,7 +178,8 @@ class OpenRouterClient(BaseLLM):
             "presence_penalty": 0.6,   # Encourage topic diversity - increased from 0.3
         }
         thinking_enabled = _openrouter_thinking_enabled()
-        if thinking_enabled:
+        capabilities = self.get_capabilities()
+        if thinking_enabled and capabilities.reasoning.supports_exclude_control:
             payload["reasoning"] = {
                 "effort": "low",
                 "exclude": True,

@@ -8,6 +8,7 @@ import asyncio
 import os
 from typing import Optional, List, Dict
 from .base import BaseLLM
+from .capabilities import ModelCapabilities, ReasoningCapabilities
 from .reasoning import has_reasoning_payload, visible_answer_from_message
 
 
@@ -38,6 +39,23 @@ class OllamaClient(BaseLLM):
         self.session: Optional[aiohttp.ClientSession] = None
         self._available: Optional[bool] = None
         self._last_check: float = 0
+
+    def get_capabilities(self) -> ModelCapabilities:
+        return ModelCapabilities(
+            provider="ollama",
+            model=self.model,
+            api_style="ollama_chat",
+            local=True,
+            requires_api_key=False,
+            supports_streaming=True,
+            supported_params=frozenset({"num_predict", "temperature", "top_p", "repeat_penalty", "think"}),
+            reasoning=ReasoningCapabilities(
+                supports_hidden_reasoning=True,
+                supports_disable_control=True,
+                supports_exclude_control=False,
+                control_style="ollama_think",
+            ),
+        )
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self.session is None or self.session.closed:
@@ -163,7 +181,7 @@ class OllamaClient(BaseLLM):
             }
         }
         thinking_enabled = _settings_bool("LLM_THINKING_ENABLED", True)
-        if not thinking_enabled:
+        if not thinking_enabled and self.get_capabilities().reasoning.supports_disable_control:
             payload["think"] = False
 
         print(f"[Ollama] Request to {url} with model {self.model}")

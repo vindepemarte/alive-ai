@@ -9,6 +9,7 @@ import os
 import time
 from typing import Optional, List, Dict
 from .base import BaseLLM
+from .capabilities import ModelCapabilities, ReasoningCapabilities
 from .reasoning import has_reasoning_payload, visible_answer_from_message
 
 
@@ -33,6 +34,23 @@ class ZAIClient(BaseLLM):
         self.session: Optional[aiohttp.ClientSession] = None
         self._available: Optional[bool] = None
         self._last_check: float = 0
+
+    def get_capabilities(self) -> ModelCapabilities:
+        return ModelCapabilities(
+            provider="zai",
+            model=self.model,
+            api_style="openai_chat",
+            local=False,
+            requires_api_key=True,
+            supports_streaming=False,
+            supported_params=frozenset({"max_tokens", "temperature", "frequency_penalty", "presence_penalty", "thinking"}),
+            reasoning=ReasoningCapabilities(
+                supports_hidden_reasoning=True,
+                supports_disable_control=True,
+                supports_exclude_control=False,
+                control_style="zai_thinking",
+            ),
+        )
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self.session is None or self.session.closed:
@@ -103,11 +121,13 @@ class ZAIClient(BaseLLM):
             "presence_penalty": 0.6,
         }
         thinking_enabled = _settings_bool("LLM_THINKING_ENABLED", True)
-        if not thinking_enabled:
+        if not thinking_enabled and self.get_capabilities().reasoning.supports_disable_control:
             payload["thinking"] = {"type": "disabled"}
 
-        # Try up to 2 times
-        for attempt in range(2):
+        visible_retry_added = False
+        # Try original request, optional visible-answer retry, and optional
+        # compatibility retry without rejected thinking controls.
+        for _request_attempt in range(4):
             try:
                 async with session.post(
                     f"{self.BASE_URL}/chat/completions",
@@ -117,6 +137,10 @@ class ZAIClient(BaseLLM):
                 ) as resp:
                     if resp.status != 200:
                         error = await resp.text()
+                        if "thinking" in payload and resp.status in (400, 422):
+                            print("[ZAI] thinking control rejected, retrying without thinking control")
+                            payload.pop("thinking", None)
+                            continue
                         print(f"[ZAI] Error {resp.status}: {error[:300]}")
                         self._available = False
                         return None
@@ -145,7 +169,8 @@ class ZAIClient(BaseLLM):
 
                     # If still empty, retry with intimate instruction
                     if not content or not content.strip():
-                        if attempt == 0:
+                        if not visible_retry_added:
+                            visible_retry_added = True
                             print(f"[ZAI] Empty answer on first attempt, retrying with explicit visible-answer instruction...")
                             # Add intimate instruction to output dialogue
                             retry_messages = messages.copy()
@@ -154,7 +179,7 @@ class ZAIClient(BaseLLM):
                                 "content": "IMPORTANT: Return a visible spoken answer in the message content. Keep private reasoning out of the visible answer."
                             })
                             payload["messages"] = retry_messages
-                            if thinking_enabled:
+                            if self.get_capabilities().reasoning.supports_disable_control:
                                 payload["thinking"] = {"type": "disabled"}
                             continue
                         else:

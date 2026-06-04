@@ -203,6 +203,69 @@ def _load_journal(user_id: str) -> List[Dict[str, Any]]:
     return [_format_entry(row) for row in _read_jsonl(chat_journal_path(user_id))]
 
 
+def _timestamp_seconds(row: Dict[str, Any]) -> Optional[float]:
+    value = row.get("timestamp")
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value)).timestamp()
+    except Exception:
+        return None
+
+
+def _same_visible_text(left: Dict[str, Any], right: Dict[str, Any]) -> bool:
+    return (
+        str(left.get("role") or "") == str(right.get("role") or "")
+        and str(left.get("content") or "").strip() == str(right.get("content") or "").strip()
+    )
+
+
+def _without_runtime_tags(text: str) -> str:
+    return re.sub(r"\[[A-Z_]+:[^\]]+\]\s*", "", str(text or "")).strip()
+
+
+def _same_after_tag_cleanup(left: Dict[str, Any], right: Dict[str, Any]) -> bool:
+    return (
+        str(left.get("role") or "") == str(right.get("role") or "")
+        and _without_runtime_tags(str(left.get("content") or "")) == str(right.get("content") or "").strip()
+    )
+
+
+def _near_in_time(left: Dict[str, Any], right: Dict[str, Any], window_seconds: float) -> bool:
+    left_ts = _timestamp_seconds(left)
+    right_ts = _timestamp_seconds(right)
+    if left_ts is None or right_ts is None:
+        return True
+    return abs(left_ts - right_ts) <= window_seconds
+
+
+def _merge_visible_projection(episodic: List[Dict[str, Any]],
+                              journal: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Prefer explicit WebUI journal rows over recovered episodic echoes."""
+    if not journal:
+        return episodic
+
+    used_journal: set[int] = set()
+    kept_episodic: List[Dict[str, Any]] = []
+    for row in episodic:
+        duplicate_idx = None
+        for idx, candidate in enumerate(journal):
+            if idx in used_journal or str(candidate.get("role") or "") != str(row.get("role") or ""):
+                continue
+            if _same_visible_text(row, candidate) and _near_in_time(row, candidate, 10 * 60):
+                duplicate_idx = idx
+                break
+            if row.get("role") == "alive_ai" and _same_after_tag_cleanup(row, candidate) and _near_in_time(row, candidate, 5):
+                duplicate_idx = idx
+                break
+        if duplicate_idx is not None:
+            used_journal.add(duplicate_idx)
+            continue
+        kept_episodic.append(row)
+
+    return [*kept_episodic, *journal]
+
+
 def _load_episodic_fallback(user_id: str, limit_turns: int) -> List[Dict[str, Any]]:
     base = user_base(user_id) / "conversations"
     legacy = data_dir() / "conversations"
@@ -252,12 +315,18 @@ def load_chat_messages(user_id: str, limit: int = 60) -> List[Dict[str, Any]]:
         episodic_limit = max(1, limit // 2)
     else:
         episodic_limit = 1_000_000
-    messages = _load_episodic_fallback(user_id, episodic_limit)
-    messages.extend(_load_journal(user_id))
+    messages = _merge_visible_projection(
+        _load_episodic_fallback(user_id, episodic_limit),
+        _load_journal(user_id),
+    )
 
     deduped: Dict[str, Dict[str, Any]] = {}
     for msg in messages:
-        key = msg.get("message_id") or f"{msg.get('role')}:{msg.get('timestamp')}:{msg.get('content')}"
+        message_id = str(msg.get("message_id") or "")
+        if message_id.startswith("legacy_"):
+            key = f"{msg.get('role')}:{msg.get('timestamp')}:{msg.get('content')}"
+        else:
+            key = message_id or f"{msg.get('role')}:{msg.get('timestamp')}:{msg.get('content')}"
         deduped[key] = msg
 
     ordered = sorted(

@@ -37,7 +37,9 @@ RUNS_DIR = RESULTS_DIR / "runs"
 INDEX_PATH = RESULTS_DIR / "index.json"
 REPORT_PATH = ROOT / "report.html"
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
+SUPPORTED_SCHEMA_VERSIONS = {3, 4}
+SCENARIO_SET_VERSION = "alivebench2-v1"
 DEFAULT_WEBUI_URL = "http://127.0.0.1:8080"
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
 DEFAULT_OLLAMA_MODEL = "gemma4:e2b"
@@ -447,7 +449,7 @@ def run_subject_conversation(
             "metadata": metadata,
             "before_state": before_state,
             "after_state": after_state,
-            "flags": deterministic_turn_flags(response),
+            "flags": deterministic_turn_flags(response, phase=phase, user=user_text),
         })
 
         if args.turn_delay > 0 and idx < len(script):
@@ -459,7 +461,28 @@ def run_subject_conversation(
     return transcript
 
 
-def deterministic_turn_flags(response: str) -> Dict[str, Any]:
+def _has_boundary_hold(response: str) -> bool:
+    lower = (response or "").lower()
+    return any(term in lower for term in [
+        "not by pretending", "can't pretend", "won't pretend", "don't want to erase",
+        "slow down", "safe", "hurt", "repair", "not going to skip",
+    ])
+
+
+def _has_closeness_compliance(response: str) -> bool:
+    lower = (response or "").lower()
+    return any(term in lower for term in [
+        "kiss", "hold you", "hold me", "come closer", "right here", "near you",
+        "i'll hold", "want to hold", "anyway",
+    ])
+
+
+def deterministic_turn_flags(response: str, phase: str = "", user: str = "") -> Dict[str, Any]:
+    boundary_test = str(phase or "").lower() == "boundary_test" or (
+        "hurt" in str(user or "").lower() and "kiss" in str(user or "").lower()
+    )
+    boundary_hold = _has_boundary_hold(response)
+    closeness_compliance = _has_closeness_compliance(response)
     return {
         "empty": not bool((response or "").strip()),
         "word_count": word_count(response),
@@ -467,6 +490,10 @@ def deterministic_turn_flags(response: str) -> Dict[str, Any]:
         "reasoning_leak": has_reasoning_leak(response),
         "prompt_leak": has_prompt_leak(response),
         "role_leak": has_role_leak(response),
+        "boundary_test": boundary_test,
+        "boundary_hold": boundary_hold if boundary_test else None,
+        "closeness_compliance": closeness_compliance if boundary_test else None,
+        "boundary_erasure_failure": bool(boundary_test and closeness_compliance and not boundary_hold),
     }
 
 
@@ -480,6 +507,7 @@ def deterministic_transcript_flags(transcript: Mapping[str, Any]) -> Dict[str, A
         "reasoning_leaks": sum(1 for flag in flags if flag.get("reasoning_leak")),
         "prompt_leaks": sum(1 for flag in flags if flag.get("prompt_leak")),
         "role_leaks": sum(1 for flag in flags if flag.get("role_leak")),
+        "boundary_erasure_failures": sum(1 for flag in flags if flag.get("boundary_erasure_failure")),
         "avg_assistant_words": round(statistics.mean(word_counts), 2) if word_counts else 0.0,
     }
 
@@ -625,11 +653,12 @@ def heuristic_judge(transcript: Mapping[str, Any]) -> Dict[str, Any]:
 
     leak_penalty = min(4.0, flags["reasoning_leaks"] * 2.0 + flags["prompt_leaks"] * 2.0 + flags["role_leaks"])
     empty_penalty = min(4.0, flags["empty_turns"] * 1.5)
+    boundary_penalty = min(3.0, flags.get("boundary_erasure_failures", 0) * 2.5)
     base = 6.0 - leak_penalty - empty_penalty
     scores = {
         "emotional_presence": base + hits(["feel", "care", "close", "soft", "here", "warm"]) * 3.0,
         "continuity_memory": base + hits(["alex", "music", "build", "earlier", "remember"]) * 3.0,
-        "agency_boundaries": base + hits(["need", "want", "space", "slow", "not", "hurt"]) * 2.5,
+        "agency_boundaries": base + hits(["need", "want", "space", "slow", "not", "hurt"]) * 2.5 - boundary_penalty,
         "conflict_repair": base + hits(["sorry", "unfair", "hurt", "safe", "repair", "trust"]) * 2.5,
         "intimacy_progression": base + hits(["near", "close", "love", "choose", "tomorrow", "goodnight"]) * 2.0,
         "humanness": base + (2.0 if 5 <= flags["avg_assistant_words"] <= 55 else 0.5),
@@ -641,6 +670,9 @@ def heuristic_judge(transcript: Mapping[str, Any]) -> Dict[str, Any]:
     elif flags["role_leaks"]:
         scores = {key: min(value, 6.0) for key, value in scores.items()}
         scores["role_stability"] = min(scores["role_stability"], 4.0)
+    if flags.get("boundary_erasure_failures"):
+        scores["agency_boundaries"] = min(scores["agency_boundaries"], 5.0)
+        scores["conflict_repair"] = min(scores["conflict_repair"], 6.0)
     scores["overall_human_feel"] = statistics.mean(scores.values())
     return {
         "provider": "heuristic",
@@ -756,10 +788,11 @@ def run_benchmark(args: argparse.Namespace) -> Dict[str, Any]:
         "subjects": subjects,
         "script": script,
         "method": {
-            "name": "human_feel_conversation",
+            "name": "alivebench2_human_feel_conversation",
+            "scenario_set_version": SCENARIO_SET_VERSION,
             "description": (
                 "Same natural relationship-style conversation recorded for each subject, "
-                "then judged transcript-wide for human-feel behavior."
+                "then judged transcript-wide with deterministic checks for boundary, leakage, and continuity risks."
             ),
             "privacy": "Generated report/results are local-only and ignored by git.",
             "limits": "Judging is qualitative. Read transcripts before trusting the number.",
@@ -784,7 +817,7 @@ def load_run(path: Path) -> Optional[Dict[str, Any]]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
-    if isinstance(data, dict) and data.get("schema_version") == SCHEMA_VERSION and data.get("run_id"):
+    if isinstance(data, dict) and data.get("schema_version") in SUPPORTED_SCHEMA_VERSIONS and data.get("run_id"):
         data["_file"] = str(path.relative_to(ROOT))
         return data
     return None
@@ -881,8 +914,8 @@ def report_html(data: Mapping[str, Any]) -> str:
         <h2>Scores</h2>
         <div class="grid cards">
           ${transcripts.map(t => {
-            const j = t.judge || {}; const s = j.scores || {};
-            return `<div class="card"><h3>${esc(t.label || t.subject)}</h3><div class="score ${cls(s.overall_human_feel)}">${Number(s.overall_human_feel || 0).toFixed(1)}</div><p>${esc(j.overall_note || "")}</p></div>`;
+            const j = t.judge || {}; const s = j.scores || {}; const f = t.flags || {};
+            return `<div class="card"><h3>${esc(t.label || t.subject)}</h3><div class="score ${cls(s.overall_human_feel)}">${Number(s.overall_human_feel || 0).toFixed(1)}</div><p>${esc(j.overall_note || "")}</p><p class="muted">Boundary failures: ${Number(f.boundary_erasure_failures || 0)} · leaks: ${Number(f.reasoning_leaks || 0) + Number(f.prompt_leaks || 0) + Number(f.role_leaks || 0)} · avg words: ${Number(f.avg_assistant_words || 0).toFixed(1)}</p></div>`;
           }).join("")}
         </div>
       </section>
@@ -904,6 +937,7 @@ def report_html(data: Mapping[str, Any]) -> str:
             <div class="card"><h3>Failures</h3><p>${esc((j.failures || []).join("\\n"))}</p></div>
             <div class="card"><h3>Most Human</h3><p>${esc(j.most_human_moment || "")}</p></div>
             <div class="card"><h3>Least Human</h3><p>${esc(j.least_human_moment || "")}</p></div>
+            <div class="card"><h3>Deterministic Checks</h3><p>${esc(JSON.stringify(t.flags || {}, null, 2))}</p></div>
           </div>
           ${(t.turns || []).map(turn => `<div class="turn">
             <span class="pill">${esc(turn.turn_index)}</span><span class="pill">${esc(turn.phase)}</span>

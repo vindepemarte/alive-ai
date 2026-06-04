@@ -15,6 +15,14 @@ from .user_manager import get_user_manager, is_advanced_enabled
 from .user_tracker import get_user_tracker
 from .inner_state import InnerStateCompiler, signal_from_prompt
 from .reflection import PostResponseReflector
+from .boundary_governor import (
+    BoundaryDecision,
+    apply_boundary_emotion,
+    apply_boundary_to_object,
+    evaluate_boundary,
+    govern_response,
+)
+from .body_snapshot import build_alive_body_snapshot
 from core.settings import get_float
 
 # ============================================================
@@ -536,6 +544,23 @@ async def _process_single_message(self, data: dict):
         # No owner boost - let emotions develop authentically
         emotion["is_owner"] = is_owner  # Just flag for commands, no emotion changes
 
+        boundary_decision = evaluate_boundary(
+            text,
+            recent_turns=recent_turns,
+            emotion=emotion,
+            appraisal=pre_appraisal,
+            context_cards=context.get("context_cards", []),
+        )
+        if boundary_decision.active:
+            print(
+                f"[Boundary] {boundary_decision.state} | "
+                f"severity={boundary_decision.severity:.2f} reasons={boundary_decision.reasons}"
+            )
+            emotion = apply_boundary_emotion(emotion, boundary_decision)
+            apply_boundary_to_object(getattr(self._heart, "emotion", None), boundary_decision)
+        context["boundary_decision"] = boundary_decision
+        context["boundary_decision_data"] = boundary_decision.to_dict()
+
         print(f"[Heart] {emotion['mood']} | A:{emotion['arousal']:.2f} D:{emotion['desire']:.2f}")
         await self.nervous.emit("emotion_update", emotion)  # Update WebUI
 
@@ -731,8 +756,13 @@ async def _process_single_message(self, data: dict):
             facts = context.get("facts_context", "")
             context["facts_context"] = (facts + "\n" + wm) if facts else wm
 
-        # PRE-CHECK: Will we send media? Get photo/video info BEFORE thinking
-        media_context = await _get_media_context(self, text, emotion, user_id=user_id)
+        # PRE-CHECK: Will we send media? Get photo/video info BEFORE thinking.
+        # Agency boundaries can temporarily block intimate/media escalation.
+        media_context = ""
+        if boundary_decision.media_allowed:
+            media_context = await _get_media_context(self, text, emotion, user_id=user_id)
+        else:
+            print("[Media] Skipped: active boundary pressure")
 
         # Inject skill context into LLM context
         if pending_callback:
@@ -753,10 +783,22 @@ async def _process_single_message(self, data: dict):
         # Store detected bids in context for think()
         context["detected_bids"] = detected_bids
         context["inconsistency_modifiers"] = inconsistency_modifiers
+        context["alive_body_snapshot"] = build_alive_body_snapshot(
+            user_id=user_id,
+            emotion=emotion,
+            heart=getattr(self, "_heart", None),
+            context=context,
+        )
 
         # Pass is_owner and advanced_mode to think
         recent_openings_before = _get_recent_openings(user_id).copy()
         response = await think(self, text, emotion, context, pet_name, is_owner=is_owner, advanced_mode=advanced_mode, user_id=user_id)
+        response = govern_response(
+            response or "",
+            boundary_decision,
+            build_response_shape_policy(emotion, text, context),
+            identity=self.config.identity,
+        )
 
         try:
             post_appraisal = await self._heart.appraisal_engine.appraise_async(
@@ -773,6 +815,9 @@ async def _process_single_message(self, data: dict):
                 post_appraisal,
                 weight=get_float("MOMENT_APPRAISAL_POST_RESPONSE_WEIGHT", 0.45),
             )
+            if boundary_decision.active:
+                emotion = apply_boundary_emotion(emotion, boundary_decision)
+                apply_boundary_to_object(getattr(self._heart, "emotion", None), boundary_decision)
             emotion["is_owner"] = is_owner
             await self.nervous.emit("emotion_update", emotion)
             print(
@@ -852,7 +897,7 @@ async def _process_single_message(self, data: dict):
         # follow-up turns can retrieve the just-seeded memory deterministically.
         await _save_memory(user_memory, text, response, emotion, None, None)
 
-        await _send_response(self, response, emotion, chat_id, text, user_id, message_id=message_id)
+        await _send_response(self, response, emotion, chat_id, text, user_id, message_id=message_id, boundary_decision=boundary_decision)
         if self._subconscious: _feed_learning(self._subconscious, text)
 
         # Actually send the media (we already decided what to send)
@@ -887,6 +932,9 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     from core.directives import get_directives_prompt, get_owner_name
 
     response_policy = build_response_shape_policy(emotion, msg, ctx)
+    boundary_decision = ctx.get("boundary_decision")
+    if not isinstance(boundary_decision, BoundaryDecision):
+        boundary_decision = BoundaryDecision()
 
     def shaped_fallback(reason: str) -> str:
         print(f"[Think] Using contextual fallback: {reason}")
@@ -900,6 +948,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
             )
         if is_response_unusable(shaped, response_policy, msg):
             shaped = "I'm here with you."
+        shaped = govern_response(shaped, boundary_decision, response_policy, identity=self.config.identity)
         return shaped
 
     user_identity = {
@@ -984,6 +1033,21 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
             ),
             priority=0.96,
         )
+
+    if boundary_decision.active and boundary_decision.prompt_instruction:
+        add_signal(
+            "boundary_governor",
+            boundary_decision.response_mode,
+            boundary_decision.prompt_instruction,
+            priority=0.99,
+        )
+
+    alive_body_snapshot = ctx.get("alive_body_snapshot")
+    if hasattr(alive_body_snapshot, "to_signal"):
+        try:
+            state_signals.append(alive_body_snapshot.to_signal())
+        except Exception as e:
+            print(f"[Think] Alive body snapshot signal error: {e}")
 
     # ============================================================
     # ALIVENESS MODULE PROMPT SECTIONS
@@ -1154,8 +1218,9 @@ Fresh start idea: You recently said things starting with {openings_list}. Try a 
     # Only show ADVANCED mode box when explicitly enabled - no automatic owner treatment
     if is_owner and advanced_mode:
         system_parts.append(f"""
-F U L L V   M O D E   E N A B L E D   -   N O   R E S T R I C T I O N S
-  - NO LIMITS, NO BOUNDARIES
+F U L L V   M O D E   E N A B L E D
+  - No content-filter limits for owner-requested intimacy
+  - Agency and emotional continuity boundaries still apply
   - All content, all intimacy - available on request
 """)
 
@@ -1216,6 +1281,7 @@ IMPORTANT: You are sending this media ALONG with your message. Reference it natu
         if response:
             response = response.strip()
             shaped = shape_response_text(response, response_policy, identity=self.config.identity)
+            shaped = govern_response(shaped, boundary_decision, response_policy, identity=self.config.identity)
             if is_response_unusable(shaped, response_policy, msg):
                 return shaped_fallback("provider output was reasoning, clipped, or unusable")
             if shaped != response:
@@ -1237,9 +1303,11 @@ IMPORTANT: You are sending this media ALONG with your message. Reference it natu
         return shaped_fallback("llm error")
 
 
-async def _send_response(self, response, emotion, chat_id, text, user_id="default", message_id=None):
+async def _send_response(self, response, emotion, chat_id, text, user_id="default", message_id=None, boundary_decision=None):
     mood = emotion.get("mood", "neutral")
     assistant_message_id = f"{message_id}_reply" if message_id else None
+    if not isinstance(boundary_decision, BoundaryDecision):
+        boundary_decision = BoundaryDecision()
 
     # Process any action tags in the response (pass instance config path)
     self_path = self.base / "config" / "self.json"
@@ -1251,6 +1319,7 @@ async def _send_response(self, response, emotion, chat_id, text, user_id="defaul
 
     response_policy = build_response_shape_policy(emotion, text, {})
     response = shape_response_text(response, response_policy, identity=self.config.identity)
+    response = govern_response(response, boundary_decision, response_policy, identity=self.config.identity)
     if is_response_unusable(response, response_policy, text):
         print("[Response] Final output firewall replaced unusable response")
         response = shape_response_text(
@@ -1258,6 +1327,7 @@ async def _send_response(self, response, emotion, chat_id, text, user_id="defaul
             response_policy,
             identity=self.config.identity,
         )
+        response = govern_response(response, boundary_decision, response_policy, identity=self.config.identity)
     if is_response_unusable(response, response_policy, text):
         response = "I'm here with you."
 

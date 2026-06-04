@@ -107,6 +107,92 @@ class WebUIPersistenceTests(unittest.TestCase):
         self.assertIn("telegram ai", contents)
         self.assertIn("webui user", contents)
 
+    def test_webui_projection_hides_episodic_echoes(self):
+        import webui.persistence as persistence
+        importlib.reload(persistence)
+
+        user_id = "benchmark_user"
+        user_dir = Path(self.tmp.name) / "users" / user_id / "conversations"
+        user_dir.mkdir(parents=True)
+        (user_dir / "2026-06-03.jsonl").write_text(json.dumps({
+            "timestamp": "2026-06-03T14:20:07.590134",
+            "user": "maybe you are too attached already. that can be a lot.",
+            "ai": "[DISCOVER: I value genuine connection|traits] Maybe, but I can’t help how much I want to hold onto what feels real with you.",
+        }) + "\n")
+
+        journal = persistence.chat_journal_path(user_id)
+        journal.write_text(
+            "\n".join([
+                json.dumps({
+                    "message_id": "human-13",
+                    "role": "user",
+                    "content": "maybe you are too attached already. that can be a lot.",
+                    "status": "sent",
+                    "source": "webui",
+                    "timestamp": "2026-06-03T14:19:45.100000",
+                }),
+                json.dumps({
+                    "message_id": "human-13-reply",
+                    "role": "alive_ai",
+                    "content": "Maybe, but I can’t help how much I want to hold onto what feels real with you.",
+                    "status": "sent",
+                    "source": "runtime",
+                    "timestamp": "2026-06-03T14:20:07.600000",
+                    "metadata": {"reply_to_message_id": "human-13"},
+                }),
+            ]) + "\n"
+        )
+
+        rows = persistence.load_chat_messages(user_id)
+        self.assertEqual([row["source"] for row in rows], ["webui", "runtime"])
+        self.assertEqual([row["message_id"] for row in rows], ["human-13", "human-13-reply"])
+        self.assertNotIn("[DISCOVER:", "\n".join(row["content"] for row in rows))
+
+    def test_duplicate_legacy_rows_are_collapsed_by_visible_identity(self):
+        import webui.persistence as persistence
+        importlib.reload(persistence)
+
+        user_dir = Path(self.tmp.name) / "users" / "7453886105" / "conversations"
+        user_dir.mkdir(parents=True)
+        entry = {
+            "timestamp": "2026-06-03T13:56:41.613297",
+            "ai": "I wonder how he is doing.",
+        }
+        (user_dir / "2026-06-03.jsonl").write_text(
+            json.dumps(entry) + "\n" + json.dumps(entry) + "\n"
+        )
+
+        rows = persistence.load_chat_messages("7453886105")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["content"], "I wonder how he is doing.")
+
+    def test_close_distinct_assistant_rows_are_not_collapsed(self):
+        import webui.persistence as persistence
+        importlib.reload(persistence)
+
+        user_id = "7453886105"
+        user_dir = Path(self.tmp.name) / "users" / user_id / "conversations"
+        user_dir.mkdir(parents=True)
+        (user_dir / "2026-06-03.jsonl").write_text(json.dumps({
+            "timestamp": "2026-06-03T14:20:07.000000",
+            "ai": "First real assistant message",
+        }) + "\n")
+
+        journal = persistence.chat_journal_path(user_id)
+        journal.write_text(json.dumps({
+            "message_id": "assistant-2",
+            "role": "alive_ai",
+            "content": "Second distinct assistant message",
+            "status": "sent",
+            "source": "runtime",
+            "timestamp": "2026-06-03T14:20:11.000000",
+        }) + "\n")
+
+        rows = persistence.load_chat_messages(user_id)
+        contents = [row["content"] for row in rows]
+        self.assertIn("First real assistant message", contents)
+        self.assertIn("Second distinct assistant message", contents)
+
     def test_active_user_prefers_real_disk_user_over_default_runtime(self):
         import webui.persistence as persistence
         importlib.reload(persistence)
