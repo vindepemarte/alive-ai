@@ -194,6 +194,85 @@ class LLMReasoningExtractionTests(unittest.TestCase):
         self.assertNotIn("thinking", payloads[0])
         self.assertNotIn("think", payloads[0])
 
+    def test_openrouter_omits_max_tokens_when_uncapped(self):
+        class FakeResponse:
+            status = 200
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def json(self):
+                return {"choices": [{"message": {"content": "I'm here."}}]}
+
+        class FakeSession:
+            def __init__(self):
+                self.payloads = []
+
+            def post(self, *_args, json=None, **_kwargs):
+                self.payloads.append(dict(json or {}))
+                return FakeResponse()
+
+        async def run_chat():
+            session = FakeSession()
+            client = OpenRouterClient("test-key", "openai/test")
+
+            async def fake_get_session():
+                return session
+
+            client._get_session = fake_get_session
+            result = await client.chat([{"role": "user", "content": "hey"}], max_tokens=None)
+            return result, session.payloads
+
+        result, payloads = asyncio.run(run_chat())
+
+        self.assertEqual(result, "I'm here.")
+        self.assertNotIn("max_tokens", payloads[0])
+
+    def test_openai_compatible_omits_max_tokens_when_uncapped(self):
+        class FakeResponse:
+            status = 200
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def json(self):
+                return {"choices": [{"message": {"content": "Visible local answer."}}]}
+
+        class FakeSession:
+            def __init__(self):
+                self.payloads = []
+
+            def post(self, *_args, json=None, **_kwargs):
+                self.payloads.append(dict(json or {}))
+                return FakeResponse()
+
+        async def run_chat():
+            session = FakeSession()
+            client = OpenAICompatibleClient(
+                model="local-model",
+                base_url="http://127.0.0.1:1234/v1",
+                provider_name="lmstudio",
+                local=True,
+            )
+
+            async def fake_get_session():
+                return session
+
+            client._get_session = fake_get_session
+            result = await client.chat([{"role": "user", "content": "hey"}], max_tokens=None)
+            return result, session.payloads
+
+        result, payloads = asyncio.run(run_chat())
+
+        self.assertEqual(result, "Visible local answer.")
+        self.assertNotIn("max_tokens", payloads[0])
+
 
 class _FakeMessage:
     def __init__(self):

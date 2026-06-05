@@ -29,6 +29,15 @@ class CommandHandler:
         """Initialize owner commands with ai reference"""
         self._owner_commands = OwnerCommands(ai, self)
 
+    def _agent_name(self) -> str:
+        try:
+            name = getattr(getattr(self._owner_commands, "ai", None), "config", None).identity.get("name", "")
+            if name:
+                return str(name)
+        except Exception:
+            pass
+        return "Alice"
+
     async def handle(self, update: Update, command: str, args: list):
         """Route command to handler"""
         # First check if it's an owner command
@@ -50,7 +59,7 @@ class CommandHandler:
 
     async def _cmd_start(self, update: Update, args: list):
         """Welcome message"""
-        msg = "Hey! I'm Alive-AI\n\nUse /help to see what I can do."
+        msg = f"Hey! I'm {self._agent_name()}.\n\nUse /help to see what I can do."
 
         # Add owner hint if owner
         if self._owner_commands and self._owner_commands.is_owner(update):
@@ -507,15 +516,15 @@ class OwnerCommands:
             await update.message.reply_text("LLM not available")
             return
 
-        # Ask LLM to generate a long monologue (max 4000 chars for voice).
+        # Ask LLM to generate a long monologue. Telegram/TTS still has a transport guard below.
         prompt = """Write a long, detailed emotional monologue to the user.
-Write at least 800-1000 words but keep it under 4000 characters total.
-Make it personal, reflective, and heartfelt. Use paragraphs and natural speech."""
+Make it personal, reflective, and heartfelt. Use paragraphs and natural speech.
+Let the feeling decide how much needs to be said."""
 
         print("[LLM] Generating long message for /10min test...")
         response = await self.handler.llm.chat(
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=1500,  # ~4000 chars max
+            max_tokens=None,
             temperature=0.9
         )
 

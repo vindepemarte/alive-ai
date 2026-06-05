@@ -222,6 +222,7 @@ class Memory:
 
         context = {
             "facts_context": facts_context,
+            "semantic_facts": self.semantic.facts,
             "conversation_history": history,
             "related_memories": related,
             "compiled_context": compiled.get("text", ""),

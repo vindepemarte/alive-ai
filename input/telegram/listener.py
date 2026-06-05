@@ -66,6 +66,24 @@ class TelegramListener:
         if ai:
             self.commands.init_owner_commands(ai)
 
+    @staticmethod
+    def _user_profile(update: Update) -> dict:
+        user = update.effective_user
+        if not user:
+            return {}
+        first_name = (user.first_name or "").strip()
+        last_name = (user.last_name or "").strip()
+        username = (user.username or "").strip()
+        display_name = " ".join(part for part in (first_name, last_name) if part).strip()
+        return {
+            "first_name": first_name,
+            "last_name": last_name,
+            "username": username,
+            "display_name": display_name,
+            "language_code": (user.language_code or "").strip(),
+            "is_bot": bool(user.is_bot),
+        }
+
     async def start(self):
         """Start listening - blocks forever"""
         self._stop_event = asyncio.Event()
@@ -226,6 +244,7 @@ class TelegramListener:
         # Store per-user state to avoid race conditions with multiple users
         chat_id = update.message.chat_id
         user_id = update.effective_user.id if update.effective_user else None
+        user_profile = self._user_profile(update)
         # Keep instance vars for backwards compat (reactions, typing, etc.)
         self.chat_id = chat_id
         self.user_id = user_id
@@ -271,6 +290,7 @@ class TelegramListener:
                     "text": update.message.text,
                     "chat_id": update.message.chat_id,
                     "user_id": self.user_id,
+                    "user_profile": user_profile,
                     "message_id": update.message.message_id
                 })
             else:
@@ -280,6 +300,7 @@ class TelegramListener:
                     "text": update.message.text,
                     "chat_id": update.message.chat_id,
                     "user_id": self.user_id,
+                    "user_profile": user_profile,
                     "message_id": update.message.message_id
                 })
 
@@ -302,6 +323,7 @@ class TelegramListener:
                 "text": text,
                 "chat_id": update.message.chat_id,
                 "user_id": self.user_id,
+                "user_profile": user_profile,
                 "has_voice": True,
                 "voice_file_id": voice.file_id,
                 "message_id": update.message.message_id
@@ -319,6 +341,7 @@ class TelegramListener:
                 "text": text,
                 "chat_id": update.message.chat_id,
                 "user_id": self.user_id,
+                "user_profile": user_profile,
                 "has_photo": True,
                 "photo_file_id": photos[-1].file_id if photos else None,
                 "message_id": update.message.message_id

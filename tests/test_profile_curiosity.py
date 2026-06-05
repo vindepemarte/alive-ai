@@ -62,6 +62,22 @@ class ProfileCuriosityTests(unittest.TestCase):
             facts = json.loads((Path(tmp) / "facts.json").read_text())
             self.assertEqual(facts["name"], "Alex")
 
+    def test_transport_profile_metadata_does_not_become_preferred_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            memory = Memory(_Nervous(), Path(tmp), user_id="u1", bot_id="alice")
+            curiosity = ProfileCuriosity(Path(tmp))
+
+            captured = curiosity.capture_profile_metadata({
+                "display_name": "Alexandru Iacovici",
+                "username": "vdpm",
+            })
+
+            facts = json.loads((Path(tmp) / "facts.json").read_text())
+            self.assertEqual(captured["display_name"], "Alexandru Iacovici")
+            self.assertEqual(facts["display_name"], "Alexandru Iacovici")
+            self.assertEqual(facts["username"], "vdpm")
+            self.assertIsNone(memory.semantic._load().get("name"))
+
     def test_directives_prompt_does_not_invent_not_human_framing(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_dir = Path(tmp)

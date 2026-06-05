@@ -177,7 +177,7 @@ class UnifiedLLM(BaseLLM):
     async def chat(
         self,
         messages: List[Dict[str, str]],
-        max_tokens: int = 500,
+        max_tokens: int | None = None,
         temperature: float = None
     ) -> Optional[str]:
         """
@@ -187,7 +187,7 @@ class UnifiedLLM(BaseLLM):
 
         Args:
             messages: List of message dictionaries with 'role' and 'content'
-            max_tokens: Maximum tokens to generate
+            max_tokens: Optional provider output cap. None lets the provider decide.
             temperature: Sampling temperature (None = use default)
 
         Returns:
@@ -207,7 +207,7 @@ class UnifiedLLM(BaseLLM):
     async def chat_result(
         self,
         messages: List[Dict[str, str]],
-        max_tokens: int = 500,
+        max_tokens: int | None = None,
         temperature: float = None
     ) -> ChatResult:
         response, provider = await self.chat_with_provider(messages, max_tokens, temperature)
@@ -223,7 +223,7 @@ class UnifiedLLM(BaseLLM):
     async def chat_with_provider(
         self,
         messages: List[Dict[str, str]],
-        max_tokens: int = 500,
+        max_tokens: int | None = None,
         temperature: float = None,
         provider_hint: str = None
     ) -> Tuple[Optional[str], str]:
@@ -232,7 +232,7 @@ class UnifiedLLM(BaseLLM):
 
         Args:
             messages: List of message dictionaries with 'role' and 'content'
-            max_tokens: Maximum tokens to generate
+            max_tokens: Optional provider output cap. None lets the provider decide.
             temperature: Sampling temperature (None = use default)
             provider_hint: Optional hint for which provider to try first
 
@@ -291,7 +291,7 @@ class UnifiedLLM(BaseLLM):
         self,
         provider_name: str,
         messages: List[Dict[str, str]],
-        max_tokens: int,
+        max_tokens: int | None,
         temperature: float
     ) -> Optional[str]:
         """Try to get a response from a single provider"""

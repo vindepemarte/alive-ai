@@ -298,16 +298,16 @@ class SubconsciousLoop:
 Now it's time to send the message. Generate a fresh, natural message that:
 - Captures the spirit of what you wanted to say
 - Feels spontaneous and in-the-moment
-- Is short (1-2 sentences max)
+- Lets the feeling and context decide its own length
 - Doesn't mention "scheduling" or "reminders" - just be natural
 - Only reference what's in the reminder above - don't invent new details
 
 Your fresh message:"""
 
                         response = await self.llm.chat([
-                            {"role": "system", "content": "You are Alive-AI sending a text message."},
+                            {"role": "system", "content": "You are sending a natural text message as your configured companion identity."},
                             {"role": "user", "content": prompt}
-                        ], max_tokens=60, temperature=0.7)
+                        ], max_tokens=None, temperature=0.7)
 
                         message = sanitize_proactive_message(response)
                         if message:
@@ -325,16 +325,16 @@ Your fresh message:"""
             try:
                 prompt = f"""You wanted to message {user_name}. Your reminder was: "{original_reminder}"
 
-Generate a fresh, natural text message (1-2 sentences) that captures what you wanted to say but feels spontaneous.
+Generate a fresh, natural text message that captures what you wanted to say but feels spontaneous.
 - Don't mention reminders or scheduling
 - Only reference what's in the reminder above - don't invent new details
 
 Your message:"""
 
                 response = await self.llm.chat([
-                    {"role": "system", "content": "You are Alive-AI sending a text message."},
+                    {"role": "system", "content": "You are sending a natural text message as your configured companion identity."},
                     {"role": "user", "content": prompt}
-                ], max_tokens=60, temperature=0.7)
+                ], max_tokens=None, temperature=0.7)
 
                 message = sanitize_proactive_message(response)
                 if message:

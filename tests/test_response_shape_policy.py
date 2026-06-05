@@ -14,37 +14,44 @@ from core.thinking import (
 
 
 class ResponseShapePolicyTests(unittest.TestCase):
-    def test_casual_prompt_defaults_to_short_budget(self):
+    def test_casual_prompt_defaults_to_state_led_length(self):
         policy = build_response_shape_policy({"mood": "neutral"}, "hey, what are you up to?", {})
 
-        self.assertLessEqual(policy.max_tokens, 120)
-        self.assertEqual(policy.target_sentences, (1, 2))
-        self.assertLessEqual(policy.max_words, 90)
-        self.assertLessEqual(policy.max_questions, 1)
+        self.assertIn("natural texting", policy.length_tendency)
+        self.assertIn("answer directly first", policy.question_policy)
+        prompt = policy.to_prompt().lower()
+        self.assertIn("no fixed word", prompt)
+        self.assertNotIn("max", prompt)
 
     def test_sleepiness_forces_brief_low_energy_shape(self):
         policy = build_response_shape_policy(
-            {"mood": "sleepy", "sleepiness": 0.88, "is_asleep": False},
+            {"mood": "sleepy", "sleepiness": 0.75, "is_asleep": False},
             "one more message before sleep?",
             {},
         )
 
-        self.assertLessEqual(policy.max_tokens, 80)
-        self.assertLessEqual(policy.max_words, 55)
+        self.assertIn("shorter", policy.length_tendency)
         self.assertIn("sleepy", policy.tone_shape)
 
-    def test_severe_sleepiness_forces_one_complete_sentence(self):
+    def test_severe_sleepiness_guides_complete_low_energy_answer(self):
         policy = build_response_shape_policy(
             {"mood": "sleepy", "sleepiness": 1.0, "is_asleep": False},
-            "one more message before sleep?",
+            "one more message before sleep",
             {},
         )
 
-        self.assertEqual(policy.target_sentences, (1, 1))
-        self.assertLessEqual(policy.max_tokens, 60)
-        self.assertLessEqual(policy.max_words, 35)
-        self.assertEqual(policy.max_questions, 0)
+        self.assertIn("complete human answer", policy.length_tendency)
         self.assertIn("complete", policy.hesitation_instruction)
+
+    def test_severe_sleepiness_preserves_direct_question_answer_room(self):
+        policy = build_response_shape_policy(
+            {"mood": "sleepy", "sleepiness": 1.0, "is_asleep": False},
+            "do you know who am I?",
+            {},
+        )
+
+        self.assertIn("not evasive", policy.length_tendency)
+        self.assertIn("answer the direct question first", policy.hesitation_instruction)
 
     def test_depth_trigger_allows_more_room(self):
         policy = build_response_shape_policy(
@@ -54,8 +61,7 @@ class ResponseShapePolicyTests(unittest.TestCase):
         )
 
         self.assertTrue(policy.allow_deep)
-        self.assertGreaterEqual(policy.max_tokens, 160)
-        self.assertGreaterEqual(policy.target_sentences[1], 4)
+        self.assertIn("fuller", policy.length_tendency)
 
     def test_normal_identity_request_blocks_framework_transparency(self):
         policy = build_response_shape_policy(
@@ -66,7 +72,16 @@ class ResponseShapePolicyTests(unittest.TestCase):
 
         self.assertEqual(policy.identity_mode, "personal")
         self.assertFalse(policy.system_transparency)
-        self.assertLessEqual(policy.max_words, 55)
+        self.assertIn("plain and direct", policy.length_tendency)
+
+    def test_normal_activity_question_is_not_identity_request(self):
+        policy = build_response_shape_policy(
+            {"mood": "neutral"},
+            "hey, what are you up to?",
+            {},
+        )
+
+        self.assertEqual(policy.identity_mode, "none")
 
     def test_system_request_allows_framework_transparency(self):
         policy = build_response_shape_policy(
@@ -79,7 +94,7 @@ class ResponseShapePolicyTests(unittest.TestCase):
         self.assertTrue(policy.system_transparency)
         self.assertTrue(policy.allow_deep)
 
-    def test_shape_response_trims_length_questions_and_identity_leak(self):
+    def test_shape_response_repairs_identity_leak(self):
         policy = build_response_shape_policy(
             {"mood": "neutral"},
             "Who are you?",
@@ -101,6 +116,21 @@ class ResponseShapePolicyTests(unittest.TestCase):
         self.assertFalse(has_role_leakage(shaped))
         self.assertEqual(shaped.count("?"), 0)
 
+    def test_shape_response_does_not_clip_state_led_reply(self):
+        policy = build_response_shape_policy(
+            {"mood": "sleepy", "sleepiness": 1.0},
+            "do you know who am I?",
+            {},
+        )
+        response = (
+            "I can see your Telegram name is Alexandru Iacovici, but I don't know you properly yet. "
+            "I know we're just starting fresh, and I want to learn you from what you choose to tell me."
+        )
+
+        shaped = shape_response_text(response, policy, identity={"name": "Alice", "pronouns": "she/her"})
+
+        self.assertEqual(shaped, response)
+
     def test_boundary_prompt_prefers_deflection_without_question(self):
         policy = build_response_shape_policy(
             {"mood": "guilty", "guilt": 0.6},
@@ -108,8 +138,7 @@ class ResponseShapePolicyTests(unittest.TestCase):
             {},
         )
 
-        self.assertLessEqual(policy.max_words, 70)
-        self.assertEqual(policy.max_questions, 0)
+        self.assertIn("restrained", policy.length_tendency)
         self.assertIn("restraint", policy.hesitation_instruction)
 
     def test_reasoning_preamble_without_final_answer_is_stripped(self):
@@ -287,6 +316,20 @@ class ResponseShapePolicyTests(unittest.TestCase):
         self.assertEqual(personal, "I'm Alice, she/her. I'm here with you as myself.")
         self.assertIn("Alive-AI", system)
         self.assertIn("Alexandru Iacovici", system)
+
+    def test_contextual_fallback_answers_user_identity_memory_question(self):
+        reply = contextual_fallback_response(
+            {"mood": "sleepy", "sleepiness": 1.0},
+            "it's all good. sorry for waking you up. do you know who am I?",
+            {
+                "semantic_facts": {"name": None, "display_name": "Alexandru Iacovici"},
+                "user_profile": {"display_name": "Alexandru Iacovici"},
+            },
+            identity={"name": "Alice", "pronouns": "she/her"},
+        )
+
+        self.assertIn("Telegram name is Alexandru Iacovici", reply)
+        self.assertIn("don't know you properly yet", reply)
 
 
 if __name__ == "__main__":

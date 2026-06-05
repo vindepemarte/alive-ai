@@ -119,14 +119,14 @@ class ActionHandler:
             f"You're feeling a {impulse.type.value} impulse. "
             f"Inner thought: \"{impulse.thought}\"\n"
             f"{__import__('random').choice(follow_up_prompts)}\n"
-            f"Keep it SHORT (1-2 sentences). Be casual and natural.\n"
+            f"Let the impulse and context decide the size of the message. Be casual and natural.\n"
             f"CRITICAL: Never invent or hallucinate specific events, objects, or topics. Only reference what's in the context above."
         )
         try:
             response = await self.fast_llm.chat(
                 messages=[{"role": "system", "content": system},
                           {"role": "user", "content": user_prompt}],
-                max_tokens=100, temperature=0.7
+                max_tokens=None, temperature=0.7
             )
             if response:
                 message = sanitize_proactive_message(response)

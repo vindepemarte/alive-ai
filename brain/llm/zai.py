@@ -96,7 +96,7 @@ class ZAIClient(BaseLLM):
     async def chat(
         self,
         messages: List[Dict[str, str]],
-        max_tokens: int = 500,
+        max_tokens: int | None = None,
         temperature: float = None
     ) -> Optional[str]:
         """Send chat completion request (OpenAI format)"""
@@ -115,11 +115,12 @@ class ZAIClient(BaseLLM):
         payload = {
             "model": self.model,
             "messages": messages,
-            "max_tokens": max_tokens,
             "temperature": temperature,
             "frequency_penalty": 0.8,
             "presence_penalty": 0.6,
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
         thinking_enabled = _settings_bool("LLM_THINKING_ENABLED", True)
         if not thinking_enabled and self.get_capabilities().reasoning.supports_disable_control:
             payload["thinking"] = {"type": "disabled"}

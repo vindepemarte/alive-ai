@@ -152,7 +152,7 @@ class OpenRouterClient(BaseLLM):
     async def chat(
         self,
         messages: List[Dict[str, str]],
-        max_tokens: int = 500,
+        max_tokens: int | None = None,
         temperature: float = None
     ) -> Optional[str]:
         """Send chat completion request via OpenRouter"""
@@ -172,11 +172,12 @@ class OpenRouterClient(BaseLLM):
         payload = {
             "model": self.model,
             "messages": messages,
-            "max_tokens": max_tokens,
             "temperature": temperature,
             "frequency_penalty": 0.8,  # Penalize repeated phrases - increased from 0.5
             "presence_penalty": 0.6,   # Encourage topic diversity - increased from 0.3
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
         thinking_enabled = _openrouter_thinking_enabled()
         capabilities = self.get_capabilities()
         if thinking_enabled and capabilities.reasoning.supports_exclude_control:

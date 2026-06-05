@@ -138,7 +138,7 @@ class OllamaClient(BaseLLM):
     async def chat(
         self,
         messages: List[Dict[str, str]],
-        max_tokens: int = 500,
+        max_tokens: int | None = None,
         temperature: float = None
     ) -> Optional[str]:
         """Send chat completion request via Ollama API"""
@@ -174,12 +174,13 @@ class OllamaClient(BaseLLM):
             "messages": ollama_messages,
             "stream": False,
             "options": {
-                "num_predict": max_tokens,
                 "temperature": temperature,
                 "top_p": 0.9,
                 "repeat_penalty": 1.1,
             }
         }
+        if max_tokens is not None:
+            payload["options"]["num_predict"] = max_tokens
         thinking_enabled = _settings_bool("LLM_THINKING_ENABLED", True)
         if not thinking_enabled and self.get_capabilities().reasoning.supports_disable_control:
             payload["think"] = False

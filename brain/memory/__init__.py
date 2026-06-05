@@ -25,17 +25,28 @@ class SemanticMemory:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.facts = self._load()
 
-    def _load(self) -> dict:
-        if self.path.exists():
-            return json.loads(self.path.read_text())
-        # Clean default - no precoded info
+    @staticmethod
+    def _default_facts() -> dict:
         return {
             "name": None, "nickname": None, "gender": None, "age": None,
             "location": None, "job": None, "hobbies": [], "interests": [],
             "personality": [], "relationship_status": None,
+            "display_name": None, "username": None,
             "pet_names_used": [], "mentions": {},
             "shared_memories": [], "last_intimate": None
         }
+
+    def _load(self) -> dict:
+        default = self._default_facts()
+        if self.path.exists():
+            try:
+                loaded = json.loads(self.path.read_text())
+                if isinstance(loaded, dict):
+                    default.update(loaded)
+            except Exception:
+                pass
+        # Clean default - no precoded info
+        return default
 
     def save(self):
         self.path.write_text(json.dumps(self.facts, indent=2))
@@ -99,6 +110,10 @@ class SemanticMemory:
         if self.facts.get("name"):
             parts.append(f"Name: {self.facts['name']}" +
                         (f" ({self.facts['nickname']})" if self.facts.get("nickname") else ""))
+        elif self.facts.get("display_name"):
+            parts.append(f"Visible profile name: {self.facts['display_name']}")
+        if self.facts.get("username"):
+            parts.append(f"Telegram username: @{self.facts['username']}")
         if self.facts.get("gender"):
             parts.append(f"Gender: {self.facts['gender']}")
         if self.facts.get("age"):

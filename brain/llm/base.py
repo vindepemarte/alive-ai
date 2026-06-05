@@ -30,7 +30,7 @@ class BaseLLM(ABC):
     async def chat_result(
         self,
         messages: List[Dict[str, str]],
-        max_tokens: int = 500,
+        max_tokens: Optional[int] = None,
         temperature: float = 0.85
     ) -> ChatResult:
         """Opt-in richer response wrapper. Legacy callers should keep using chat()."""
@@ -47,7 +47,7 @@ class BaseLLM(ABC):
     async def chat(
         self,
         messages: List[Dict[str, str]],
-        max_tokens: int = 500,
+        max_tokens: Optional[int] = None,
         temperature: float = 0.85
     ) -> Optional[str]:
         """Send chat completion request"""

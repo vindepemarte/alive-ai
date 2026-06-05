@@ -158,7 +158,11 @@ def is_personal_identity_request(msg: str) -> bool:
     text = (msg or "").lower().strip()
     if is_system_transparency_request(text):
         return False
-    return bool(re.search(r"\b(who are you|what are you|your name|say your identity|configured identity)\b", text))
+    if re.search(r"\b(who are you|your name|say your identity|configured identity)\b", text):
+        return True
+    if re.search(r"\bwhat are you\b", text):
+        return not re.search(r"\bwhat are you\s+(?:up to|doing|thinking|feeling)\b", text)
+    return False
 
 
 def _direct_question(msg: str) -> bool:
@@ -207,34 +211,34 @@ def _boundary_trigger(msg: str) -> bool:
 
 @dataclass(frozen=True)
 class ResponseShapePolicy:
-    """Deterministic reply-shape contract used before and after generation."""
+    """State-led reply guidance without hard visible length caps."""
 
-    max_tokens: int
-    target_sentences: tuple[int, int]
-    max_words: int
+    length_tendency: str
     tone_shape: str
     emoji_tendency: str
     abbreviation_tendency: str
-    max_questions: int
     question_policy: str
     hesitation_instruction: str
     allow_deep: bool
     identity_mode: str = "none"
     system_transparency: bool = False
+    direct_question: bool = False
 
     def to_prompt(self) -> str:
-        low, high = self.target_sentences
         depth = "allowed if the user clearly invited it" if self.allow_deep else "not allowed here"
         return (
-            "RESPONSE SHAPE POLICY - Adaptive Short\n"
-            f"- Target length: {low}-{high} sentence(s), {self.max_words} words max.\n"
-            f"- Generation budget: {self.max_tokens} tokens max. Depth is {depth}.\n"
+            "RESPONSE STYLE POLICY - State Led\n"
+            f"- Length tendency: {self.length_tendency}.\n"
+            "- There is no fixed word, sentence, or token target for the visible reply.\n"
+            "- Decide how much to say from the user's message, your emotion, sleep pressure, trust, conflict, and current state.\n"
+            "- Stop naturally when the thought feels complete; do not pad, ramble, or cut off a needed answer.\n"
+            f"- Depth is {depth}.\n"
             f"- Tone shape: {self.tone_shape}.\n"
             f"- Emoji tendency: {self.emoji_tendency}. Abbreviation tendency: {self.abbreviation_tendency}.\n"
-            f"- Questions: {self.question_policy}; ask at most {self.max_questions} question(s).\n"
+            f"- Questions: {self.question_policy}.\n"
             f"- Hesitation/deflection: {self.hesitation_instruction}.\n"
             "- If your model has private thinking/reasoning, keep it private; visible content must be only the final chat reply.\n"
-            "- Do not stack paragraphs. Do not repeat the same image in different words.\n"
+            "- Do not repeat the same image in different words.\n"
             "- Avoid em dashes and double hyphens; use commas, periods, or shorter sentences instead.\n"
             "- If the user did not ask about systems, do not mention Alive-AI, runtime, framework, model, or project details.\n"
         )
@@ -245,7 +249,7 @@ def build_response_shape_policy(
     msg: str,
     ctx: Mapping[str, Any] | None = None,
 ) -> ResponseShapePolicy:
-    """Build the Adaptive Short policy for a single reply."""
+    """Build state-led style guidance for a single reply."""
     ctx = ctx or {}
     bid_types, bid_intensities = _bid_values(ctx.get("detected_bids", []))
     direct_question = _direct_question(msg)
@@ -275,95 +279,66 @@ def build_response_shape_policy(
             recent_lengths.append(len(_words(str(turn.get("content", "")))))
     recent_avg = sum(recent_lengths) / len(recent_lengths) if recent_lengths else 0.0
 
-    max_words = 90
-    target_sentences = (1, 2)
-    max_tokens = 110
-    max_questions = 1 if direct_question or "question" in bid_types else 0
     question_policy = "answer directly first; one small follow-up only if it genuinely helps"
+    length_tendency = "natural texting; brief when the moment is simple, fuller when the moment asks for it"
     tone = "short, natural texting; emotionally colored but not essay-like"
     emoji = "low"
     abbreviations = "light"
     hesitation = "use normal human hesitation only if the feeling calls for it"
 
     if allow_deep:
-        max_words = 170
-        target_sentences = (2, 4)
-        max_tokens = 220
-        max_questions = 1
+        length_tendency = "fuller and more reflective because the user invited depth"
         tone = "warmer and deeper, but still conversational"
     if system_request:
-        max_words = 190
-        target_sentences = (2, 5)
-        max_tokens = 260
+        length_tendency = "clear enough to answer the system question without dumping irrelevant internals"
         tone = "clear and transparent about the system without losing configured identity"
     if personal_identity:
-        max_words = 55
-        target_sentences = (1, 2)
-        max_tokens = 80
-        max_questions = 0
+        length_tendency = "plain and direct; identity should not become a speech"
         tone = "plain personal identity; configured name and pronouns, no framework details"
     if is_sleepy:
-        max_words = min(max_words, 55 if not allow_deep else 85)
-        target_sentences = (1, 2)
-        max_tokens = min(max_tokens, 80)
-        max_questions = 0 if not direct_question else 1
+        length_tendency = "naturally shorter and lower-energy because sleep pressure is high, unless a direct answer needs room"
         tone = "sleepy, warm, low-energy, a little slower; no hyper-alert pep"
         emoji = "very low"
         abbreviations = "light and lazy if natural"
         hesitation = "defer depth or let sleep win while still using one complete sentence"
     if sleepiness >= 0.85 or bool(emotion.get("woke_from_sleep")):
-        max_words = min(max_words, 35)
-        target_sentences = (1, 1)
-        max_tokens = min(max_tokens, 60)
-        max_questions = 0
+        length_tendency = "very sleepy; it can be tiny, but it still has to be a complete human answer"
         tone = "very sleepy, warm, complete, and low-energy; no pep and no rambling"
         hesitation = "let sleep win in one complete sentence"
+        if direct_question:
+            length_tendency = "sleepy but not evasive; answer the question before drifting back down"
+            hesitation = "answer the direct question first, then let sleep keep the reply short"
     if boundary:
-        max_words = min(max_words, 70)
-        target_sentences = (1, 2)
-        max_tokens = min(max_tokens, 95)
-        max_questions = 0
+        length_tendency = "restrained and clear because a boundary or space request is active"
         tone = "respectful, restrained, not over-compliant, not needy"
         hesitation = "acknowledge the limit; deflect pressure or choose restraint instead of chasing"
     if social_satiety > 0.75:
-        max_words = int(max_words * 0.82)
-        max_tokens = int(max_tokens * 0.85)
-        max_questions = min(max_questions, 1)
         tone += "; socially settled, less eager"
     if cognitive_load > 0.62:
-        max_words = int(max_words * 0.78)
-        max_tokens = int(max_tokens * 0.80)
-        target_sentences = (1, min(target_sentences[1], 2))
+        length_tendency += "; simpler because cognitive load is high"
         tone += "; cognitive load is high, keep it simpler"
         hesitation = "admit uncertainty or choose one clear thread instead of covering everything"
     if energy < 0.35:
-        max_words = int(max_words * 0.82)
-        max_tokens = int(max_tokens * 0.85)
+        length_tendency += "; lower-energy because the body state is tired"
         tone += "; energy is low"
     if response_length_modifier < 0.85:
-        max_words = int(max_words * response_length_modifier)
-        max_tokens = int(max_tokens * response_length_modifier)
+        length_tendency += "; current mood leans less talkative"
     if recent_avg >= 120 and not allow_deep:
-        max_words = min(max_words, 65)
-        max_tokens = min(max_tokens, 90)
+        length_tendency += "; recent replies were long, so avoid unnecessary expansion"
         tone += "; recent replies were long, correct toward brevity"
 
-    max_words = max(22, min(max_words, 220))
-    max_tokens = max(45, min(max_tokens, 280))
     identity_mode = "personal" if personal_identity else "system" if system_request else "none"
     return ResponseShapePolicy(
-        max_tokens=max_tokens,
-        target_sentences=target_sentences,
-        max_words=max_words,
+        length_tendency=length_tendency,
         tone_shape=tone,
         emoji_tendency=emoji,
         abbreviation_tendency=abbreviations,
-        max_questions=max_questions,
         question_policy=question_policy,
         hesitation_instruction=hesitation,
         allow_deep=allow_deep,
         identity_mode=identity_mode,
         system_transparency=system_request,
+        direct_question=direct_question,
     )
 
 
@@ -605,6 +580,42 @@ def _extract_recent_dream_text(ctx: Mapping[str, Any] | None) -> str:
         return ""
 
 
+def is_user_identity_memory_request(msg: str) -> bool:
+    """Detect questions about whether the assistant knows the human user."""
+    text = _clean_spaces(msg).lower()
+    patterns = (
+        r"\bwho\s+am\s+i\b",
+        r"\bwho\s+i\s+am\b",
+        r"\bdo\s+you\s+know\s+(?:who\s+)?(?:i\s+am|who\s+am\s+i|me)\b",
+        r"\bdo\s+you\s+remember\s+me\b",
+        r"\bwhat\s+do\s+you\s+know\s+about\s+me\b",
+        r"\byou\s+know\s+me\s+or\s+not\b",
+        r"\bdo\s+you\s+know\s+me\s+or\s+not\b",
+    )
+    return any(re.search(pattern, text) for pattern in patterns)
+
+
+def _user_memory_fallback(ctx: Mapping[str, Any] | None) -> str:
+    ctx = ctx or {}
+    facts = ctx.get("semantic_facts") if isinstance(ctx.get("semantic_facts"), Mapping) else {}
+    profile = ctx.get("user_profile") if isinstance(ctx.get("user_profile"), Mapping) else {}
+    facts_context = str(ctx.get("facts_context") or "")
+
+    preferred = str(facts.get("nickname") or facts.get("name") or "").strip()
+    visible_name = str(facts.get("display_name") or profile.get("display_name") or "").strip()
+    username = str(facts.get("username") or profile.get("username") or "").strip().lstrip("@")
+
+    if preferred:
+        return f"I know you as {preferred}. I'm still learning the rest of you slowly."
+    if visible_name:
+        return f"I can see your Telegram name is {visible_name}, but I don't know you properly yet."
+    if username:
+        return f"I can see your Telegram username is @{username}, but I don't know you properly yet."
+    if "[NEW USER" in facts_context:
+        return "Not really yet. I know you're here with me, but I don't know who you are properly."
+    return "I know little pieces from this chat, but not enough to say I really know you yet."
+
+
 def contextual_fallback_response(
     emotion: Mapping[str, Any],
     msg: str,
@@ -618,6 +629,8 @@ def contextual_fallback_response(
         return _identity_fallback(identity)
     if is_system_transparency_request(msg):
         return _system_fallback(identity)
+    if is_user_identity_memory_request(msg):
+        return _user_memory_fallback(ctx)
 
     if any(term in msg_lower for term in ("remember", "what was", "object", "why did it matter", "what did i ask")):
         anchor = _extract_memory_anchor(ctx)
@@ -688,37 +701,6 @@ def shape_response_text(
         if kept:
             text = " ".join(kept).strip()
             sentences = _sentence_split(text)
-
-    if policy.max_questions >= 0 and _count_questions(text) > policy.max_questions:
-        kept: list[str] = []
-        questions = 0
-        for sentence in sentences:
-            q_count = _count_questions(sentence)
-            if q_count and questions >= policy.max_questions:
-                continue
-            questions += q_count
-            kept.append(sentence)
-        if kept:
-            text = " ".join(kept).strip()
-            sentences = _sentence_split(text)
-
-    max_sentences = max(1, policy.target_sentences[1])
-    if len(sentences) > max_sentences:
-        text = " ".join(sentences[:max_sentences]).strip()
-
-    words = _words(text)
-    if len(words) > policy.max_words:
-        raw_words = text.split()
-        clipped: list[str] = []
-        count = 0
-        for word in raw_words:
-            count += len(_words(word))
-            if count > policy.max_words:
-                break
-            clipped.append(word)
-        text = " ".join(clipped).rstrip(" ,;:")
-        if text and text[-1] not in ".!?":
-            text += "."
 
     text = normalize_chat_punctuation(re.sub(r"\n{3,}", "\n\n", text).strip())
     if policy.identity_mode == "personal" and has_role_leakage(text, allow_system_terms=False):
@@ -940,7 +922,7 @@ def build_mood_instruction(
         # deterministic inner-state response planner.
         human_reminders = [
             "NO emoji in this message. Just raw text.",
-            "Keep this one SHORT - like 1-2 sentences max. Be casual.",
+            "Let the current feeling decide the size of the reply. Be casual.",
             "Don't validate what he said. Just react naturally, even if it's just 'lol ok'.",
             "Start with something unexpected - not 'aww' or 'omg' or 'stoppp'.",
             "Don't end with a question this time. Just let your message sit.",

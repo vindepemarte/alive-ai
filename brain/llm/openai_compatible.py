@@ -200,7 +200,7 @@ class OpenAICompatibleClient(BaseLLM):
     async def chat(
         self,
         messages: List[Dict[str, str]],
-        max_tokens: int = 500,
+        max_tokens: int | None = None,
         temperature: float = None,
     ) -> Optional[str]:
         if not self.base_url:
@@ -219,10 +219,11 @@ class OpenAICompatibleClient(BaseLLM):
                 for msg in messages
                 if msg.get("role", "user") in ("system", "user", "assistant")
             ],
-            "max_tokens": max_tokens,
             "temperature": temperature,
             "stream": False,
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
 
         session = await self._get_session()
         try:

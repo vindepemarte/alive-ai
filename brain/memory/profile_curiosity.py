@@ -214,3 +214,27 @@ class ProfileCuriosity:
         self.facts_path.parent.mkdir(parents=True, exist_ok=True)
         self.facts_path.write_text(json.dumps(facts, indent=2))
         return updates
+
+    def capture_profile_metadata(self, profile: Mapping[str, Any]) -> dict:
+        """Store visible transport profile data without treating it as preferred identity."""
+        if not profile:
+            return {}
+
+        facts = self._load_facts()
+        updates: dict[str, Any] = {}
+
+        display_name = str(profile.get("display_name") or "").strip()
+        username = str(profile.get("username") or "").strip().lstrip("@")
+
+        if display_name and not facts.get("display_name"):
+            updates["display_name"] = display_name
+        if username and not facts.get("username"):
+            updates["username"] = username
+
+        if not updates:
+            return {}
+
+        facts.update(updates)
+        self.facts_path.parent.mkdir(parents=True, exist_ok=True)
+        self.facts_path.write_text(json.dumps(facts, indent=2))
+        return updates

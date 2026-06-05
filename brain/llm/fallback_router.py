@@ -78,7 +78,7 @@ class FallbackRouter:
     async def chat(
         self,
         messages: List[Dict[str, str]],
-        max_tokens: int = 500,
+        max_tokens: int | None = None,
         temperature: float = None
     ) -> Tuple[Optional[str], str]:
         """
@@ -86,7 +86,7 @@ class FallbackRouter:
 
         Args:
             messages: Chat messages
-            max_tokens: Max tokens to generate
+            max_tokens: Optional provider output cap. None lets the provider decide.
             temperature: Sampling temperature
 
         Returns:
@@ -107,7 +107,7 @@ class FallbackRouter:
         name: str,
         client: BaseLLM,
         messages: List[Dict[str, str]],
-        max_tokens: int,
+        max_tokens: int | None,
         temperature: float
     ) -> Optional[str]:
         """Try a single provider"""

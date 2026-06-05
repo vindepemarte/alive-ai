@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Alive-AI v0.2.3 Update</title>
+  <title>Alive-AI v0.2.4 Update</title>
   <style>
     :root {
       color-scheme: dark;
@@ -446,26 +446,26 @@
   <main>
     <header>
       <div>
-        <div class="tag version">Alive-AI v0.2.3</div>
+        <div class="tag version">Alive-AI v0.2.4</div>
         <h1>Framework upgrade summary</h1>
-        <p class="lead">This release turns the v0.2 architecture into a safer, more model-agnostic runtime with stronger context, cleaner extension points, local Redis memory lifecycle support, and clearer startup visibility.</p>
+        <p class="lead">This release turns the v0.2 architecture into a safer, more model-agnostic runtime with stronger context, cleaner extension points, local Redis memory lifecycle support, clearer startup visibility, and state-led replies without framework word or token caps.</p>
       </div>
       <div class="meta">
         <span class="tag">Published to npm</span>
         <span class="tag">Git committed</span>
-        <span class="tag">157 tests passed</span>
+        <span class="tag">167 tests passed</span>
       </div>
     </header>
 
     <section class="grid cols-4" aria-label="Release facts">
       <article class="metric">
         <h3>Release</h3>
-        <strong class="good">0.2.3</strong>
-        <span>Includes the v0.2 systems plus Redis lifecycle and color-coded runtime logs.</span>
+        <strong class="good">0.2.4</strong>
+        <span>Includes the v0.2 systems plus Redis lifecycle, color-coded logs, first-conversation identity repair, and no reply cutter.</span>
       </article>
       <article class="metric">
         <h3>Coverage</h3>
-        <strong class="good">157</strong>
+        <strong class="good">167</strong>
         <span>Full Python test suite passed after the audit fixes.</span>
       </article>
       <article class="metric">
@@ -476,7 +476,7 @@
       <article class="metric">
         <h3>Status</h3>
         <strong class="good">Live</strong>
-        <span><code>latest</code> now resolves to <code>alive-ai@0.2.3</code>.</span>
+        <span><code>latest</code> now resolves to <code>alive-ai@0.2.4</code>.</span>
       </article>
     </section>
 
@@ -518,6 +518,16 @@
           <h2>Runtime lifecycle</h2>
           <p><code>npx . start</code> now color-codes foreground logs and manages local Docker Redis memory when the vector cache is enabled.</p>
         </article>
+        <article class="module">
+          <span class="num">8</span>
+          <h2>First-chat identity</h2>
+          <p>Telegram display-name metadata is stored separately from preferred identity, and direct "do you know me?" turns now get an honest memory-grounded answer.</p>
+        </article>
+        <article class="module">
+          <span class="num">9</span>
+          <h2>State-led replies</h2>
+          <p>The response shaper no longer clips visible chat by word count, sentence count, question count, or framework token budget. State guides style; the model finishes the thought.</p>
+        </article>
       </div>
     </section>
 
@@ -555,8 +565,8 @@
       </article>
 
       <article class="panel">
-        <h2>Before To v0.2.3</h2>
-        <p>The green portion shows the expected v0.2.3 position. Yellow shows the previous practical baseline.</p>
+        <h2>Before To v0.2.4</h2>
+        <p>The green portion shows the expected v0.2.4 position. Yellow shows the previous practical baseline.</p>
         <div class="expectation-chart">
           <div class="delta">
             <div class="delta-top"><b>Provider routing</b><span>54 to 88</span></div>
@@ -573,6 +583,14 @@
           <div class="delta">
             <div class="delta-top"><b>Runtime visibility</b><span>48 to 86</span></div>
             <div class="track" style="--before: 48%; --after: 86%"></div>
+          </div>
+          <div class="delta">
+            <div class="delta-top"><b>First-chat honesty</b><span>52 to 88</span></div>
+            <div class="track" style="--before: 52%; --after: 88%"></div>
+          </div>
+          <div class="delta">
+            <div class="delta-top"><b>Reply completeness</b><span>50 to 86</span></div>
+            <div class="track" style="--before: 50%; --after: 86%"></div>
           </div>
           <div class="delta">
             <div class="delta-top"><b>MCP safety</b><span>40 to 86</span></div>
@@ -630,6 +648,16 @@
         <h2>Redis lifecycle</h2>
         <p>When Redis vector memory is enabled locally, start brings the Docker service up and stop shuts it down without deleting the persistent volume.</p>
       </article>
+      <article class="risk low">
+        <span class="level">Fixed</span>
+        <h2>Direct identity recall</h2>
+        <p>Fresh installs no longer dodge "do you know me?" turns. They answer from preferred name, Telegram display name, or honestly admit there is not enough memory yet.</p>
+      </article>
+      <article class="risk low">
+        <span class="level">Fixed</span>
+        <h2>Cut-feeling replies</h2>
+        <p>Sleep, conflict, and low energy now guide wording without hard visible output caps. Cleanup still blocks reasoning leaks, prompt fragments, and broken tails.</p>
+      </article>
     </section>
 
     <section class="panel">
@@ -639,14 +667,16 @@
         <div class="check">CLI smoke passed for the npm package.</div>
         <div class="check">Python compile checks passed for changed runtime files.</div>
         <div class="check">Color-coded <code>npx . start</code> log path verified with a temporary runtime.</div>
-        <div class="check">Package dry-run passed for <code>alive-ai@0.2.3</code>.</div>
-        <div class="check">npm registry verified: <code>alive-ai@0.2.3</code> and <code>latest: 0.2.3</code>.</div>
+        <div class="check">First-conversation identity regression covered by focused unit tests.</div>
+        <div class="check">State-led reply regression covered: complete answers are not clipped by the shaper.</div>
+        <div class="check">Package dry-run passed for <code>alive-ai@0.2.4</code>.</div>
+        <div class="check">npm registry verified: <code>alive-ai@0.2.4</code> and <code>latest: 0.2.4</code>.</div>
       </div>
     </section>
 
     <footer class="footer">
-      <span>Install update: <code>npx -y alive-ai@0.2.3 update --yes</code></span>
-      <span>Generated for Alive-AI v0.2.3 release review</span>
+      <span>Install update: <code>npx -y alive-ai@0.2.4 update --yes</code></span>
+      <span>Generated for Alive-AI v0.2.4 release review</span>
     </footer>
   </main>
 </body>

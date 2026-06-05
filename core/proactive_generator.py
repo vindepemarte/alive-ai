@@ -201,7 +201,7 @@ class ProactiveGenerator:
 {f'Stuff you know about {pet_name}: {facts}' if facts else ''}
 
 IMPORTANT:
-- Keep it SHORT (1-2 sentences max)
+- Let your current feeling decide the size of the text. Usually this is casual, but do not cut off a real thought.
 - Be natural and casual, like texting
 - Reference the conversation if relevant
 - Use {pet_name} naturally (not every sentence)
@@ -217,7 +217,7 @@ IMPORTANT:
                 {"role": "user", "content": "Send a quick message"}
             ]
 
-            response = await self._llm.chat(messages, max_tokens=80, temperature=0.7)
+            response = await self._llm.chat(messages, max_tokens=None, temperature=0.7)
 
             if response:
                 message = sanitize_proactive_message(response)

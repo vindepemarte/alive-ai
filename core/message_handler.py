@@ -7,6 +7,7 @@ from .thinking import (
     build_response_shape_policy,
     contextual_fallback_response,
     fallback_response,
+    is_user_identity_memory_request,
     is_response_unusable,
     shape_response_text,
 )
@@ -377,6 +378,7 @@ async def handle_message(self, data: dict):
         "text": text,
         "chat_id": chat_id,
         "message_id": data.get("message_id"),
+        "user_profile": data.get("user_profile") or {},
         "timestamp": asyncio.get_event_loop().time()
     })
 
@@ -440,6 +442,7 @@ async def _process_batch_after_delay(self, user_id: str, original_data: dict, ba
         "chat_id": chat_id,
         "message_id": message_ids[-1] if message_ids else original_data.get("message_id"),
         "input_message_ids": message_ids,
+        "user_profile": messages[-1].get("user_profile") or original_data.get("user_profile") or {},
         "source": original_data.get("source"),
         "message_count": len(messages)
     }
@@ -518,10 +521,20 @@ async def _process_single_message(self, data: dict):
 
         # Get per-user memory
         user_memory = _get_or_create_user_memory(self, user_id)
+        if data.get("user_profile"):
+            try:
+                captured_profile = user_memory.profile_curiosity.capture_profile_metadata(data.get("user_profile") or {})
+                if captured_profile:
+                    user_memory.semantic.facts = user_memory.semantic._load()
+                    print(f"[ProfileCuriosity] Captured user profile metadata: {list(captured_profile.keys())}")
+            except Exception as e:
+                print(f"[ProfileCuriosity] User profile metadata skipped: {e}")
 
         # Build durable context before emotion appraisal so the heart can read
         # the conversational arc, not only the latest isolated text.
         context, pet_name = await user_memory.build_context(current_message=text)
+        if data.get("user_profile"):
+            context["user_profile"] = data.get("user_profile") or {}
         recent_turns = context.get("conversation_history", [])[-8:]
         try:
             pre_appraisal = await self._heart.appraisal_engine.appraise_async(
@@ -939,6 +952,14 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     if not isinstance(boundary_decision, BoundaryDecision):
         boundary_decision = BoundaryDecision()
 
+    if is_user_identity_memory_request(msg):
+        response = shape_response_text(
+            contextual_fallback_response(emotion, msg, ctx, identity=self.config.identity),
+            response_policy,
+            identity=self.config.identity,
+        )
+        return govern_response(response, boundary_decision, response_policy, identity=self.config.identity)
+
     def shaped_fallback(reason: str) -> str:
         print(f"[Think] Using contextual fallback: {reason}")
         fallback = contextual_fallback_response(emotion, msg, ctx, identity=self.config.identity)
@@ -968,18 +989,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
     )
     if not self._llm:
         return shaped_fallback("llm unavailable")
-    from core.settings import get_int as settings_get_int
-
-    configured_max_tokens = int(os.environ.get(
-        "LLM_MAX_TOKENS",
-        str(settings_get_int("LLM_MAX_TOKENS", 500)),
-    ))
-    visible_max_tokens = min(configured_max_tokens, response_policy.max_tokens)
-    provider_min_tokens = int(os.environ.get(
-        "LLM_PROVIDER_MIN_TOKENS",
-        str(settings_get_int("LLM_PROVIDER_MIN_TOKENS", 0)),
-    ))
-    max_tokens = min(configured_max_tokens, max(visible_max_tokens, provider_min_tokens))
+    provider_output_cap = None
     temperature = float(os.environ.get("LLM_TEMPERATURE", "0.95"))
 
     # DEBUG: Log conversation history
@@ -1271,14 +1281,13 @@ IMPORTANT: You are sending this media ALONG with your message. Reference it natu
     messages.append({"role": "user", "content": msg})
     print(
         f"[Think] Calling LLM with {len(messages)} messages, "
-        f"max_tokens={max_tokens}, visible_budget={visible_max_tokens}, shape_words={response_policy.max_words}, "
-        f"shape_sentences={response_policy.target_sentences}"
+        "output_cap=provider_default, length=state_led"
     )
     try:
         # Timeout must be longer than per-provider timeout (60s) × number of providers
         # so the fallback chain can actually try all providers before giving up
         response = await asyncio.wait_for(
-            self._llm.chat(messages, max_tokens=max_tokens, temperature=temperature),
+            self._llm.chat(messages, max_tokens=provider_output_cap, temperature=temperature),
             timeout=200.0
         )
         if response:

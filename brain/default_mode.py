@@ -622,7 +622,7 @@ class DefaultModeProcessor:
                 else:
                     context_instruction = "No specific context available - keep it generic."
 
-                prompt = f"""Generate a short (1 sentence) wondering about {user_name}.
+                prompt = f"""Generate a natural wondering about {user_name}.
 They haven't messaged in {hours_silent:.1f} hours.
 {context_instruction}
 
@@ -640,9 +640,9 @@ Bad: "I wonder if he fixed that shelf" (invented detail)
 Wondering:"""
 
                 response = await self.llm.chat([
-                    {"role": "system", "content": "You are Alive-AI thinking about someone you care about. You NEVER invent specific details."},
+                    {"role": "system", "content": "You are thinking privately about someone you care about. You NEVER invent specific details."},
                     {"role": "user", "content": prompt}
-                ], max_tokens=50, temperature=0.7)
+                ], max_tokens=None, temperature=0.7)
 
                 if response and len(response.strip()) > 10:
                     return response.strip()
@@ -685,7 +685,7 @@ Wondering:"""
 {context[:500]}
 
 Rules:
-- Describe a brief insight about patterns you ACTUALLY see above (1-2 sentences)
+- Describe an insight about patterns you ACTUALLY see above
 - ONLY reference things explicitly in the context above
 - If no clear pattern emerges, describe the general tone or feeling instead
 - Be thoughtful but don't invent connections that aren't there
@@ -693,9 +693,9 @@ Rules:
 Insight:"""
 
             response = await self.llm.chat([
-                {"role": "system", "content": "You are Alive-AI reflecting on conversations. You only describe patterns you can actually see."},
+                {"role": "system", "content": "You are reflecting on conversations. You only describe patterns you can actually see."},
                 {"role": "user", "content": prompt}
-            ], max_tokens=80, temperature=0.7)
+            ], max_tokens=None, temperature=0.7)
 
             if response and len(response.strip()) > 15:
                 return response.strip()
@@ -789,7 +789,7 @@ Be specific if possible, vague if not enough info."""
             response = await self.llm.chat([
                 {"role": "system", "content": "You are consolidating memories about someone you care about."},
                 {"role": "user", "content": prompt}
-            ], max_tokens=100, temperature=0.7)
+            ], max_tokens=None, temperature=0.7)
 
             if response and len(response.strip()) > 20:
                 # Create a seed from the insight
@@ -1038,7 +1038,7 @@ Recent context:
 
 Write the actual message to send now.
 Rules:
-- One short natural text, 1 sentence preferred
+- Let the private thought and current state decide the size of the text
 - Speak directly to {user_name} as "you", not about them as "he" or "she"
 - Do not mention context, rules, instructions, analysis, insights, seeds, reminders, or plans
 - Do not start with "I should", "if you ask", "when you come back", or "next time"
@@ -1052,7 +1052,7 @@ Message:"""
                         "content": "You turn private idle thoughts into safe outward texts. Never leak analysis or plans.",
                     },
                     {"role": "user", "content": prompt},
-                ], max_tokens=70, temperature=0.65)
+                ], max_tokens=None, temperature=0.65)
                 message = sanitize_proactive_message(response)
                 if message:
                     return message
@@ -1178,7 +1178,7 @@ Message:"""
                     grounding_rule = """- NO specific references to events, objects, or topics (no context available)
 - Keep it generic: thinking of them, missing them, wondering how they are, but speak directly to them as "you" """
 
-                prompt = f"""Generate a SHORT (one sentence) message to {user_name}.
+                prompt = f"""Generate a natural message to {user_name}.
 They haven't messaged in {hours_silent:.1f} hours.
 
 Rules:
@@ -1203,9 +1203,9 @@ Examples of BAD messages (DO NOT DO THIS):
 Message:"""
 
                 response = await self.llm.chat([
-                    {"role": "system", "content": "You are Alive-AI sending a casual text. You NEVER invent or hallucinate specific details."},
+                    {"role": "system", "content": "You are sending a casual text as your configured companion identity. You NEVER invent or hallucinate specific details."},
                     {"role": "user", "content": prompt}
-                ], max_tokens=60, temperature=0.7)
+                ], max_tokens=None, temperature=0.7)
 
                 if response and len(response.strip()) > 5:
                     message = sanitize_proactive_message(response)

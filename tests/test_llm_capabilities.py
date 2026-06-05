@@ -63,6 +63,80 @@ class LLMCapabilitiesTests(unittest.TestCase):
         self.assertEqual(canonical_provider_name("llama.cpp"), "llamacpp")
         self.assertEqual(canonical_provider_name("openai_compatible"), "openai-compatible")
 
+    def test_ollama_omits_num_predict_when_uncapped(self):
+        class FakeResponse:
+            status = 200
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def json(self):
+                return {"message": {"content": "local answer"}}
+
+        class FakeSession:
+            def __init__(self):
+                self.payloads = []
+
+            def post(self, *_args, json=None, **_kwargs):
+                self.payloads.append(dict(json or {}))
+                return FakeResponse()
+
+        async def run_chat():
+            session = FakeSession()
+            client = OllamaClient("", "gemma4:e2b", base_url="http://127.0.0.1:11434")
+
+            async def fake_get_session():
+                return session
+
+            client._get_session = fake_get_session
+            result = await client.chat([{"role": "user", "content": "hey"}], max_tokens=None)
+            return result, session.payloads
+
+        result, payloads = asyncio.run(run_chat())
+
+        self.assertEqual(result, "local answer")
+        self.assertNotIn("num_predict", payloads[0].get("options", {}))
+
+    def test_zai_omits_max_tokens_when_uncapped(self):
+        class FakeResponse:
+            status = 200
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def json(self):
+                return {"choices": [{"message": {"content": "zai answer"}}]}
+
+        class FakeSession:
+            def __init__(self):
+                self.payloads = []
+
+            def post(self, *_args, json=None, **_kwargs):
+                self.payloads.append(dict(json or {}))
+                return FakeResponse()
+
+        async def run_chat():
+            session = FakeSession()
+            client = ZAIClient("key", "glm-test")
+
+            async def fake_get_session():
+                return session
+
+            client._get_session = fake_get_session
+            result = await client.chat([{"role": "user", "content": "hey"}], max_tokens=None)
+            return result, session.payloads
+
+        result, payloads = asyncio.run(run_chat())
+
+        self.assertEqual(result, "zai answer")
+        self.assertNotIn("max_tokens", payloads[0])
+
     def test_factory_reads_openai_compatible_provider_from_settings(self):
         with tempfile.TemporaryDirectory() as tmp:
             settings_path = Path(tmp) / "settings.json"

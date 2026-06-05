@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from input.telegram.commands import OwnerCommands
+from input.telegram.commands import CommandHandler, OwnerCommands
 
 
 class TelegramOwnerCommandTests(unittest.TestCase):
@@ -30,6 +30,19 @@ class TelegramOwnerCommandTests(unittest.TestCase):
         commands = OwnerCommands(FakeAi(), command_handler=None)
 
         self.assertEqual(commands._get_owner_id(), "env-owner")
+
+    def test_public_start_identity_uses_configured_agent_name(self):
+        class FakeConfig:
+            settings = {}
+            identity = {"name": "Alice"}
+
+        class FakeAi:
+            config = FakeConfig()
+
+        handler = CommandHandler(None, None, None, None, None, None, None)
+        handler.init_owner_commands(FakeAi())
+
+        self.assertEqual(handler._agent_name(), "Alice")
 
 
 if __name__ == "__main__":
