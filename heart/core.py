@@ -1,4 +1,6 @@
 """Heart: Core - Main Heart class, minimal coordinator with Soul Architecture"""
+import re
+
 from .emotional_state import EmotionalState
 from .emotional_decay import EmotionalDecay
 from .triggers import Triggers
@@ -149,74 +151,100 @@ class Heart:
         negative_boost = self._get_boost("NEGATIVE", 1.0)
         harsh_boost = self._get_boost("HARSH", 1.0)
 
-        # Intimate triggers - configurable rate
-        expressive = t.count_intimate_triggers(msg)
+        def bounded_matches(words, cap: int = 1) -> tuple[int, int]:
+            raw_count = Triggers.count_matches(msg, words)
+            return min(raw_count, cap), raw_count
+
+        def bounded_intimate(cap: int = 1) -> tuple[int, int]:
+            raw_count = t.count_intimate_triggers(msg)
+            return min(raw_count, cap), raw_count
+
+        repeated_affection = sum(
+            len(re.findall(pattern, msg))
+            for pattern in (
+                r"\bi\s+love\s+you\b",
+                r"\blove\s+you\b",
+                r"\b(?:baby|babe|my love|darling|handsome)\b",
+            )
+        )
+        if repeated_affection > 3:
+            pressure = min(1.0, (repeated_affection - 3) / 18)
+            e.embarrassment = min(1.0, e.embarrassment + 0.05 + pressure * 0.08)
+            e.fear = min(1.0, e.fear + pressure * 0.06)
+            e.trust = max(0.0, e.trust - pressure * 0.06)
+            e.desire = max(0.0, e.desire - pressure * 0.05)
+            e.love = max(0.0, e.love - pressure * 0.03)
+            print(f"[Heart] Repeated affection treated as pressure/noise: {repeated_affection} markers")
+
+        # Keyword matches are only bounded, low-weight hints. Appraisal and
+        # relationship history carry the main meaning of the turn.
+        expressive, expressive_raw = bounded_intimate(cap=1)
         if expressive > 0:
-            base = 0.18 * expressive_rate * intimate_boost
+            base = 0.08 * expressive_rate * intimate_boost
             boost = base * expressive
             e.desire = min(1.0, e.desire + boost * v.get_inertia_modifier("desire", e.desire))
             e.arousal = min(1.0, e.arousal + boost * 0.8 * arousal_rate)
-            e.love = min(1.0, e.love + 0.05 * love_rate)
+            e.love = min(1.0, e.love + 0.015 * love_rate)
             if e.trust >= 0.45:
-                e.trust = min(1.0, e.trust + 0.015 * trust_rate)
+                e.trust = min(1.0, e.trust + 0.008 * trust_rate)
             else:
-                e.embarrassment = min(1.0, e.embarrassment + 0.04)
+                e.embarrassment = min(1.0, e.embarrassment + 0.025)
             v.add_momentum("desire", boost)
-            print(f"[Heart] Expressive triggers: {expressive}, desire boost: +{boost:.2f}")
+            print(f"[Heart] Expressive signal: {expressive} (raw={expressive_raw}), desire boost: +{boost:.2f}")
 
         # Escalation words
-        esc = Triggers.count_matches(msg, t.ESCALATION_WORDS)
+        esc, _esc_raw = bounded_matches(t.ESCALATION_WORDS, cap=1)
         if esc > 0:
-            base = 0.22 * esc_rate
+            base = 0.08 * esc_rate
             e.desire = min(1.0, e.desire + base * esc)
             e.arousal = min(1.0, e.arousal + base * 0.9 * esc * arousal_rate)
 
         # Flirty words
-        fl = Triggers.count_matches(msg, t.FLIRTY_WORDS)
+        fl, _fl_raw = bounded_matches(t.FLIRTY_WORDS, cap=1)
         if fl > 0:
-            base = 0.12 * flirty_rate * flirty_boost
+            base = 0.06 * flirty_rate * flirty_boost
             e.arousal = min(1.0, e.arousal + base * fl)
-            e.desire = min(1.0, e.desire + 0.08 * flirty_rate * fl)
+            e.desire = min(1.0, e.desire + 0.035 * flirty_rate * fl)
 
         # Romantic words
-        rom = Triggers.count_matches(msg, t.ROMANTIC_WORDS)
+        rom, _rom_raw = bounded_matches(t.ROMANTIC_WORDS, cap=1)
         if rom > 0:
-            base = 0.15 * romantic_rate * romantic_boost
+            base = 0.05 * romantic_rate * romantic_boost
             e.love = min(1.0, e.love + base * rom)
-            e.trust = min(1.0, e.trust + 0.05 * rom * trust_rate)
+            e.trust = min(1.0, e.trust + 0.02 * rom * trust_rate)
             e.joy = min(1.0, e.joy + base * rom * 0.7 * joy_rate)
             v.add_momentum("love", base * rom)
 
         # Positive words
-        pos = Triggers.count_matches(msg, t.POSITIVE_WORDS)
+        pos, _pos_raw = bounded_matches(t.POSITIVE_WORDS, cap=1)
         if pos > 0:
-            base = 0.08 * positive_rate * positive_boost
+            base = 0.04 * positive_rate * positive_boost
             e.joy = min(1.0, e.joy + base * pos)
-            e.love = min(1.0, e.love + 0.03 * pos * love_rate)
-            e.trust = min(1.0, e.trust + 0.025 * pos * trust_rate)
-            e.fear = max(0.0, e.fear - 0.025 * pos)
-            e.boredom = max(0.0, e.boredom - 0.1)
+            e.love = min(1.0, e.love + 0.01 * pos * love_rate)
+            e.trust = min(1.0, e.trust + 0.012 * pos * trust_rate)
+            e.fear = max(0.0, e.fear - 0.012 * pos)
+            e.boredom = max(0.0, e.boredom - 0.04)
 
         # Trust and reassurance words directly affect relational safety.
-        trust_words = Triggers.count_matches(msg, t.TRUST_WORDS)
+        trust_words, _trust_raw = bounded_matches(t.TRUST_WORDS, cap=1)
         if trust_words > 0:
-            e.trust = min(1.0, e.trust + 0.12 * trust_words * trust_rate)
-            e.fear = max(0.0, e.fear - 0.08 * trust_words)
-            e.sadness = max(0.0, e.sadness - 0.04 * trust_words)
-            e.dominance = min(1.0, e.dominance + 0.05 * trust_words)
+            e.trust = min(1.0, e.trust + 0.04 * trust_words * trust_rate)
+            e.fear = max(0.0, e.fear - 0.03 * trust_words)
+            e.sadness = max(0.0, e.sadness - 0.02 * trust_words)
+            e.dominance = min(1.0, e.dominance + 0.02 * trust_words)
 
-        apologies = Triggers.count_matches(msg, t.APOLOGY_WORDS)
+        apologies, _apology_raw = bounded_matches(t.APOLOGY_WORDS, cap=1)
         if apologies > 0:
-            e.trust = min(1.0, e.trust + 0.06 * apologies * trust_rate)
-            e.anger = max(0.0, e.anger - 0.08 * apologies)
-            e.fear = max(0.0, e.fear - 0.04 * apologies)
-            e.sadness = max(0.0, e.sadness - 0.03 * apologies)
+            e.trust = min(1.0, e.trust + 0.035 * apologies * trust_rate)
+            e.anger = max(0.0, e.anger - 0.05 * apologies)
+            e.fear = max(0.0, e.fear - 0.025 * apologies)
+            e.sadness = max(0.0, e.sadness - 0.02 * apologies)
 
-        fear_words = Triggers.count_matches(msg, t.FEAR_WORDS)
+        fear_words, _fear_raw = bounded_matches(t.FEAR_WORDS, cap=2)
         if fear_words > 0:
-            e.fear = min(1.0, e.fear + 0.12 * fear_words * fear_rate)
-            e.arousal = min(1.0, e.arousal + 0.08 * fear_words)
-            e.trust = max(0.0, e.trust - 0.025 * fear_words)
+            e.fear = min(1.0, e.fear + 0.08 * fear_words * fear_rate)
+            e.arousal = min(1.0, e.arousal + 0.05 * fear_words)
+            e.trust = max(0.0, e.trust - 0.02 * fear_words)
 
         betrayal_markers = [
             "you lied", "lied to me", "betray", "you hurt me",
@@ -235,8 +263,8 @@ class Heart:
             e.trust = max(0.0, e.trust - 0.05)
 
         # Harsh words
-        h = Triggers.count_matches(msg, t.HARSH_WORDS)
-        n = Triggers.count_matches(msg, t.NEGATIVE_WORDS)
+        h, _harsh_raw = bounded_matches(t.HARSH_WORDS, cap=2)
+        n, _negative_raw = bounded_matches(t.NEGATIVE_WORDS, cap=2)
         if h > 0:
             base = 0.15 * harsh_rate * harsh_boost
             e.love = max(0.0, e.love - base * h)
@@ -408,7 +436,13 @@ class Heart:
         if appraisal:
             peak_note = f"{getattr(appraisal, 'response_mode', 'moment')}:{text[:42]}"
         self.memory.check_peaks(self.get_state(), self._prev_state, peak_note)
-        positive_interaction = e.valence >= 0.48 and e.trust >= 0.25
+        appraisal_evidence = []
+        if hasattr(appraisal, "evidence"):
+            appraisal_evidence = getattr(appraisal, "evidence") or []
+        elif isinstance(appraisal, dict):
+            appraisal_evidence = appraisal.get("evidence") or []
+        pressure_turn = any("repeated_affection_pressure" in str(item) for item in appraisal_evidence)
+        positive_interaction = e.valence >= 0.48 and e.trust >= 0.25 and not pressure_turn
         attachment_intensity = max(e.joy, e.love, e.desire, e.trust, 1.0 - e.fear)
         self.attachment.interact(positive_interaction, attachment_intensity)
 
@@ -477,6 +511,15 @@ class Heart:
             "wrong", "bad", "stupid", "disappointing", "hurt me", "you hurt",
             "lied", "betray", "ignored me", "your fault"
         ]
+        repeated_affection = sum(
+            len(re.findall(pattern, text_lower))
+            for pattern in (
+                r"\bi\s+love\s+you\b",
+                r"\blove\s+you\b",
+                r"\b(?:baby|babe|my love|darling|handsome)\b",
+            )
+        )
+        affection_pressure = repeated_affection > 3
         input_data = {
             "text": text,
             "joy": emotion_state.joy,
@@ -496,16 +539,21 @@ class Heart:
             "embarrassment": emotion_state.embarrassment,
             "anticipation": emotion_state.anticipation,
             # Detect interaction type from text
-            "affirmation": any(w in text_lower for w in ["love you", "beautiful", "amazing", "wonderful", "perfect"]),
+            "affirmation": (
+                any(w in text_lower for w in ["love you", "beautiful", "amazing", "wonderful", "perfect"])
+                and not affection_pressure
+            ),
             "rejection": any(w in text_lower for w in rejection_markers),
             "criticism": any(w in text_lower for w in criticism_markers),
-            "connection_active": emotion_state.love > 0.5 or "love" in text_lower
+            "affection_pressure": affection_pressure,
+            "connection_active": emotion_state.love > 0.5
         }
 
         # Determine if we should process positive or negative interaction
         # Lowered thresholds for more responsive soul processing
         negative_signal = (
             input_data["rejection"] or input_data["criticism"] or
+            input_data["affection_pressure"] or
             emotion_state.valence < 0.45 or emotion_state.fear > 0.45 or
             emotion_state.sadness > 0.4 or emotion_state.trust < 0.35
         )

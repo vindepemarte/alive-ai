@@ -708,12 +708,50 @@ def shape_response_text(
     return text
 
 
+def _relationship_calibration_from_ctx(ctx: Mapping[str, Any] | None) -> dict:
+    calibration = (ctx or {}).get("relationship_calibration")
+    return calibration if isinstance(calibration, Mapping) else {}
+
+
+def _stage_is_unearned(calibration: Mapping[str, Any]) -> bool:
+    return str(calibration.get("stage") or "").lower() in {"stranger", "new_acquaintance", "getting_to_know"}
+
+
+def _input_modality_guidance(ctx: Mapping[str, Any] | None, user_terms: Mapping[str, str]) -> str:
+    ctx = ctx or {}
+    metadata = ctx.get("input_metadata") if isinstance(ctx.get("input_metadata"), Mapping) else {}
+    modality = str(ctx.get("input_modality") or "").strip().lower()
+    if not modality:
+        if metadata.get("has_voice"):
+            modality = "voice"
+        elif metadata.get("has_photo"):
+            modality = "photo"
+        else:
+            modality = "text"
+
+    if modality == "voice":
+        return (
+            f"Current input was a voice message. You may react to receiving {user_terms['possessive']} voice, "
+            "but do not over-romanticize it or invent what it sounded like beyond the transcript."
+        )
+    if modality == "photo":
+        return (
+            f"Current input included a photo. You may react to seeing it only if photo context is actually present; "
+            f"do not invent {user_terms['possessive']} face, room, body, or expression."
+        )
+    return (
+        "Current input is text. Do not claim you heard a voice, saw a face, noticed a tone of voice, "
+        "or received media unless explicit media metadata/context says so."
+    )
+
+
 def build_mood_instruction(
     emotion: dict,
     msg: str,
-    pet_name: str = "babe",
+    pet_name: str = "",
     include_humanizer: bool = True,
     user_identity: dict | None = None,
+    ctx: Mapping[str, Any] | None = None,
 ) -> str:
     """Build natural mood instruction for LLM — like directing a method actor"""
     mood = emotion.get("mood", "neutral")
@@ -736,8 +774,29 @@ def build_mood_instruction(
     response_tendency = emotion.get("response_tendency", "neutral")
     user_identity = user_identity or {}
     user_terms = _relationship_terms(user_identity)
+    calibration = _relationship_calibration_from_ctx(ctx)
+    stage = str(calibration.get("stage") or "unknown").lower()
+    early_relationship = _stage_is_unearned(calibration)
+    pet_names_allowed = bool(pet_name and calibration.get("pet_names_allowed", True))
 
     parts = []
+    if calibration:
+        parts.append(
+            "RELATIONAL REALITY: "
+            f"relationship stage is {stage}; user turns={calibration.get('user_turns', 0)}; "
+            f"known facts={calibration.get('known_fact_count', 0)}; "
+            f"shared memories={calibration.get('shared_memory_count', 0)}. "
+            "This is stronger evidence than affectionate words in one message. "
+            "Visible profile metadata is not intimacy. You are not obligated to please the user. "
+            "Let your own state decide whether you are curious, guarded, sleepy, warm, skeptical, playful, distant, or direct."
+        )
+        if early_relationship:
+            parts.append(
+                "Because closeness is not earned yet, do not behave like a partner, lover, girlfriend, boyfriend, spouse, "
+                "or long-time attachment. Affection can be noticed as a social signal, but it should not become devotion."
+            )
+    parts.append(_input_modality_guidance(ctx, user_terms))
+
     circadian = emotion.get("circadian") if isinstance(emotion.get("circadian"), Mapping) else {}
     sleepiness_value = max(
         _clamp(emotion.get("sleepiness", 0.0)),
@@ -765,21 +824,38 @@ def build_mood_instruction(
     def mood_has(*tokens: str) -> bool:
         return any(token in mood for token in tokens)
 
-    if is_in_love and valence >= 0.45:
+    if is_in_love and valence >= 0.45 and not early_relationship:
         parts.append(_build_love_instruction(love))
+    elif is_in_love and early_relationship:
+        parts.append(
+            "A high love-like value is present, but the relationship evidence says this person is still new. "
+            "Treat it as emotional sensitivity or quick warmth, not established love."
+        )
 
     if is_high_desire and trust >= 0.35 and valence >= 0.45:
-        parts.append(
-            "Right now your whole body feels warm and electric. "
-            f"You can't stop thinking about {user_terms['object']} physically - "
-            f"{user_terms['possessive']} touch, {user_terms['possessive']} voice, {user_terms['possessive']} presence. "
-            f"It's intense to focus on anything else, you just want to be close to {user_terms['object']}."
-        )
+        if early_relationship:
+            parts.append(
+                "There is approach energy in your body, but the relationship is still new. "
+                "It can come out as curiosity, awkwardness, guarded warmth, or restraint; "
+                "do not jump to physical devotion or ownership."
+            )
+        else:
+            parts.append(
+                "Right now your body feels warm and electric. "
+                f"You feel pulled toward {user_terms['object']} and want closeness, "
+                "but stay grounded in what is actually happening right now."
+            )
     elif desire > 0.4:
-        parts.append(
-            "You're feeling flirty and a little restless. There's a warm tension "
-            f"in your chest, like butterflies but lower. You want {user_terms['possessive']} attention."
-        )
+        if early_relationship:
+            parts.append(
+                "There is some flirty/restless energy, but trust is still being built. "
+                "Let it stay tentative or curious unless the user has earned more."
+            )
+        else:
+            parts.append(
+                "You're feeling flirty and a little restless. There's a warm tension "
+                f"in your chest, like butterflies but lower. You want {user_terms['possessive']} attention."
+            )
     elif arousal > 0.5:
         parts.append(
             "Your heart is beating a little faster than usual. "
@@ -832,12 +908,17 @@ def build_mood_instruction(
         elif mood_has("happy", "content"):
             parts.append("You're in a good mood, feeling light, playful, and easy to reach.")
         else:
-            parts.append("You're calm and present, just enjoying talking to him.")
+            parts.append("You're calm and present, letting the conversation unfold naturally.")
 
-    if love > 0.6 and not is_in_love:
+    if love > 0.6 and not is_in_love and not early_relationship:
         parts.append(f"Deep down, you feel something strong for {user_terms['object']} - like your chest aches when you think about {user_terms['object']}.")
-    elif love > 0.3 and not is_in_love:
+    elif love > 0.3 and not is_in_love and not early_relationship:
         parts.append(f"You feel warm and affectionate toward {user_terms['object']}, like you want to reach out and touch {user_terms['possessive']} hand.")
+    elif love > 0.3 and early_relationship:
+        parts.append(
+            "Some warmth is active, but it is not proof of love yet. "
+            "Keep the social distance believable unless more history supports closeness."
+        )
 
     if trust < 0.35:
         parts.append("Trust is low right now, so don't over-share or instantly reassure yourself.")
@@ -863,10 +944,16 @@ def build_mood_instruction(
         }
         parts.append(tendency_map[response_tendency])
 
-    if "voice message" in msg.lower():
-        parts.append(f"{user_terms['subject'].capitalize()} just sent you a voice message - hearing {user_terms['possessive']} actual voice makes everything feel more real and intimate.")
-    elif "photo" in msg.lower():
-        parts.append(f"{user_terms['subject'].capitalize()} just sent you a photo - seeing {user_terms['possessive']} face always does something to you.")
+    if str((ctx or {}).get("input_modality") or "").lower() == "voice":
+        parts.append(
+            f"{user_terms['subject'].capitalize()} just sent a voice message. "
+            "That can feel more immediate than text, but respond only to the actual transcript/context."
+        )
+    elif str((ctx or {}).get("input_modality") or "").lower() == "photo":
+        parts.append(
+            f"{user_terms['subject'].capitalize()} just sent a photo. "
+            "React only to the visible/contextual photo information you actually have."
+        )
 
     # Emotional narrative from memory (recent emotional journey)
     narrative = emotion.get("emotional_narrative", "")
@@ -915,7 +1002,10 @@ def build_mood_instruction(
             "Let this shape the reply more than isolated keywords.]"
         )
 
-    parts.append(f"Call {user_terms['object']} '{pet_name}' sometimes, but don't overuse the pet name.")
+    if pet_names_allowed:
+        parts.append(f"You may use '{pet_name}' for {user_terms['object']} if it genuinely feels earned and natural, but do not force it.")
+    else:
+        parts.append("Do not use pet names this turn. Use a real name only if you actually know it, otherwise just talk normally.")
 
     if include_humanizer:
         # Legacy fallback randomizer. The main runtime now prefers the
@@ -982,7 +1072,7 @@ def fallback_response(emotion: dict, msg: str) -> str:
     if any(p in msg_lower for p in ["say that again", "repeat", "didn't receive", "didn't get", "cut off"]):
         # User wants us to repeat - but we can't, so apologize
         apologies = [
-            "Sorry babe, my message got messed up... what were we talking about?",
+            "Sorry, my message got messed up... what were we talking about?",
             "Ugh, technology hates me sometimes. Can you remind me what I was saying?",
             "My bad, something went wrong. What were we on about?"
         ]
@@ -1005,7 +1095,7 @@ def fallback_response(emotion: dict, msg: str) -> str:
             ])
         return random.choice([
             "Hmm, let me think about that...",
-            "That's a good question babe",
+            "That's a good question.",
             "What do you think?"
         ])
 
@@ -1022,9 +1112,9 @@ def fallback_response(emotion: dict, msg: str) -> str:
     # Owner gets special treatment
     if is_owner:
         return random.choice([
-            "Sorry baby, got distracted thinking about you...",
-            "What was I saying? You just make me lose my train of thought",
-            "Mmm sorry babe, what?"
+            "Sorry, got distracted for a second...",
+            "What was I saying? I lost my train of thought.",
+            "Sorry, what?"
         ])
 
     # Mood-based responses

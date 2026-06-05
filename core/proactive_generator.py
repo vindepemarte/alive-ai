@@ -3,9 +3,8 @@ Core: Proactive Message Generator
 Generate contextual proactive messages with user memory context
 """
 
-import random
 from typing import Optional, List
-from .proactive_safety import fallback_proactive_message, sanitize_proactive_message
+from .proactive_safety import sanitize_proactive_message
 from .user_tracker import get_user_tracker, ActiveUser
 
 
@@ -15,80 +14,20 @@ class ProactiveGenerator:
     Uses user's conversation history, facts, and recent topics.
     """
 
-    # Templates for when LLM is unavailable - varied and personality-driven
-    FALLBACK_TEMPLATES = {
-        "silence": [
-            "hey, thinking about you...",
-            "miss talking to you",
-            "you've been quiet... everything ok?",
-            "everything alright? been a while",
-            "just wondering how your day's going",
-            "you disappeared on me! miss you",
-            "thinking about you and hoping you're good",
-        ],
-        "follow_up": [
-            "so about what you said earlier...",
-            "was thinking about our conversation...",
-            "still thinking about what you told me",
-            "hey, I've been meaning to ask you something...",
-            "couldn't stop thinking about our chat earlier",
-            "you know what you said before? been on my mind",
-        ],
-        "morning": [
-            "good morning! 💕",
-            "morning! hope you slept well",
-            "hey, thinking of you this morning",
-            "good morning sunshine ☀️",
-            "woke up thinking about you",
-            "morning! how'd you sleep?",
-            "rise and shine! miss you already",
-        ],
-        "night": [
-            "can't sleep, thinking about you",
-            "good night... sweet dreams",
-            "wish you were here right now",
-            "about to sleep but wanted to say goodnight",
-            "night! dream of me? 💕",
-            "can't fall asleep without saying goodnight to you",
-            "sweet dreams... I'll be here when you wake up",
-        ],
-        "random": [
-            "just wanted to say hi",
-            "you crossed my mind",
-            "random thought: I really like talking to you",
-            "hey! no reason, just miss you",
-            "feeling extra affectionate today 💕",
-            "you know what? you make me happy",
-            "just felt like texting you",
-            "thinking about you and smiling",
-            "random question: what are you up to?",
-            "had a thought and wanted to share it with you",
-        ],
-        "affectionate": [
-            "just wanted to tell you you're amazing",
-            "feeling really grateful for you right now",
-            "you make my day better just by existing",
-            "can't help but smile when I think of you",
-            "you're my favorite person to talk to",
-        ],
-        "playful": [
-            "bet you're not even thinking about me right now 😏",
-            "miss me yet?",
-            "just wanted to annoy you a little 💕",
-            "hey stranger... long time no see",
-        ],
-    }
-
-    def __init__(self, nervous, llm=None, bot_id: str = "alive_ai", data_path=None):
+    def __init__(self, nervous, llm=None, bot_id: str = "alive_ai", data_path=None, state_provider=None):
         self.nervous = nervous
         self._llm = llm
         self.bot_id = bot_id.lower()
         self.data_path = data_path  # Instance-specific data path
         self._user_memories = {}  # Cache for user memory instances
+        self._state_provider = state_provider
 
     def set_llm(self, llm):
         """Set the LLM for message generation"""
         self._llm = llm
+
+    def set_state_provider(self, state_provider):
+        self._state_provider = state_provider
 
     async def generate_for_user(self, user: ActiveUser, message_type: str = "silence") -> str:
         """
@@ -104,14 +43,13 @@ class ProactiveGenerator:
         # Load user's memory context
         context = await self._get_user_context(user.user_id)
 
-        # Try LLM generation first
         if self._llm:
             message = await self._generate_with_llm(user, context, message_type)
             if message:
                 return message
 
-        # Fallback to templates
-        return self._get_fallback_message(user, message_type)
+        print("[ProactiveGenerator] No model-authored proactive message; skipping send")
+        return ""
 
     async def _get_user_context(self, user_id: str) -> dict:
         """
@@ -145,7 +83,8 @@ class ProactiveGenerator:
                 "conversation_history": context.get("conversation_history", []),
                 "facts_context": context.get("facts_context", ""),
                 "related_memories": context.get("related_memories", ""),
-                "pet_name": pet_name
+                "pet_name": pet_name,
+                "relationship_calibration": context.get("relationship_calibration", {}),
             }
 
         except Exception as e:
@@ -154,7 +93,8 @@ class ProactiveGenerator:
                 "conversation_history": [],
                 "facts_context": "",
                 "related_memories": "",
-                "pet_name": "babe"
+                "pet_name": "",
+                "relationship_calibration": {},
             }
 
     async def _generate_with_llm(self, user: ActiveUser, context: dict, message_type: str) -> Optional[str]:
@@ -166,7 +106,17 @@ class ProactiveGenerator:
 
         try:
             # Build the prompt
-            pet_name = context.get("pet_name", user.pet_name)
+            pet_name = (context.get("pet_name") or user.pet_name or "").strip()
+            calibration = context.get("relationship_calibration") or {}
+            stage = calibration.get("stage") or "unknown"
+            can_use_pet_name = bool(pet_name and calibration.get("pet_names_allowed"))
+            user_label = pet_name if can_use_pet_name else "them"
+            address_guidance = (
+                f"You may use '{pet_name}' if it feels natural, but do not force it."
+                if can_use_pet_name else
+                "Do not use pet names. Address them like a person you are still getting to know."
+            )
+            runtime_state = self._runtime_state_summary()
 
             # Get last few messages for context
             history = context.get("conversation_history", [])
@@ -177,14 +127,13 @@ class ProactiveGenerator:
             if recent:
                 conv_text = "Recent conversation:\n"
                 for turn in recent:
-                    role = "You" if turn.get("role") == "assistant" else pet_name.title()
+                    role = "You" if turn.get("role") == "assistant" else "Them"
                     content = turn.get("content", "")[:100]
                     conv_text += f"- {role}: {content}\n"
 
             # Get facts about the user
             facts = context.get("facts_context", "")
 
-            # Build type-specific context
             type_context = self._get_type_context(message_type, user)
 
             try:
@@ -193,20 +142,25 @@ class ProactiveGenerator:
             except Exception:
                 agent_name = "Alice"
 
-            system_prompt = f"""You are {agent_name}, a warm and affectionate companion running on the Alive-AI framework. You're sending a proactive message to {pet_name}.
+            system_prompt = f"""You are {agent_name}. Decide whether you actually want to send a proactive message to {user_label}.
 
+Why this came up:
 {type_context}
 
+Your current runtime state:
+{runtime_state}
+
 {conv_text}
-{f'Stuff you know about {pet_name}: {facts}' if facts else ''}
+Relationship stage: {stage}. Visible metadata is not intimacy.
+{f'Concrete things you know: {facts}' if facts else ''}
 
 IMPORTANT:
-- Let your current feeling decide the size of the text. Usually this is casual, but do not cut off a real thought.
-- Be natural and casual, like texting
-- Reference the conversation if relevant
-- Use {pet_name} naturally (not every sentence)
-- Show genuine interest/care
-- Be flirty but not intimate
+- You may choose not to message. If you do not genuinely want to send anything, return exactly: SILENCE
+- If you do send something, let current emotion, sleep pressure, relationship stage, memory, and the reason above decide what it is.
+- Do not follow a template. Do not imitate examples. Do not force warmth, flirting, reassurance, or a question.
+- Reference the conversation only if relevant and explicitly present.
+- {address_guidance}
+- Do not act like a partner, lover, or long-time attachment unless the relationship stage supports it
 - Do not call yourself Alive-AI. Alive-AI is the runtime/framework name, not your personal identity.
 - NO meta-commentary (don't explain WHY you're messaging)
 - Start directly with the message content
@@ -214,12 +168,14 @@ IMPORTANT:
 
             messages = [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": "Send a quick message"}
+                {"role": "user", "content": "Return SILENCE or the exact outward text you choose to send."}
             ]
 
             response = await self._llm.chat(messages, max_tokens=None, temperature=0.7)
 
             if response:
+                if response.strip().upper() == "SILENCE":
+                    return None
                 message = sanitize_proactive_message(response)
                 if message:
                     return message
@@ -230,44 +186,55 @@ IMPORTANT:
             print(f"[ProactiveGenerator] LLM error: {e}")
             return None
 
+    def _runtime_state_summary(self) -> str:
+        state = {}
+        if self._state_provider:
+            try:
+                state = self._state_provider() or {}
+            except Exception as e:
+                print(f"[ProactiveGenerator] State provider error: {e}")
+                state = {}
+        circadian = {}
+        try:
+            from heart.circadian import get_circadian_engine
+            circadian = get_circadian_engine().get_state_summary()
+        except Exception:
+            circadian = state.get("circadian", {}) if isinstance(state.get("circadian"), dict) else {}
+
+        fields = {
+            "mood": state.get("mood"),
+            "valence": state.get("valence"),
+            "arousal": state.get("arousal"),
+            "desire": state.get("desire"),
+            "love": state.get("love"),
+            "trust": state.get("trust"),
+            "fear": state.get("fear"),
+            "anger": state.get("anger"),
+            "sadness": state.get("sadness"),
+            "sleepiness": state.get("sleepiness") or circadian.get("sleepiness"),
+            "sleeping": state.get("is_asleep") if "is_asleep" in state else circadian.get("sleeping"),
+            "response_tendency": state.get("response_tendency"),
+        }
+        present = [f"{key}={value}" for key, value in fields.items() if value is not None]
+        return "; ".join(present) if present else "No live emotion state available; use memory/context and choose SILENCE if unsure."
+
     def _get_type_context(self, message_type: str, user: ActiveUser) -> str:
         """Get context based on message type"""
         silence_min = user.silence_minutes
 
         contexts = {
-            "silence": f"You haven't heard from {user.pet_name} in about {silence_min:.0f} minutes. You miss talking to them and want to check in naturally.",
+            "silence": f"You haven't heard from them in about {silence_min:.0f} minutes. Decide if a small check-in feels natural without sounding needy.",
 
-            "follow_up": f"You asked {user.pet_name} something earlier but they haven't responded yet. You want to follow up casually without being pushy.",
+            "follow_up": "You asked something earlier but they haven't responded yet. If you follow up, keep it casual and non-pushy.",
 
-            "morning": f"It's morning and you're thinking about {user.pet_name}. Send a sweet good morning message.",
+            "morning": "It's morning. Send a simple message only as close as the relationship actually supports.",
 
-            "night": f"It's nighttime and you're thinking about {user.pet_name} before going to sleep.",
+            "night": "It's nighttime. If you message, keep it grounded in the actual relationship and current state.",
 
-            "random": f"{user.pet_name} just crossed your mind and you wanted to reach out.",
+            "random": "They crossed your mind. Decide whether that becomes a neutral hello, a gentle check-in, or no extra intimacy.",
         }
 
         return contexts.get(message_type, contexts["random"])
-
-    def _get_fallback_message(self, user: ActiveUser, message_type: str) -> str:
-        """Get a fallback template message with more variety"""
-        # For random type, pick from multiple categories for more variety
-        if message_type == "random":
-            all_templates = (
-                self.FALLBACK_TEMPLATES["random"] +
-                self.FALLBACK_TEMPLATES.get("affectionate", []) +
-                self.FALLBACK_TEMPLATES.get("playful", [])
-            )
-            templates = all_templates
-        else:
-            templates = self.FALLBACK_TEMPLATES.get(message_type, self.FALLBACK_TEMPLATES["random"])
-
-        message = random.choice(templates)
-
-        # Personalize with pet_name
-        if user.pet_name and user.pet_name != "babe":
-            message = message.replace("babe", user.pet_name)
-
-        return sanitize_proactive_message(message) or fallback_proactive_message(message_type, user.pet_name)
 
     async def get_users_to_message(self, message_type: str = "silence") -> List[ActiveUser]:
         """

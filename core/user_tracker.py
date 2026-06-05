@@ -15,7 +15,7 @@ class ActiveUser:
     chat_id: int
     last_interaction: float = field(default_factory=time.time)
     message_count: int = 0
-    pet_name: str = "babe"
+    pet_name: str = ""
 
     def touch(self):
         """Update last interaction time"""
@@ -44,7 +44,7 @@ class UserTracker:
         self._users: Dict[str, ActiveUser] = {}
         self._chat_to_user: Dict[int, str] = {}  # chat_id -> user_id mapping
 
-    def register_message(self, user_id: str, chat_id: int, pet_name: str = "babe"):
+    def register_message(self, user_id: str, chat_id: int, pet_name: str = ""):
         """Register that a message was received from this user"""
         if not user_id:
             return

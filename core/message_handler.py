@@ -379,6 +379,8 @@ async def handle_message(self, data: dict):
         "chat_id": chat_id,
         "message_id": data.get("message_id"),
         "user_profile": data.get("user_profile") or {},
+        "has_voice": bool(data.get("has_voice")),
+        "has_photo": bool(data.get("has_photo")),
         "timestamp": asyncio.get_event_loop().time()
     })
 
@@ -444,7 +446,9 @@ async def _process_batch_after_delay(self, user_id: str, original_data: dict, ba
         "input_message_ids": message_ids,
         "user_profile": messages[-1].get("user_profile") or original_data.get("user_profile") or {},
         "source": original_data.get("source"),
-        "message_count": len(messages)
+        "message_count": len(messages),
+        "has_voice": any(bool(m.get("has_voice")) for m in messages) or bool(original_data.get("has_voice")),
+        "has_photo": any(bool(m.get("has_photo")) for m in messages) or bool(original_data.get("has_photo")),
     }
 
     # Process with lock to prevent overlapping
@@ -509,7 +513,7 @@ async def _process_single_message(self, data: dict):
 
         # Track this user for proactive messaging
         tracker = get_user_tracker()
-        tracker.register_message(user_id, chat_id, pet_name="babe")  # pet_name updated after context build
+        tracker.register_message(user_id, chat_id)  # pet_name updated after context build only if earned
 
         # Check if talking to owner (the operator)
         is_owner = _is_owner(user_id)
@@ -535,6 +539,13 @@ async def _process_single_message(self, data: dict):
         context, pet_name = await user_memory.build_context(current_message=text)
         if data.get("user_profile"):
             context["user_profile"] = data.get("user_profile") or {}
+        input_modality = "voice" if data.get("has_voice") else "photo" if data.get("has_photo") else "text"
+        context["input_modality"] = input_modality
+        context["input_metadata"] = {
+            "has_voice": bool(data.get("has_voice")),
+            "has_photo": bool(data.get("has_photo")),
+            "source": data.get("source"),
+        }
         recent_turns = context.get("conversation_history", [])[-8:]
         try:
             pre_appraisal = await self._heart.appraisal_engine.appraise_async(
@@ -943,7 +954,7 @@ async def _typing_delay(text: str):
     await asyncio.sleep(random.uniform(lo, hi))
 
 
-async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanced_mode=False, user_id="") -> str:
+async def think(self, msg, emotion, ctx, pet_name="", is_owner=False, advanced_mode=False, user_id="") -> str:
     import os
     from core.directives import get_directives_prompt, get_owner_name
 
@@ -986,6 +997,7 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
         pet_name,
         include_humanizer=False,
         user_identity=user_identity,
+        ctx=ctx,
     )
     if not self._llm:
         return shaped_fallback("llm unavailable")
@@ -1045,6 +1057,22 @@ async def think(self, msg, emotion, ctx, pet_name="babe", is_owner=False, advanc
                 f"safety={float(appraisal.get('safety', 0.5) or 0.5):.2f})"
             ),
             priority=0.96,
+        )
+
+    calibration = ctx.get("relationship_calibration") or {}
+    if calibration:
+        add_signal(
+            "relationship_calibration",
+            "social_distance",
+            (
+                f"stage={calibration.get('stage', 'unknown')}; "
+                f"user_turns={calibration.get('user_turns', 0)}; "
+                f"known_facts={calibration.get('known_fact_count', 0)}; "
+                f"shared_memories={calibration.get('shared_memory_count', 0)}; "
+                f"pet_names_allowed={bool(calibration.get('pet_names_allowed'))}. "
+                "Use this as stronger evidence than flirt/affection keywords."
+            ),
+            priority=0.98,
         )
 
     if boundary_decision.active and boundary_decision.prompt_instruction:

@@ -209,6 +209,14 @@ class Memory:
             except Exception as e:
                 print(f"[MemoryLayers] Snapshot error (non-fatal): {e}")
 
+        calibration = self.semantic.relationship_calibration(history)
+        if calibration.get("stage") in {"stranger", "new_acquaintance"}:
+            facts_parts.append(
+                "[RELATIONAL REALITY - This person is not emotionally known yet. "
+                "Visible profile metadata is not intimacy. Do not act like a partner, "
+                "lover, or long-time attachment unless the conversation has earned it.]"
+            )
+
         facts_context = "\n".join(facts_parts)
         compiled = self.context_compiler.compile(
             current_message,
@@ -230,11 +238,12 @@ class Memory:
             "context_trace": compiled.get("trace", {}),
             "memory_layers": layer_snapshot.to_dict() if layer_snapshot else {},
             "memory_layers_context": layer_context,
+            "relationship_calibration": calibration,
         }
         curiosity_prompt = self.profile_curiosity.next_prompt(current_message, history)
         if curiosity_prompt:
             context["profile_curiosity"] = curiosity_prompt
-        return context, self.semantic.get_random_pet_name()
+        return context, self.semantic.get_random_pet_name(allow=bool(calibration.get("pet_names_allowed")))
 
     def mark_profile_curiosity_asked(self, response: str, prompt_info: dict | None) -> bool:
         return self.profile_curiosity.mark_if_asked(response, prompt_info)

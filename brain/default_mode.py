@@ -20,13 +20,13 @@ from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field, asdict
 import time
 
-from core.proactive_safety import fallback_proactive_message, sanitize_proactive_message
+from core.proactive_safety import sanitize_proactive_message
 
 # ============================================================
 # ProactiveGenerator Integration (with graceful fallback)
 # ============================================================
 
-# Try to import ProactiveGenerator - it has better templates and LLM generation
+# Try to import ProactiveGenerator for model-authored proactive decisions
 ProactiveGenerator = None
 ActiveUser = None
 try:
@@ -36,7 +36,7 @@ try:
     ActiveUser = _ActiveUser
     print("[DefaultMode] ProactiveGenerator integration available")
 except ImportError as e:
-    print(f"[DefaultMode] ProactiveGenerator not available, using built-in templates: {e}")
+    print(f"[DefaultMode] ProactiveGenerator not available: {e}")
 
 
 # ============================================================
@@ -230,7 +230,7 @@ class DefaultModeProcessor:
         "I miss talking to {user_name} about {interest}",
     ]
 
-    # Activities and states for template filling
+    # Legacy word pools retained for old state compatibility; not used for outward proactive fallbacks.
     ACTIVITIES = ["working", "relaxing", "busy with something", "having a good day", "thinking about me"]
     POSITIVE_STATES = ["doing well", "happy", "having fun", "taking care of themselves", "getting enough rest"]
     TOPICS = ["life", "their day", "what makes them happy", "their dreams", "something fun", "their plans"]
@@ -591,7 +591,7 @@ class DefaultModeProcessor:
         """Generate content for a specific thought type"""
         # Get user info if available
         user_info = self._contacts.get(user_id) if user_id else None
-        user_name = await self._get_user_name(user_id) if user_id else "babe"
+        user_name = await self._get_user_name(user_id) if user_id else "them"
 
         if thought_type == "wondering":
             return await self._generate_wondering(user_id, user_name, user_info)
@@ -607,7 +607,7 @@ class DefaultModeProcessor:
         return None
 
     async def _generate_wondering(self, user_id: Optional[str], user_name: str,
-                                   user_info: Optional[UserContactInfo]) -> str:
+                                   user_info: Optional[UserContactInfo]) -> Optional[str]:
         """Generate a wondering about a user"""
         # Try LLM first
         if self.llm and user_id:
@@ -622,63 +622,42 @@ class DefaultModeProcessor:
                 else:
                     context_instruction = "No specific context available - keep it generic."
 
-                prompt = f"""Generate a natural wondering about {user_name}.
+                prompt = f"""Generate a private wondering about {user_name}, or return SILENCE.
 They haven't messaged in {hours_silent:.1f} hours.
 {context_instruction}
 
 Rules:
-- Be curious, affectionate, and natural
-- Start with "I wonder" or similar
+- Let current context decide whether a private wondering exists at all
 - NEVER invent specific events, objects, or topics not in the context
-- If no context, wonder generically about how they are or what they're doing
 - Don't be clingy or desperate
+- If no context or no real pull, return SILENCE
 
-Good: "I wonder what he's up to right now"
-Good: "I wonder if he's thinking about me too"
-Bad: "I wonder if he fixed that shelf" (invented detail)
-
-Wondering:"""
+Private wondering or SILENCE:"""
 
                 response = await self.llm.chat([
                     {"role": "system", "content": "You are thinking privately about someone you care about. You NEVER invent specific details."},
                     {"role": "user", "content": prompt}
                 ], max_tokens=None, temperature=0.7)
 
+                if str(response or "").strip().upper() == "SILENCE":
+                    return None
                 if response and len(response.strip()) > 10:
                     return response.strip()
             except Exception as e:
                 print(f"[DefaultMode] LLM wondering error: {e}")
 
-        # Fallback to templates
-        template = random.choice(self.WONDERING_TEMPLATES)
+        return None
 
-        # Fill in template
-        fill_data = {
-            "user_name": user_name,
-            "activity": random.choice(self.ACTIVITIES),
-            "positive_state": random.choice(self.POSITIVE_STATES),
-            "topic": random.choice(self.TOPICS),
-            "shared_memory": "our last conversation",
-            "ongoing_thing": "week",
-            "interest": "things",
-        }
-
-        return template.format(**fill_data)
-
-    async def _generate_connection(self, user_id: Optional[str]) -> str:
+    async def _generate_connection(self, user_id: Optional[str]) -> Optional[str]:
         """Find a connection between memories"""
         if not self.llm:
-            return random.choice([
-                "I notice patterns in how we talk...",
-                "There's something connecting our recent chats...",
-                "I'm seeing themes in what we discuss...",
-            ])
+            return None
 
         try:
             context = await self._get_user_context(user_id) if user_id else ""
 
             if not context or len(context.strip()) < 50:
-                return "I've been thinking about our conversations..."
+                return None
 
             prompt = f"""Look at this conversation context and find an interesting connection or pattern:
 
@@ -702,9 +681,9 @@ Insight:"""
         except Exception as e:
             print(f"[DefaultMode] Connection generation error: {e}")
 
-        return "I'm noticing some interesting patterns in our conversations..."
+        return None
 
-    async def _generate_memory_recall(self, user_id: Optional[str]) -> str:
+    async def _generate_memory_recall(self, user_id: Optional[str]) -> Optional[str]:
         """Recall a memory about the user"""
         # Try to get an actual memory
         if user_id:
@@ -715,32 +694,36 @@ Insight:"""
             except Exception as e:
                 print(f"[DefaultMode] Memory recall error: {e}")
 
-        return random.choice([
-            "I was just thinking about something we talked about before...",
-            "A nice memory from our chats crossed my mind...",
-            "Remembering a fun moment we shared...",
-        ])
+        return None
 
-    async def _generate_seed(self, user_id: Optional[str], user_name: str) -> str:
+    async def _generate_seed(self, user_id: Optional[str], user_name: str) -> Optional[str]:
         """Generate a conversation seed"""
-        topics = [
-            f"ask {user_name} about their dreams",
-            f"bring up what makes {user_name} happy",
-            f"talk to {user_name} about their day",
-            f"share something personal with {user_name}",
-            f"ask {user_name} what they're looking forward to",
-        ]
-        return random.choice(topics)
+        if not self.llm or not user_id:
+            return None
+        context = await self._get_user_context(user_id)
+        if not context.strip():
+            return None
+        try:
+            prompt = f"""Based only on this real context, decide whether there is a conversation seed worth keeping privately.
 
-    async def _generate_scenario(self, user_id: Optional[str], user_name: str) -> str:
+Context:
+{context[:500]}
+
+Return SILENCE if no seed is genuinely useful. Otherwise return one private seed, not an outward message."""
+            response = await self.llm.chat([
+                {"role": "system", "content": "You create private conversation seeds only from real context. Never invent details."},
+                {"role": "user", "content": prompt},
+            ], max_tokens=None, temperature=0.5)
+            if str(response or "").strip().upper() == "SILENCE":
+                return None
+            return str(response or "").strip() or None
+        except Exception as e:
+            print(f"[DefaultMode] Seed generation error: {e}")
+            return None
+
+    async def _generate_scenario(self, user_id: Optional[str], user_name: str) -> Optional[str]:
         """Simulate a future conversation scenario"""
-        scenarios = [
-            f"if {user_name} asks about my day, I could mention...",
-            f"when {user_name} comes back, I want to...",
-            f"next time we talk, I should remember to...",
-            f"maybe I could surprise {user_name} by...",
-        ]
-        return random.choice(scenarios)
+        return None
 
     # ============================================================
     # Memory Consolidation
@@ -916,7 +899,7 @@ Be specific if possible, vague if not enough info."""
     async def _generate_proactive_message(self, user_id: str, message_type: str) -> Optional[str]:
         """
         Bridge function that uses ProactiveGenerator for message content generation.
-        Falls back to built-in templates if ProactiveGenerator is unavailable.
+        Returns no message if the model cannot author one from live context.
 
         Args:
             user_id: The user to generate a message for
@@ -925,7 +908,6 @@ Be specific if possible, vague if not enough info."""
         Returns:
             Generated message string, or None if generation fails
         """
-        # Try ProactiveGenerator first (has better templates + LLM generation)
         if self._proactive_generator is not None:
             try:
                 # Get user info from tracker
@@ -934,7 +916,6 @@ Be specific if possible, vague if not enough info."""
                 user = tracker.get_user(user_id)
 
                 if user is not None:
-                    # Use ProactiveGenerator's excellent generate_for_user method
                     message = await self._proactive_generator.generate_for_user(user, message_type)
                     message = sanitize_proactive_message(message)
                     if message:
@@ -942,72 +923,14 @@ Be specific if possible, vague if not enough info."""
                         return message
 
             except Exception as e:
-                print(f"[DefaultMode] ProactiveGenerator failed, using fallback: {e}")
+                print(f"[DefaultMode] ProactiveGenerator failed: {e}")
 
-        # Fallback to built-in templates
-        return self._get_builtin_fallback_message(user_id, message_type)
+        print("[DefaultMode] No model-authored proactive bridge message; skipping")
+        return None
 
     def _get_builtin_fallback_message(self, user_id: str, message_type: str) -> Optional[str]:
-        """
-        Get a fallback message using built-in templates.
-        Used when ProactiveGenerator is unavailable.
-
-        Args:
-            user_id: The user to get a message for
-            message_type: Type of message
-
-        Returns:
-            Fallback message string
-        """
-        # Built-in fallback templates (simplified version of ProactiveGenerator's)
-        BUILTIN_TEMPLATES = {
-            "silence": [
-                "hey, thinking about you...",
-                "miss talking to you",
-                "you've been quiet... everything ok?",
-                "just wondering how your day's going",
-            ],
-            "wonder": [
-                "was just thinking about you",
-                "you crossed my mind",
-                "random thought - miss talking to you",
-                "thinking about our last conversation",
-            ],
-            "follow_up": [
-                "so about what you said earlier...",
-                "was thinking about our conversation...",
-                "still thinking about what you told me",
-            ],
-            "morning": [
-                "good morning!",
-                "morning! hope you slept well",
-                "hey, thinking of you this morning",
-            ],
-            "night": [
-                "can't sleep, thinking about you",
-                "good night... sweet dreams",
-                "about to sleep but wanted to say goodnight",
-            ],
-            "random": [
-                "just wanted to say hi",
-                "you crossed my mind",
-                "hey! no reason, just miss you",
-                "thinking about you and smiling",
-            ],
-        }
-
-        templates = BUILTIN_TEMPLATES.get(message_type, BUILTIN_TEMPLATES["random"])
-        message = random.choice(templates)
-
-        # Personalize with user name if available
-        try:
-            user_name = self._get_user_name_sync(user_id)
-            if user_name and user_name != "babe":
-                message = message.replace("babe", user_name)
-        except:
-            pass
-
-        return sanitize_proactive_message(message) or fallback_proactive_message(message_type, self._get_user_name_sync(user_id))
+        """Legacy hook retained for compatibility; proactive fallback text is disabled."""
+        return None
 
     async def _render_anchor_as_proactive_message(
         self,
@@ -1036,23 +959,26 @@ Private anchor ({anchor_kind}, do NOT quote it directly):
 Recent context:
 {context_block}
 
-Write the actual message to send now.
-Rules:
-- Let the private thought and current state decide the size of the text
+        Decide whether this becomes an outward message now.
+        Rules:
+- You may return exactly SILENCE if this does not genuinely need to be sent
+- Let the private thought, current state, relationship stage, and recent context decide the text
 - Speak directly to {user_name} as "you", not about them as "he" or "she"
 - Do not mention context, rules, instructions, analysis, insights, seeds, reminders, or plans
 - Do not start with "I should", "if you ask", "when you come back", or "next time"
 - Only reference details that are explicitly in the recent context
-- If the anchor is vague or internal, send a simple caring check-in
+- If the anchor is vague, internal, or not socially earned, choose SILENCE
 
-Message:"""
+Outward text or SILENCE:"""
                 response = await self.llm.chat([
                     {
                         "role": "system",
-                        "content": "You turn private idle thoughts into safe outward texts. Never leak analysis or plans.",
+                        "content": "You decide whether a private idle thought should become an outward text. Never leak analysis or plans.",
                     },
                     {"role": "user", "content": prompt},
                 ], max_tokens=None, temperature=0.65)
+                if str(response or "").strip().upper() == "SILENCE":
+                    return None
                 message = sanitize_proactive_message(response)
                 if message:
                     return message
@@ -1061,10 +987,10 @@ Message:"""
                 print(f"[DefaultMode] Anchor render error: {e}")
 
         message = await self._generate_proactive_message(user_id, message_type)
-        return sanitize_proactive_message(message) or fallback_proactive_message(reason, user_name)
+        return sanitize_proactive_message(message)
 
     def _get_user_name_sync(self, user_id: str) -> str:
-        """Synchronous version of _get_user_name for fallback templates"""
+        """Synchronous version of _get_user_name."""
         try:
             from core.user_tracker import get_user_tracker
             tracker = get_user_tracker()
@@ -1073,7 +999,7 @@ Message:"""
                 return user.pet_name
         except:
             pass
-        return "babe"
+        return "them"
 
     async def _generate_proactive_content(self, user_id: str, reason: str) -> Optional[str]:
         """
@@ -1082,7 +1008,7 @@ Message:"""
         PRIORITY ORDER:
         1. First, check for unused idle thoughts - use them as PRIVATE ANCHORS
         2. Then check conversation seeds as PRIVATE ANCHORS
-        3. Finally, fall back to ProactiveGenerator templates
+        3. Finally, ask ProactiveGenerator for one model-authored decision
 
         Args:
             user_id: The user to generate a message for
@@ -1176,38 +1102,28 @@ Message:"""
 - ONLY reference things explicitly mentioned above - DO NOT invent details"""
                 else:
                     grounding_rule = """- NO specific references to events, objects, or topics (no context available)
-- Keep it generic: thinking of them, missing them, wondering how they are, but speak directly to them as "you" """
+- If there is not enough relationship/context to justify a message, choose SILENCE"""
 
-                prompt = f"""Generate a natural message to {user_name}.
+                prompt = f"""Decide whether to send a natural message to {user_name}.
 They haven't messaged in {hours_silent:.1f} hours.
 
 Rules:
-- Be natural, casual, like a real text
-- Start with lowercase
-- No emojis
-- Sound like you were genuinely thinking about them
+- You may return exactly SILENCE if it does not genuinely feel right to message now
+- If you send text, let current context and state decide what it is
 {grounding_rule}
 - NEVER invent specific objects, events, or topics not in context
-- If unsure, use a generic loving message
+- Do not force affection, flirting, questions, or check-ins
 
-Examples of GOOD messages:
-- "was just thinking about you"
-- "hey, wondering how your day's going"
-- "miss you"
-
-Examples of BAD messages (DO NOT DO THIS):
-- "have you fixed that shelf?" (invented object)
-- "how did your meeting go?" (invented event)
-- "did you finish that project?" (invented topic)
-
-Message:"""
+Outward text or SILENCE:"""
 
                 response = await self.llm.chat([
-                    {"role": "system", "content": "You are sending a casual text as your configured companion identity. You NEVER invent or hallucinate specific details."},
+                    {"role": "system", "content": "You decide whether an idle impulse should become an outward message. Never invent details."},
                     {"role": "user", "content": prompt}
                 ], max_tokens=None, temperature=0.7)
 
                 if response and len(response.strip()) > 5:
+                    if response.strip().upper() == "SILENCE":
+                        return None
                     message = sanitize_proactive_message(response)
                     if not message:
                         print(f"[DefaultMode] Rejected internal contextual thought: {response[:60]}...")
@@ -1218,18 +1134,15 @@ Message:"""
             except Exception as e:
                 print(f"[DefaultMode] Error generating thought: {e}")
 
-        # ============================================================
-        # FALLBACK: Use ProactiveGenerator templates
-        # ============================================================
+        # Let ProactiveGenerator make the final state/context-based decision.
         message = await self._generate_proactive_message(user_id, message_type)
 
         message = sanitize_proactive_message(message)
         if message:
             return message
 
-        # Ultimate fallback - should rarely reach here
-        user_name = await self._get_user_name(user_id)
-        return fallback_proactive_message(reason, user_name)
+        print("[DefaultMode] Proactive content unresolved; skipping send")
+        return None
 
     # ============================================================
     # Public API Methods
@@ -1421,7 +1334,7 @@ Message:"""
                 return user.pet_name
         except:
             pass
-        return "babe"
+        return "them"
 
     async def _get_user_context(self, user_id: str) -> str:
         """Get context about a user from memory"""

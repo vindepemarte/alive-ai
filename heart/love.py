@@ -26,7 +26,7 @@ class AttachmentSystem:
         if self._load():
             print(f"[Love] Loaded attachment state: {self.interactions} interactions, status: {self.status}")
         else:
-            self.affection = 0.2     # 0-1, starts low
+            self.affection = 0.05    # 0-1, starts as a stranger, not pre-attached
             self.interactions = 0
             self.positive_count = 0
             self.negative_count = 0
@@ -38,7 +38,7 @@ class AttachmentSystem:
         try:
             if ATTACHMENT_STATE_PATH.exists():
                 data = json.loads(ATTACHMENT_STATE_PATH.read_text())
-                self.affection = data.get("affection", 0.2)
+                self.affection = data.get("affection", 0.05)
                 self.interactions = data.get("interactions", 0)
                 self.positive_count = data.get("positive_count", 0)
                 self.negative_count = data.get("negative_count", 0)

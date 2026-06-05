@@ -61,6 +61,48 @@ class SemanticMemory:
             self.facts.get("interests")
         )
 
+    def relationship_calibration(self, history: list[dict] | None = None) -> dict:
+        """Describe how socially close this user actually is."""
+        history = history or []
+        user_turns = sum(1 for turn in history if turn.get("role") == "user")
+        known_fact_count = sum(
+            1 for key in ("name", "nickname", "gender", "age", "location", "job")
+            if self.facts.get(key)
+        )
+        known_fact_count += len(self.facts.get("hobbies") or [])
+        known_fact_count += len(self.facts.get("interests") or [])
+        known_fact_count += len(self.facts.get("personality") or [])
+        shared_count = len(self.facts.get("shared_memories") or [])
+
+        relationship = str(self.facts.get("relationship_status") or "").strip().lower()
+        romantic_relationship = any(
+            token in relationship
+            for token in ("boyfriend", "girlfriend", "partner", "lover", "husband", "wife", "dating", "together")
+        )
+
+        if romantic_relationship:
+            stage = "romantic"
+        elif self.is_new_user and user_turns <= 3:
+            stage = "stranger"
+        elif user_turns < 8 and known_fact_count < 2 and shared_count < 1:
+            stage = "new_acquaintance"
+        elif user_turns < 20 and known_fact_count < 4:
+            stage = "getting_to_know"
+        else:
+            stage = "known"
+
+        pet_names_allowed = romantic_relationship or (stage in {"known", "romantic"} and user_turns >= 12)
+        return {
+            "stage": stage,
+            "user_turns": user_turns,
+            "known_fact_count": known_fact_count,
+            "shared_memory_count": shared_count,
+            "relationship_status": relationship or None,
+            "romantic_relationship": romantic_relationship,
+            "pet_names_allowed": pet_names_allowed,
+            "is_new_user": self.is_new_user,
+        }
+
     def update(self, key: str, value):
         """Update a fact"""
         if isinstance(value, list) and key in self.facts and isinstance(self.facts[key], list):
@@ -94,7 +136,9 @@ class SemanticMemory:
         self.facts["last_intimate"] = datetime.now().isoformat()
         self.save()
 
-    def get_random_pet_name(self) -> str:
+    def get_random_pet_name(self, *, allow: bool = True) -> str:
+        if not allow:
+            return ""
         import random
         used = self.facts.get("pet_names_used", [])
         available = [p for p in self.PET_NAMES if p not in used[-4:]]

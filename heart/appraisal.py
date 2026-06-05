@@ -191,6 +191,15 @@ class AppraisalEngine:
             return total
 
         affection = hits(["love you", "miss you", "care about", "good night", "goodnight", "sweet", "special", "safe with", "trust you"])
+        repeated_affection = sum(
+            len(re.findall(pattern, current_lower))
+            for pattern in (
+                r"\bi\s+love\s+you\b",
+                r"\blove\s+you\b",
+                r"\b(?:baby|babe|my love|darling|handsome)\b",
+            )
+        )
+        affection_pressure = clamp((repeated_affection - 3) / 12) if repeated_affection > 3 else 0.0
         play = hits(["tease", "play", "chase", "joke", "haha", "lol", "wink", "smile", "dare", "mischiev"])
         intimate = hits([
             "want you", "need you", "crave", "touch", "kiss", "hold me", "close to",
@@ -209,6 +218,8 @@ class AppraisalEngine:
         ))
 
         if affection: ev.append(f"affection:{affection}")
+        if affection_pressure:
+            ev.append(f"repeated_affection_pressure:{repeated_affection}")
         if play: ev.append(f"play:{play}")
         if intimate: ev.append(f"intimacy:{intimate}")
         if subtle_continue: ev.append("contextual_continuation")
@@ -220,27 +231,29 @@ class AppraisalEngine:
         desire = clamp((intimate * 0.15 + explicitish * 0.06 + play * 0.04 + subtle_continue * 0.24) * context_boost)
         if phase == "post_response" and response_text:
             desire = clamp(desire + hits(["want", "need", "close", "warm", "electric", "touch"], response_lower) * 0.07 * post_weight)
-        love = clamp(affection * 0.16 + repair * 0.06 + subtle_continue * 0.04 + (emotion.get("love", 0) or 0) * 0.15)
-        trust = clamp(0.48 + affection * 0.08 + repair * 0.08 - conflict * 0.12 + (emotion.get("trust", 0.5) - 0.5) * 0.25)
-        joy = clamp(0.12 + play * 0.12 + affection * 0.08 + novelty * 0.05 - conflict * 0.08 - vulnerable * 0.04)
-        fear = clamp(vulnerable * 0.12 + conflict * 0.10 + jealousy * 0.05)
+        love = clamp(affection * 0.16 + repair * 0.06 + subtle_continue * 0.04 + (emotion.get("love", 0) or 0) * 0.15 - affection_pressure * 0.12)
+        trust = clamp(0.48 + affection * 0.08 + repair * 0.08 - conflict * 0.12 - affection_pressure * 0.14 + (emotion.get("trust", 0.5) - 0.5) * 0.25)
+        joy = clamp(0.12 + play * 0.12 + affection * 0.08 + novelty * 0.05 - conflict * 0.08 - vulnerable * 0.04 - affection_pressure * 0.05)
+        fear = clamp(vulnerable * 0.12 + conflict * 0.10 + jealousy * 0.05 + affection_pressure * 0.12)
         anger = clamp(conflict * 0.12)
         sadness = clamp(vulnerable * 0.12 + jealousy * 0.05)
         anticipation = clamp(play * 0.10 + novelty * 0.11 + subtle_continue * 0.18 + desire * 0.25)
         hope = clamp(0.35 + repair * 0.12 + affection * 0.06 - conflict * 0.05)
         dread = clamp(conflict * 0.08 + vulnerable * 0.05)
-        embarrassment = clamp(desire * 0.16 if trust < 0.45 else desire * 0.06)
+        embarrassment = clamp((desire * 0.16 if trust < 0.45 else desire * 0.06) + affection_pressure * 0.16)
         arousal = clamp(0.24 + desire * 0.48 + play * 0.05 + fear * 0.30 + anger * 0.25 + anticipation * 0.18 - sleep * 0.04)
         valence = clamp(0.5 + love * 0.20 + joy * 0.18 + trust * 0.10 + desire * 0.08 - fear * 0.18 - anger * 0.18 - sadness * 0.16)
         dominance = clamp(0.52 + trust * 0.10 + play * 0.03 - vulnerable * 0.08 - fear * 0.12)
-        safety = clamp(0.5 + trust * 0.28 + repair * 0.05 - conflict * 0.15 - fear * 0.18)
+        safety = clamp(0.5 + trust * 0.28 + repair * 0.05 - conflict * 0.15 - fear * 0.18 - affection_pressure * 0.12)
         memory_importance = clamp(max(desire, love, fear, anger, sadness, joy) * 0.62 + subtle_continue * 0.18 + sleep * 0.04)
         narrative_importance = clamp(memory_importance + affection * 0.04 + repair * 0.05 + jealousy * 0.06)
         sleep_disruption = clamp(max(0.0, arousal - 0.45) * 0.45 + sleep * 0.03)
 
         mode = "present"
         summary = "ordinary conversational turn"
-        if conflict:
+        if affection_pressure:
+            mode, summary = "protective", "repeated affection or pet names read as pressure, not earned intimacy"
+        elif conflict:
             mode, summary = "boundary_or_repair", "possible rupture, boundary, or hurt requiring careful repair"
         elif vulnerable:
             mode, summary = "comfort", "vulnerable moment asking for comfort and emotional safety"

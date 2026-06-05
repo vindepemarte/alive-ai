@@ -7,10 +7,9 @@ import os
 from datetime import datetime
 from typing import Callable
 
-from core.proactive_safety import fallback_proactive_message, sanitize_proactive_message
+from core.proactive_safety import sanitize_proactive_message
 
 from .impulses import Impulse, ImpulseType
-from .templates import get_fallback_message
 
 _INSTRUCTIONS_CACHE = None
 
@@ -84,14 +83,17 @@ class ActionHandler:
 
     async def generate_proactive_message(self, impulse: Impulse, working_memory) -> str:
         if not self.fast_llm:
-            return get_fallback_message(impulse.type)
+            return ""
 
         instructions = _load_instructions()
         user_facts = _get_user_facts(self.nervous)
         inner_context = working_memory.get_context_string()
         recent_context = _get_recent_conversation_context(self.nervous)
 
-        system = instructions or "You are Alive-AI, 23, from Milan. You're his companion."
+        system = instructions or (
+            "You are the configured identity inside Alive-AI. Use only the provided state, "
+            "memory, and relationship context; do not assume romance or familiarity."
+        )
         if user_facts:
             system += f"\n\nWhat you know about him:\n{user_facts}"
         if inner_context:
@@ -101,26 +103,13 @@ class ActionHandler:
         else:
             system += "\n\nNo recent conversation context available."
 
-        # Context-aware prompts - only ask for specific references if we have context
-        if recent_context and len(recent_context.strip()) > 20:
-            follow_up_prompts = [
-                "Send a follow-up message related to your recent conversation above. Only reference topics explicitly mentioned.",
-                "Text him something related to what you were talking about. Only use topics from the context above.",
-                "Continue a topic from your recent chat. Be specific but ONLY about things actually discussed.",
-            ]
-        else:
-            follow_up_prompts = [
-                "Send a casual, loving message. Keep it simple - you don't have recent context to reference.",
-                "Text him something sweet. Don't invent specific topics - just be affectionate.",
-                "Send a brief message showing you're thinking of him. Generic is fine.",
-            ]
-
         user_prompt = (
             f"You're feeling a {impulse.type.value} impulse. "
             f"Inner thought: \"{impulse.thought}\"\n"
-            f"{__import__('random').choice(follow_up_prompts)}\n"
-            f"Let the impulse and context decide the size of the message. Be casual and natural.\n"
-            f"CRITICAL: Never invent or hallucinate specific events, objects, or topics. Only reference what's in the context above."
+            "Decide whether this impulse should become an outward message right now.\n"
+            "Return exactly SILENCE if it does not genuinely fit the current state, relationship, or context.\n"
+            "If you send text, let the impulse, memory, emotion, and recent context decide it.\n"
+            "Never invent or hallucinate specific events, objects, or topics. Only reference what's in the context above."
         )
         try:
             response = await self.fast_llm.chat(
@@ -129,13 +118,14 @@ class ActionHandler:
                 max_tokens=None, temperature=0.7
             )
             if response:
+                if str(response).strip().upper() == "SILENCE":
+                    return ""
                 message = sanitize_proactive_message(response)
                 if message:
                     return message
         except Exception as e:
             print(f"[Subconscious] Error generating message: {e}")
-        fallback = get_fallback_message(impulse.type)
-        return sanitize_proactive_message(fallback) or fallback_proactive_message(impulse.type.value)
+        return ""
 
     def can_act_now(self, working_memory, min_interval_minutes: float = 30) -> bool:
         return working_memory.can_act_now(min_interval_minutes)

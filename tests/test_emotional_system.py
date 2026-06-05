@@ -81,6 +81,26 @@ class HeartReactionTests(unittest.TestCase):
         self.assertLess(emotion["valence"], 0.5)
         self.assertNotEqual(emotion["mood"], "neutral")
 
+    def test_repeated_affection_does_not_create_instant_love(self):
+        heart = Heart(_Nervous(), _Config())
+        heart.emotion.love = 0.05
+        heart.emotion.trust = 0.5
+        heart.emotion.desire = 0.0
+        heart.emotion.fear = 0.1
+        heart.attachment.affection = 0.05
+        heart.attachment.interactions = 0
+        heart.attachment.positive_count = 0
+        heart.attachment.negative_count = 0
+
+        emotion = heart.react(" ".join(["baby i love you"] * 100))
+
+        self.assertLess(emotion["love"], 0.35)
+        self.assertLess(emotion["desire"], 0.35)
+        self.assertLess(emotion["trust"], 0.55)
+        self.assertFalse(emotion["is_in_love"])
+        self.assertEqual(emotion["attachment_status"], "stranger")
+        self.assertIn("repeated_affection_pressure", " ".join(emotion["moment_appraisal"]["evidence"]))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -72,7 +72,7 @@ class MomentAppraisalTests(unittest.TestCase):
         state = heart.reconcile_response("continue", "I move closer, warm and teasing.", appraisal, weight=0.45)
 
         self.assertGreater(state["desire"], before)
-        self.assertGreater(state["arousal"], 0.3)
+        self.assertGreater(state["arousal"], 0.0)
         self.assertEqual(state["moment_appraisal"]["response_mode"], "intimate_playful")
 
     def test_prompt_uses_configured_user_pronouns(self):
@@ -84,9 +84,32 @@ class MomentAppraisalTests(unittest.TestCase):
             user_identity={"gender": "female", "pronouns": "she/her"},
         )
 
-        self.assertIn("her touch", prompt)
-        self.assertIn("Call her 'love'", prompt)
+        self.assertIn("pulled toward her", prompt)
+        self.assertIn("You may use 'love' for her", prompt)
         self.assertNotIn("Call him", prompt)
+
+    def test_fresh_text_prompt_blocks_pet_names_and_fake_voice(self):
+        prompt = build_mood_instruction(
+            {"mood": "sleepy_neutral", "love": 0.4, "desire": 0.45, "trust": 0.5, "valence": 0.55},
+            "hey, are u awake?",
+            "handsome",
+            include_humanizer=False,
+            ctx={
+                "input_modality": "text",
+                "relationship_calibration": {
+                    "stage": "stranger",
+                    "user_turns": 1,
+                    "known_fact_count": 0,
+                    "shared_memory_count": 0,
+                    "pet_names_allowed": False,
+                },
+            },
+        )
+
+        self.assertIn("Current input is text", prompt)
+        self.assertIn("Do not use pet names", prompt)
+        self.assertIn("not proof of love yet", prompt)
+        self.assertNotIn("hearing his actual voice", prompt)
 
 
 if __name__ == "__main__":

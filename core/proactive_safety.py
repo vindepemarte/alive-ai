@@ -81,14 +81,6 @@ def sanitize_proactive_message(text: str) -> str:
     return value
 
 
-def fallback_proactive_message(reason: Optional[str] = None, pet_name: str = "babe") -> str:
-    """Deterministic safe fallback when generation returns internal/private text."""
-    name = (pet_name or "babe").strip() or "babe"
-    reason_key = str(reason or "random").lower()
-    if reason_key in {"silence", "miss_him", "clingy", "follow_up"}:
-        return f"hey {name}, I was thinking about you."
-    if reason_key in {"night", "sleep"}:
-        return f"goodnight {name}, I hope you rest softly."
-    if reason_key in {"morning"}:
-        return f"good morning {name}, I hope you slept well."
-    return f"you crossed my mind, {name}."
+def fallback_proactive_message(reason: Optional[str] = None, pet_name: str = "") -> str:
+    """Return no text when model-authored proactive output is unavailable."""
+    return ""

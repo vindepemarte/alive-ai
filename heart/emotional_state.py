@@ -9,7 +9,7 @@ from core.paths import state_file
 EMOTION_STATE_PATH = state_file("emotion_state.json")
 DEFAULTS = {
     "valence": 0.5, "arousal": 0.3, "dominance": 0.5, "desire": 0.0,
-    "high_desire_threshold": 0.7, "joy": 0.5, "love": 0.2, "trust": 0.5,
+    "high_desire_threshold": 0.7, "joy": 0.5, "love": 0.05, "trust": 0.5,
     "fear": 0.1, "anger": 0.1, "sadness": 0.1, "boredom": 0.0,
     "guilt": 0.0, "pride": 0.0, "jealousy": 0.0,
     "embarrassment": 0.0, "anticipation": 0.0,
@@ -36,7 +36,7 @@ class EmotionalState:
         else:
             for key, val in DEFAULTS.items():
                 setattr(self, key, val)
-        self.baseline = {"joy": 0.5, "love": 0.2, "trust": 0.5,
+        self.baseline = {"joy": 0.5, "love": 0.05, "trust": 0.5,
                          "valence": 0.5, "dominance": 0.5,
                          "arousal": 0.3, "desire": 0.0,
                          "anger": 0.0, "sadness": 0.1, "fear": 0.1,
@@ -88,7 +88,7 @@ class EmotionalState:
 
         joy_up = max(0.0, self.joy - 0.5)
         joy_down = max(0.0, 0.5 - self.joy)
-        love_up = max(0.0, self.love - 0.2)
+        love_up = max(0.0, self.love - 0.05)
         trust_up = max(0.0, self.trust - 0.5)
         trust_down = max(0.0, 0.5 - self.trust)
         fear_up = max(0.0, self.fear - 0.1)

@@ -3,7 +3,7 @@ import asyncio, json, random
 from datetime import datetime
 from typing import Callable, Optional
 from core.paths import state_file
-from core.proactive_safety import fallback_proactive_message, sanitize_proactive_message
+from core.proactive_safety import sanitize_proactive_message
 from .impulses import Impulse, ImpulseType
 from .impulse_generator import ImpulseGenerator
 from .working_memory import WorkingMemory
@@ -67,7 +67,14 @@ class SubconsciousLoop:
         """Initialize proactive generator with LLM for contextual messages"""
         try:
             from core.proactive_generator import ProactiveGenerator
-            self._proactive_generator = ProactiveGenerator(self.nervous, llm=llm, bot_id=self.bot_id, data_path=data_path)
+            state_provider = (lambda: self.heart.get_state()) if self.heart else None
+            self._proactive_generator = ProactiveGenerator(
+                self.nervous,
+                llm=llm,
+                bot_id=self.bot_id,
+                data_path=data_path,
+                state_provider=state_provider,
+            )
             print("[Subconscious] Proactive generator initialized")
         except Exception as e:
             print(f"[Subconscious] Failed to init proactive generator: {e}")
@@ -270,7 +277,7 @@ class SubconsciousLoop:
         context_info = scheduled_msg.context
 
         # Try to get user context
-        user_name = "babe"
+        user_name = "them"
         try:
             from core.user_tracker import get_user_tracker
             tracker = get_user_tracker()
@@ -320,30 +327,32 @@ Your fresh message:"""
             except Exception as e:
                 print(f"[Subconscious] Proactive generator error: {e}")
 
-        # Fallback: Use LLM directly
+        # Direct model decision if the contextual generator did not produce text.
         if self.llm:
             try:
-                prompt = f"""You wanted to message {user_name}. Your reminder was: "{original_reminder}"
+                prompt = f"""You are deciding whether to message {user_name}. Your reminder was: "{original_reminder}"
 
-Generate a fresh, natural text message that captures what you wanted to say but feels spontaneous.
+Generate a fresh, natural text message only if it still feels right to send.
 - Don't mention reminders or scheduling
 - Only reference what's in the reminder above - don't invent new details
+- If it does not feel right to send now, return exactly: SILENCE
 
-Your message:"""
+Your message or SILENCE:"""
 
                 response = await self.llm.chat([
-                    {"role": "system", "content": "You are sending a natural text message as your configured companion identity."},
+                    {"role": "system", "content": "You decide whether a scheduled inner reminder should become an outward message."},
                     {"role": "user", "content": prompt}
                 ], max_tokens=None, temperature=0.7)
 
+                if str(response or "").strip().upper() == "SILENCE":
+                    return ""
                 message = sanitize_proactive_message(response)
                 if message:
                     return message
             except Exception as e:
-                print(f"[Subconscious] LLM fallback error: {e}")
+                print(f"[Subconscious] Scheduled-message render error: {e}")
 
-        # Ultimate fallback: never send private reminder/planning text raw.
-        return sanitize_proactive_message(original_reminder) or fallback_proactive_message("scheduled", user_name)
+        return ""
 
     async def _handle_follow_up(self, follow_up_data: dict):
         """Send a contextual follow-up message"""
@@ -365,6 +374,9 @@ Your message:"""
 
             # Generate contextual message
             message = await self._generate_contextual_message(user, follow_up_type)
+            if not message:
+                print("[Subconscious] Follow-up produced no model-authored message; skipping")
+                return
 
             if follow_up_type == "return_from_away":
                 # She's coming back from coffee/shower/etc
@@ -410,15 +422,8 @@ Your message:"""
             except Exception as e:
                 print(f"[Subconscious] Proactive generator error: {e}")
 
-        # Fallback to generic messages
-        fallbacks = {
-            "silence": ["hey... you there?", "thinking about you", "miss talking to you"],
-            "follow_up": ["so about earlier...", "was wondering about something"],
-            "return_from_away": ["I'm back! 💕", "back now, missed you"],
-        }
-        templates = fallbacks.get(message_type, fallbacks["silence"])
-        message = random.choice(templates)
-        return sanitize_proactive_message(message) or fallback_proactive_message(message_type, getattr(user, "pet_name", "babe"))
+        print("[Subconscious] No model-authored contextual proactive message; skipping")
+        return ""
 
     def _can_act(self):
         """Check if we can send a proactive message.

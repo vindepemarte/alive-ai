@@ -121,8 +121,8 @@ class DefaultModeProactiveRenderTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(processor._seeds[0].used)
         self.assertNotIn("when babe comes back", message)
 
-    async def test_bad_llm_render_falls_back_to_safe_message(self):
-        processor = self._processor(_FakeLLM("There is only one message in the conversation."))
+    async def test_bad_llm_render_skips_instead_of_using_canned_fallback(self):
+        processor = self._processor(_FakeLLM("There is only one message in the conversation.", "SILENCE"))
         processor._thoughts.append(
             IdleThought(
                 id="thought_2",
@@ -135,8 +135,7 @@ class DefaultModeProactiveRenderTests(unittest.IsolatedAsyncioTestCase):
 
         message = await processor._generate_proactive_content("12345", "silence")
 
-        self.assertFalse(is_internal_proactive_text(message))
-        self.assertNotIn("conversation", message.lower())
+        self.assertFalse(message)
 
 
 if __name__ == "__main__":
