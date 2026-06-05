@@ -5,6 +5,7 @@ Generate contextual proactive messages with user memory context
 
 import random
 from typing import Optional, List
+from .proactive_safety import fallback_proactive_message, sanitize_proactive_message
 from .user_tracker import get_user_tracker, ActiveUser
 
 
@@ -219,10 +220,9 @@ IMPORTANT:
             response = await self._llm.chat(messages, max_tokens=80, temperature=0.7)
 
             if response:
-                response = response.strip()
-                # Basic validation
-                if len(response) > 5 and not response.startswith(("I should", "Let me", "I'll")):
-                    return response
+                message = sanitize_proactive_message(response)
+                if message:
+                    return message
 
             return None
 
@@ -267,7 +267,7 @@ IMPORTANT:
         if user.pet_name and user.pet_name != "babe":
             message = message.replace("babe", user.pet_name)
 
-        return message
+        return sanitize_proactive_message(message) or fallback_proactive_message(message_type, user.pet_name)
 
     async def get_users_to_message(self, message_type: str = "silence") -> List[ActiveUser]:
         """

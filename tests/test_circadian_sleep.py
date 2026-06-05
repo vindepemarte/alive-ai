@@ -13,7 +13,7 @@ DATA_DIR = Path(_tmp.name)
 import brain.dreams as dreams_module
 import heart.circadian as circadian_module
 from brain.default_mode import DefaultModeProcessor, UserContactInfo
-from brain.dreams import DreamSystem
+from brain.dreams import DreamSystem, clean_dream_text
 from brain.subconscious.loop import SubconsciousLoop
 from heart.circadian import CircadianEngine
 from heart.core import Heart
@@ -118,6 +118,8 @@ class CircadianSleepTests(unittest.TestCase):
 
         self.assertTrue(state["woke_from_sleep"])
         self.assertFalse(state["sleeping"])
+        self.assertTrue(state["forced_awake"])
+        self.assertIsNotNone(state["forced_awake_until"])
         self.assertGreater(engine.sleep_debt, 0)
         self.assertIn("dream", engine.last_wake_dream_message)
 
@@ -133,8 +135,14 @@ class CircadianSleepTests(unittest.TestCase):
 
         engine.handle_user_interaction()
         until = datetime.fromisoformat(engine.forced_awake_until)
-        self.assertLessEqual((until - clock.value).total_seconds() / 60, 10)
+        duration = (until - clock.value).total_seconds() / 60
+        self.assertGreaterEqual(duration, 6)
+        self.assertLessEqual(duration, 14)
 
+        engine.tick()
+        self.assertFalse(engine.is_asleep)
+
+        clock.value = until + timedelta(seconds=1)
         engine.tick()
         self.assertTrue(engine.is_asleep)
         self.assertEqual(engine.last_transition_reason, "circadian_pressure")
@@ -155,6 +163,14 @@ class CircadianSleepTests(unittest.TestCase):
 
         restored = DreamSystem()
         self.assertEqual(restored.get_recent_dream(max_age_hours=1), dream)
+
+    def test_dream_text_is_clean_complete_residue(self):
+        dream = clean_dream_text("dreamed about a rooftop in Milan but it was also a bookshop somehow?? and colors had sounds")
+
+        self.assertEqual(
+            dream,
+            "i dreamed about a rooftop in Milan but it was also a bookshop somehow, and colors had sounds.",
+        )
 
     def test_subconscious_does_not_act_outward_while_asleep(self):
         engine = CircadianEngine(

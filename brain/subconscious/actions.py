@@ -7,6 +7,8 @@ import os
 from datetime import datetime
 from typing import Callable
 
+from core.proactive_safety import fallback_proactive_message, sanitize_proactive_message
+
 from .impulses import Impulse, ImpulseType
 from .templates import get_fallback_message
 
@@ -127,10 +129,13 @@ class ActionHandler:
                 max_tokens=100, temperature=0.7
             )
             if response:
-                return response.strip()
+                message = sanitize_proactive_message(response)
+                if message:
+                    return message
         except Exception as e:
             print(f"[Subconscious] Error generating message: {e}")
-        return get_fallback_message(impulse.type)
+        fallback = get_fallback_message(impulse.type)
+        return sanitize_proactive_message(fallback) or fallback_proactive_message(impulse.type.value)
 
     def can_act_now(self, working_memory, min_interval_minutes: float = 30) -> bool:
         return working_memory.can_act_now(min_interval_minutes)

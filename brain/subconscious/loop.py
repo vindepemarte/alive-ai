@@ -3,6 +3,7 @@ import asyncio, json, random
 from datetime import datetime
 from typing import Callable, Optional
 from core.paths import state_file
+from core.proactive_safety import fallback_proactive_message, sanitize_proactive_message
 from .impulses import Impulse, ImpulseType
 from .impulse_generator import ImpulseGenerator
 from .working_memory import WorkingMemory
@@ -167,7 +168,7 @@ class SubconsciousLoop:
         except Exception:
             dream = None
 
-        content = f"Dreaming: {dream}" if dream else "Resting during sleep"
+        content = f"Sleep dream residue: {dream}" if dream else "Resting during sleep"
         recent = self.working_memory.get_recent_thoughts(3)
         if not recent or recent[-1].content != content:
             self.working_memory.add_thought(
@@ -308,11 +309,14 @@ Your fresh message:"""
                             {"role": "user", "content": prompt}
                         ], max_tokens=60, temperature=0.7)
 
-                        if response and response.strip():
-                            return response.strip().strip('"\'')
+                        message = sanitize_proactive_message(response)
+                        if message:
+                            return message
 
                     elif base_message:
-                        return base_message
+                        message = sanitize_proactive_message(base_message)
+                        if message:
+                            return message
             except Exception as e:
                 print(f"[Subconscious] Proactive generator error: {e}")
 
@@ -332,13 +336,14 @@ Your message:"""
                     {"role": "user", "content": prompt}
                 ], max_tokens=60, temperature=0.7)
 
-                if response and response.strip():
-                    return response.strip().strip('"\'')
+                message = sanitize_proactive_message(response)
+                if message:
+                    return message
             except Exception as e:
                 print(f"[Subconscious] LLM fallback error: {e}")
 
-        # Ultimate fallback: use original message
-        return original_reminder
+        # Ultimate fallback: never send private reminder/planning text raw.
+        return sanitize_proactive_message(original_reminder) or fallback_proactive_message("scheduled", user_name)
 
     async def _handle_follow_up(self, follow_up_data: dict):
         """Send a contextual follow-up message"""
@@ -399,7 +404,9 @@ Your message:"""
         if self._proactive_generator:
             try:
                 message = await self._proactive_generator.generate_for_user(user, message_type)
-                return message
+                message = sanitize_proactive_message(message)
+                if message:
+                    return message
             except Exception as e:
                 print(f"[Subconscious] Proactive generator error: {e}")
 
@@ -410,7 +417,8 @@ Your message:"""
             "return_from_away": ["I'm back! 💕", "back now, missed you"],
         }
         templates = fallbacks.get(message_type, fallbacks["silence"])
-        return random.choice(templates)
+        message = random.choice(templates)
+        return sanitize_proactive_message(message) or fallback_proactive_message(message_type, getattr(user, "pet_name", "babe"))
 
     def _can_act(self):
         """Check if we can send a proactive message.

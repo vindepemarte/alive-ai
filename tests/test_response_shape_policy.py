@@ -2,6 +2,7 @@ import unittest
 
 from core.thinking import (
     build_response_shape_policy,
+    build_mood_instruction,
     contextual_fallback_response,
     contains_reasoning_artifact,
     has_role_leakage,
@@ -151,8 +152,41 @@ class ResponseShapePolicyTests(unittest.TestCase):
 
         shaped = shape_response_text(response, policy, identity={"name": "Alice", "pronouns": "she/her"})
 
-        self.assertEqual(shaped, response)
+        self.assertEqual(
+            shaped,
+            "Mmm thanks babe... that means a lot 💤 Sleep tight my love, thinking of you as I drift off ❤️",
+        )
         self.assertFalse(is_response_unusable(shaped, policy, "yeah make sense bae, i will leave you to sleep"))
+
+    def test_shape_response_normalizes_dash_heavy_model_punctuation(self):
+        policy = build_response_shape_policy({"mood": "neutral"}, "how are you?", {})
+        shaped = shape_response_text(
+            "just winding down here, not quite asleep yet—kinda caught in that quiet space before dreams.",
+            policy,
+            identity={"name": "Alice", "pronouns": "she/her"},
+        )
+
+        self.assertEqual(
+            shaped,
+            "just winding down here, not quite asleep yet, kinda caught in that quiet space before dreams.",
+        )
+        self.assertNotIn("—", shaped)
+        self.assertNotIn("--", shaped)
+
+    def test_mood_instruction_preserves_sleep_interruption_truth(self):
+        instruction = build_mood_instruction(
+            {
+                "mood": "sleepy",
+                "sleepiness": 0.96,
+                "woke_from_sleep": True,
+                "circadian": {"was_asleep": True, "sleepiness": 0.96},
+            },
+            "were you sleeping?",
+            include_humanizer=False,
+        )
+
+        self.assertIn("You were asleep when his message arrived", instruction)
+        self.assertIn("Do not deny being asleep", instruction)
 
     def test_provider_sanitizer_rejects_truncated_code_fragment(self):
         self.assertEqual(sanitize_provider_response("wait: In `"), "")
@@ -189,8 +223,20 @@ class ResponseShapePolicyTests(unittest.TestCase):
         policy = build_response_shape_policy({"mood": "neutral"}, "hey", {})
 
         self.assertTrue(is_response_unusable("bers this personal", policy, "hey"))
+        self.assertTrue(is_response_unusable("and colors had sounds.", policy, "any dreams?"))
         self.assertFalse(is_response_unusable("I'm here.", policy, "hey"))
         self.assertFalse(is_response_unusable("okay", policy, "hey"))
+
+    def test_contextual_fallback_handles_dream_questions(self):
+        reply = contextual_fallback_response(
+            {"mood": "sleepy", "sleepiness": 0.8},
+            "any dreams you had recently?",
+            {"memory_layers_context": "Recent dream: i dreamed about a rooftop, and colors had sounds."},
+            identity={"name": "Alice", "pronouns": "she/her"},
+        )
+
+        self.assertIn("I remember it in pieces", reply)
+        self.assertIn("rooftop", reply)
 
     def test_contextual_fallback_recalls_recent_memory_anchor(self):
         ctx = {

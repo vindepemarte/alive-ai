@@ -8,6 +8,7 @@ MODULAR - can be connected/disconnected without breaking anything.
 
 import json
 import random
+import re
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -76,6 +77,31 @@ DEFAULT_FRAGMENTS = [
 DEFAULT_TOPICS = [
     "us", "the future", "something familiar", "a memory i can't place",
 ]
+
+
+def clean_dream_text(text: str) -> str:
+    """Normalize dream residue into a complete readable memory."""
+    value = str(text or "").strip().strip("\"'")
+    if not value:
+        return ""
+    value = re.sub(r"\s+", " ", value)
+    value = re.sub(r"\?\?\s+and\s+", ", and ", value)
+    value = value.replace("somehow??", "somehow,")
+    value = re.sub(r"\s+([,.!?])", r"\1", value).strip()
+    value = value[0].lower() + value[1:] if value else value
+
+    if value.startswith("dreamed "):
+        value = "i " + value
+    elif value.startswith("had "):
+        value = "i " + value
+    elif value.startswith("last night i "):
+        pass
+    elif not value.startswith(("i ", "you ", "we ", "there ", "everything ")):
+        value = "i dreamed " + value
+
+    if value and value[-1] not in ".!?":
+        value += "."
+    return value
 
 
 class DreamSystem:
@@ -166,6 +192,7 @@ class DreamSystem:
                 topic=topics[0] if topics else "something",
                 emotion=emo_words[0] if emo_words else "strange",
             )
+            dream_text = clean_dream_text(dream_text)
 
             created_at = datetime.now().isoformat()
             dream = {
@@ -196,7 +223,7 @@ class DreamSystem:
                 last_time_raw = last.get("timestamp") or last.get("created_at")
                 age = datetime.now() - datetime.fromisoformat(last_time_raw)
                 if age.total_seconds() / 3600 <= max_age_hours:
-                    return last.get("text") or last.get("content")
+                    return clean_dream_text(last.get("text") or last.get("content"))
             except Exception:
                 pass
             return None
@@ -220,7 +247,11 @@ class DreamSystem:
         dream = self.get_recent_dream(max_age_hours=12)
         if not dream:
             return ""
-        return f"You had a dream recently you could mention: \"{dream}\""
+        return (
+            f"Recent dream residue: {dream} "
+            "If the user asks about dreams, summarize this as one complete sentence in your own words. "
+            "Do not quote partial fragments."
+        )
 
     def get_state_summary(self) -> Dict[str, Any]:
         """Return durable dream state for runtime dashboards and behavior checks."""
@@ -228,7 +259,7 @@ class DreamSystem:
             last = self._dreams[-1] if self._dreams else None
             return {
                 "total": len(self._dreams),
-                "last_dream": (last.get("text") or last.get("content")) if last else None,
+                "last_dream": clean_dream_text(last.get("text") or last.get("content")) if last else None,
                 "last_dream_time": (last.get("timestamp") or last.get("created_at")) if last else None,
                 "last_sleep_cycle_id": last.get("sleep_cycle_id") if last else None,
             }

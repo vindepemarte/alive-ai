@@ -9,6 +9,7 @@ The foundation of the AI. Always required.
 - `self.py` - The Self (main coordinator)
 - `behavioral_pressure.py` - Emotion/hormone/sleep to action-tendency compiler
 - `plugin_registry.py` - Typed declarations and status probing for optional runtime organs, skills, and connectors
+- `proactive_safety.py` - Output firewall for autonomous messages; rejects private notes, prompt leaks, and third-person self-talk
 - `paths.py` - Runtime path resolution for npm/local/Docker installs
 - `mcp/` - Default-off MCP catalog, permission, approval, client, and audit runtime
 
@@ -18,6 +19,7 @@ The foundation of the AI. Always required.
 - **Paths** - Keeps project runtime state under local `data/` instead of hard-coded `/app`
 - **Behavioral pressure** - Converts affect into ranked response tendencies consumed by body snapshots and the inner-state compiler
 - **Plugin registry** - Exposes optional organs, memory layers, skills, and connector modules as a typed read-only status catalog
+- **Proactive safety** - Ensures idle thoughts, seeds, reminders, and impulse text are rendered into outward dialogue before Telegram/terminal output
 - **MCP** - Optional tool connector surface; proposals require default-deny scope checks, owner approval, explicit execution, and redacted local audit
 - Connects to subconscious for proactive messaging
 - Emits: `message_received`, `send_text`, `send_voice_file`, `send_image`, `send_video`

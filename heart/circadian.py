@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Dict, Optional
 import json
+import random
 
 from core.paths import state_file
 
@@ -145,16 +146,8 @@ class CircadianEngine:
             return False
         if not self._is_forced_awake(now):
             return True
-        # After 2am, sleep pressure can override a user wake-up. Messages can
-        # briefly rouse her, but they should not pin her awake for another hour.
-        if sleepiness >= 0.95:
-            return True
-        try:
-            until = datetime.fromisoformat(self.forced_awake_until) if self.forced_awake_until else now
-            forced_started = until - timedelta(minutes=self._forced_awake_duration_minutes(now))
-            return (now - forced_started).total_seconds() >= 10 * 60
-        except Exception:
-            return sleepiness >= 0.9
+        # If a user just woke her, let the roused window expire naturally.
+        return False
 
     def _should_auto_wake(self, now: datetime) -> bool:
         slept = self._hours_asleep(now)
@@ -254,13 +247,17 @@ class CircadianEngine:
             return 30
         return 45
 
-    def stay_up_for_user(self, duration_minutes: int = None):
+    def stay_up_for_user(self, duration_minutes: int = None, reason: str = "staying_up_for_user"):
         """User is keeping her awake past bedtime."""
         now = self._now()
-        duration_minutes = duration_minutes or self._forced_awake_duration_minutes(now)
+        if duration_minutes is None:
+            base = self._forced_awake_duration_minutes(now)
+            low = max(4, int(base * 0.65))
+            high = max(low, int(base * 1.35))
+            duration_minutes = random.randint(low, high)
         self.forced_awake = True
         self.forced_awake_until = (now + timedelta(minutes=duration_minutes)).isoformat()
-        self.last_transition_reason = "staying_up_for_user"
+        self.last_transition_reason = reason
         hour = now.hour
         if hour >= 23 or hour < 6:
             self.sleep_debt = min(8.0, self.sleep_debt + 0.25)
@@ -276,6 +273,8 @@ class CircadianEngine:
 
         if was_asleep:
             woke_from_sleep = self.wake_up(reason="user_message", interrupted=True)
+            if woke_from_sleep:
+                self.stay_up_for_user(reason="user_message_wake_window")
         elif was_sleepy:
             self.stay_up_for_user()
 
@@ -477,6 +476,11 @@ def get_circadian_prompt_section() -> str:
         try:
             since_wake = (now - datetime.fromisoformat(engine.wake_time)).total_seconds() / 60
             if 0 <= since_wake < 45:
+                if engine.last_transition_reason in {"user_message", "user_message_wake_window"}:
+                    parts.append(
+                        "You were asleep when his message arrived and it woke you; "
+                        "do not claim you were only winding down or already awake."
+                    )
                 parts.append("You just woke up - slower, groggy, and recovering.")
                 if engine.last_wake_dream_message:
                     parts.append(f"Dream residue: {engine.last_wake_dream_message}")

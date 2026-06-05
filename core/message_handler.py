@@ -540,6 +540,7 @@ async def _process_single_message(self, data: dict):
             emotion["circadian"] = circadian_interaction
             emotion["sleepiness"] = circadian_interaction.get("sleepiness", emotion.get("sleepiness", 0.0))
             emotion["is_asleep"] = circadian_interaction.get("sleeping", False)
+            emotion["was_asleep"] = circadian_interaction.get("was_asleep", False)
             emotion["woke_from_sleep"] = circadian_interaction.get("woke_from_sleep", False)
             emotion["behavioral_pressure"] = build_behavioral_pressure(emotion).to_dict()
 

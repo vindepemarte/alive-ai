@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alive-AI v0.2.2 Update</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #091017;
+      --panel: #111b24;
+      --panel-2: #162432;
+      --line: #273849;
+      --text: #eef5f8;
+      --muted: #9db0bd;
+      --green: #69df8f;
+      --blue: #6db7ff;
+      --yellow: #ffd36b;
+      --red: #ff7187;
+      --ink: #071017;
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 260px),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 40px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 22px;
+      align-items: end;
+      padding: 28px 0 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      max-width: 760px;
+      font-size: clamp(34px, 4.4vw, 64px);
+      line-height: 0.98;
+      font-weight: 800;
+    }
+
+    h2 {
+      font-size: 18px;
+      line-height: 1.25;
+      font-weight: 760;
+    }
+
+    h3 {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 30px;
+      padding: 0 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .version {
+      color: var(--green);
+      border-color: rgba(105, 223, 143, 0.38);
+      background: rgba(105, 223, 143, 0.08);
+    }
+
+    .lead {
+      max-width: 720px;
+      margin-top: 16px;
+      font-size: 17px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+      align-items: center;
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .grid.cols-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .grid.cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid.cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    section {
+      margin-top: 30px;
+    }
+
+    .panel,
+    .metric,
+    .module,
+    .risk {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)), var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+    }
+
+    .panel {
+      padding: 18px;
+    }
+
+    .metric {
+      min-height: 132px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 12px;
+      color: var(--text);
+      font-size: 34px;
+      line-height: 1;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .metric .good {
+      color: var(--green);
+    }
+
+    .metric .watch {
+      color: var(--yellow);
+    }
+
+    .bar-list {
+      display: grid;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 180px minmax(130px, 1fr) 52px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .bar-row b {
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .bar-shell {
+      height: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #253342;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--green), var(--blue));
+    }
+
+    .score {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      font-weight: 700;
+    }
+
+    .module {
+      min-height: 194px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .module .num {
+      width: 30px;
+      height: 30px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      color: var(--blue);
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .module h2 {
+      min-height: 46px;
+    }
+
+    .module p {
+      font-size: 14px;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .flow div {
+      min-height: 96px;
+      display: grid;
+      align-content: center;
+      gap: 8px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel-2);
+    }
+
+    .flow b {
+      font-size: 14px;
+    }
+
+    .flow span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .expectation-chart {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .delta {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .delta-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+
+    .delta b {
+      font-size: 14px;
+    }
+
+    .delta span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .track {
+      position: relative;
+      height: 44px;
+      border-radius: var(--radius);
+      background: #223040;
+      overflow: hidden;
+    }
+
+    .track::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: var(--before);
+      background: rgba(255, 211, 107, 0.35);
+    }
+
+    .track::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: var(--after);
+      background: rgba(105, 223, 143, 0.76);
+      border-right: 2px solid rgba(255, 255, 255, 0.85);
+    }
+
+    .risk {
+      padding: 15px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .risk .level {
+      width: fit-content;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      background: rgba(255, 211, 107, 0.12);
+      color: var(--yellow);
+      border: 1px solid rgba(255, 211, 107, 0.3);
+    }
+
+    .risk.low .level {
+      background: rgba(105, 223, 143, 0.1);
+      color: var(--green);
+      border-color: rgba(105, 223, 143, 0.3);
+    }
+
+    .checklist {
+      display: grid;
+      gap: 9px;
+      margin-top: 14px;
+    }
+
+    .check {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .check::before {
+      content: "";
+      width: 16px;
+      height: 16px;
+      margin-top: 2px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(105, 223, 143, 0.12);
+    }
+
+    .footer {
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    code {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 3px 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.95em;
+    }
+
+    @media (max-width: 900px) {
+      header,
+      .split {
+        grid-template-columns: 1fr;
+      }
+
+      .meta {
+        justify-content: flex-start;
+      }
+
+      .grid.cols-4,
+      .grid.cols-3,
+      .grid.cols-2,
+      .flow,
+      .expectation-chart {
+        grid-template-columns: 1fr;
+      }
+
+      .bar-row {
+        grid-template-columns: 1fr;
+      }
+
+      .score {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <div class="tag version">Alive-AI v0.2.2</div>
+        <h1>Framework upgrade summary</h1>
+        <p class="lead">This release turns the v0.2 architecture into a safer, more model-agnostic runtime with stronger context, cleaner extension points, and fewer ways for local installs to drift from their intended model setup.</p>
+      </div>
+      <div class="meta">
+        <span class="tag">Published to npm</span>
+        <span class="tag">Commit e961464</span>
+        <span class="tag">157 tests passed</span>
+      </div>
+    </header>
+
+    <section class="grid cols-4" aria-label="Release facts">
+      <article class="metric">
+        <h3>Release</h3>
+        <strong class="good">0.2.2</strong>
+        <span>Used because 0.2.0 already existed on npm and cannot be overwritten.</span>
+      </article>
+      <article class="metric">
+        <h3>Coverage</h3>
+        <strong class="good">157</strong>
+        <span>Full Python test suite passed after the audit fixes.</span>
+      </article>
+      <article class="metric">
+        <h3>Package</h3>
+        <strong class="good">210</strong>
+        <span>Files included in the npm tarball, including all new v0.2 systems.</span>
+      </article>
+      <article class="metric">
+        <h3>Status</h3>
+        <strong class="good">Live</strong>
+        <span><code>latest</code> now resolves to <code>alive-ai@0.2.2</code>.</span>
+      </article>
+    </section>
+
+    <section>
+      <h2>What Changed</h2>
+      <div class="grid cols-3">
+        <article class="module">
+          <span class="num">1</span>
+          <h2>Alive body snapshot</h2>
+          <p>A clean body/state contract now collects emotion, circadian, drives, memory pressure, identity, and runtime signals into a single usable snapshot.</p>
+        </article>
+        <article class="module">
+          <span class="num">2</span>
+          <h2>Model adapter layer</h2>
+          <p>Provider wiring is more universal: Ollama, OpenRouter, ZAI, OpenAI-compatible APIs, capabilities, task roles, and fallback routing are cleaner.</p>
+        </article>
+        <article class="module">
+          <span class="num">3</span>
+          <h2>MCP tool layer</h2>
+          <p>MCP now has cataloging, permission decisions, proposal storage, audit logging, and owner approval paths with sensitive argument redaction.</p>
+        </article>
+        <article class="module">
+          <span class="num">4</span>
+          <h2>Layered memory</h2>
+          <p>Memory is split into working, episodic, semantic, emotional, autobiographical, dream, procedural, and shadow layers for better context selection.</p>
+        </article>
+        <article class="module">
+          <span class="num">5</span>
+          <h2>Behavioral pressure</h2>
+          <p>Emotional state now produces action tendencies, urgency, approach/withdraw pressure, and prompt-ready behavioral guidance.</p>
+        </article>
+        <article class="module">
+          <span class="num">6</span>
+          <h2>Plugin registry</h2>
+          <p>Core systems now advertise events, state keys, prompt sections, and permissions so the runtime can grow without hidden wiring collisions.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="split">
+      <article class="panel">
+        <h2>Projected Impact</h2>
+        <p>These are expectation scores based on the upgrade design and test coverage, not benchmark results.</p>
+        <div class="bar-list">
+          <div class="bar-row">
+            <b>Local model stability</b>
+            <div class="bar-shell"><div class="bar-fill" style="width: 88%"></div></div>
+            <span class="score">88%</span>
+          </div>
+          <div class="bar-row">
+            <b>Context usefulness</b>
+            <div class="bar-shell"><div class="bar-fill" style="width: 84%"></div></div>
+            <span class="score">84%</span>
+          </div>
+          <div class="bar-row">
+            <b>Tool safety</b>
+            <div class="bar-shell"><div class="bar-fill" style="width: 86%"></div></div>
+            <span class="score">86%</span>
+          </div>
+          <div class="bar-row">
+            <b>Extensibility</b>
+            <div class="bar-shell"><div class="bar-fill" style="width: 90%"></div></div>
+            <span class="score">90%</span>
+          </div>
+          <div class="bar-row">
+            <b>Debug visibility</b>
+            <div class="bar-shell"><div class="bar-fill" style="width: 78%"></div></div>
+            <span class="score">78%</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>Before To v0.2.2</h2>
+        <p>The green portion shows the expected v0.2.2 position. Yellow shows the previous practical baseline.</p>
+        <div class="expectation-chart">
+          <div class="delta">
+            <div class="delta-top"><b>Provider routing</b><span>54 to 88</span></div>
+            <div class="track" style="--before: 54%; --after: 88%"></div>
+          </div>
+          <div class="delta">
+            <div class="delta-top"><b>Install updates</b><span>58 to 90</span></div>
+            <div class="track" style="--before: 58%; --after: 90%"></div>
+          </div>
+          <div class="delta">
+            <div class="delta-top"><b>Memory routing</b><span>62 to 84</span></div>
+            <div class="track" style="--before: 62%; --after: 84%"></div>
+          </div>
+          <div class="delta">
+            <div class="delta-top"><b>MCP safety</b><span>40 to 86</span></div>
+            <div class="track" style="--before: 40%; --after: 86%"></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>Runtime Flow</h2>
+      <p>The new architecture keeps the model from receiving random loose state. Context is compiled from structured layers before it reaches the provider.</p>
+      <div class="flow">
+        <div>
+          <b>User message</b>
+          <span>Telegram, terminal, or WebUI input enters one runtime path.</span>
+        </div>
+        <div>
+          <b>Body snapshot</b>
+          <span>Emotion, sleep, drives, attachment, and identity become structured context.</span>
+        </div>
+        <div>
+          <b>Memory layers</b>
+          <span>Relevant facts, episodes, emotional traces, and narrative are selected.</span>
+        </div>
+        <div>
+          <b>Behavior pressure</b>
+          <span>State becomes action tendency instead of only mood labels.</span>
+        </div>
+        <div>
+          <b>Model adapter</b>
+          <span>The selected provider receives the right task model and capability contract.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid cols-3">
+      <article class="risk low">
+        <span class="level">Fixed</span>
+        <h2>Local model drift</h2>
+        <p>Existing Ollama installs keep their chosen model during update. Task-specific defaults no longer silently override legacy local settings.</p>
+      </article>
+      <article class="risk low">
+        <span class="level">Fixed</span>
+        <h2>Unsafe MCP approvals</h2>
+        <p>Denied or dangerous proposals cannot be approved into execution, and stored MCP arguments are redacted before hitting disk.</p>
+      </article>
+      <article class="risk">
+        <span class="level">Watch</span>
+        <h2>Real-world behavior</h2>
+        <p>The architecture is stronger, but the real proof is long conversation testing with local Gemma and OpenRouter under the same benchmark path.</p>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>Verified Before Release</h2>
+      <div class="checklist">
+        <div class="check">Full unit suite passed: <code>python3 -m unittest discover -s tests -v</code>.</div>
+        <div class="check">CLI smoke passed for the npm package.</div>
+        <div class="check">Python compile checks passed for changed runtime files.</div>
+        <div class="check">Packaged tarball install smoke passed from a fresh temporary project.</div>
+        <div class="check">npm registry verified: <code>alive-ai@0.2.2</code> and <code>latest: 0.2.2</code>.</div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span>Install update: <code>npx -y alive-ai@0.2.2 update --yes</code></span>
+      <span>Generated for Alive-AI v0.2.2 release review</span>
+    </footer>
+  </main>
+</body>
+</html>

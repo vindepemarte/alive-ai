@@ -5,6 +5,8 @@ Subconscious callbacks and integration
 
 import random
 
+from .proactive_safety import fallback_proactive_message, sanitize_proactive_message
+
 
 async def handle_subconscious_impulse(self, impulse):
     """Handle an impulse from the subconscious - potentially send proactive message"""
@@ -43,6 +45,7 @@ async def handle_subconscious_impulse(self, impulse):
 
     # Generate contextual message if we have a user
     message = await self._subconscious.generate_proactive_message(impulse)
+    message = sanitize_proactive_message(message) or fallback_proactive_message(impulse.type.value)
     print(f"[Subconscious] Sending to {target_user_id or 'default'}: \"{message}\"")
 
     emotion = self._heart.get_state() if self._heart else {}

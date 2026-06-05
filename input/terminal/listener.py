@@ -7,6 +7,8 @@ import asyncio
 import json
 import os
 
+from core.proactive_safety import fallback_proactive_message, sanitize_proactive_message
+
 
 class TerminalListener:
     """Terminal input/output adapter for Alive-AI."""
@@ -90,6 +92,9 @@ class TerminalListener:
     async def _send_proactive(self, data: dict):
         text = data.get("message") or data.get("text") or data.get("thought") or ""
         if text:
+            text = sanitize_proactive_message(text) or fallback_proactive_message(
+                data.get("reason") or data.get("type") or "proactive"
+            )
             if not data.get("arbiter_accepted"):
                 try:
                     from core.proactive_arbiter import get_proactive_arbiter

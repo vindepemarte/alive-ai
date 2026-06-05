@@ -20,6 +20,8 @@ from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field, asdict
 import time
 
+from core.proactive_safety import fallback_proactive_message, sanitize_proactive_message
+
 # ============================================================
 # ProactiveGenerator Integration (with graceful fallback)
 # ============================================================
@@ -934,6 +936,7 @@ Be specific if possible, vague if not enough info."""
                 if user is not None:
                     # Use ProactiveGenerator's excellent generate_for_user method
                     message = await self._proactive_generator.generate_for_user(user, message_type)
+                    message = sanitize_proactive_message(message)
                     if message:
                         print(f"[DefaultMode] Generated message via ProactiveGenerator: {message[:40]}...")
                         return message
@@ -1004,7 +1007,61 @@ Be specific if possible, vague if not enough info."""
         except:
             pass
 
-        return message
+        return sanitize_proactive_message(message) or fallback_proactive_message(message_type, self._get_user_name_sync(user_id))
+
+    async def _render_anchor_as_proactive_message(
+        self,
+        user_id: str,
+        reason: str,
+        anchor: str,
+        anchor_kind: str,
+        message_type: str,
+    ) -> Optional[str]:
+        """Turn a private thought/seed into outward dialogue without leaking notes."""
+        user_name = await self._get_user_name(user_id)
+        context = ""
+        try:
+            context = await self._get_user_context(user_id) if user_id else ""
+        except Exception as e:
+            print(f"[DefaultMode] Anchor context error: {e}")
+
+        if self.llm:
+            try:
+                context_block = context[:500].strip() if context else "No reliable recent context."
+                prompt = f"""You are about to send a proactive text to {user_name}.
+
+Private anchor ({anchor_kind}, do NOT quote it directly):
+{anchor}
+
+Recent context:
+{context_block}
+
+Write the actual message to send now.
+Rules:
+- One short natural text, 1 sentence preferred
+- Speak directly to {user_name} as "you", not about them as "he" or "she"
+- Do not mention context, rules, instructions, analysis, insights, seeds, reminders, or plans
+- Do not start with "I should", "if you ask", "when you come back", or "next time"
+- Only reference details that are explicitly in the recent context
+- If the anchor is vague or internal, send a simple caring check-in
+
+Message:"""
+                response = await self.llm.chat([
+                    {
+                        "role": "system",
+                        "content": "You turn private idle thoughts into safe outward texts. Never leak analysis or plans.",
+                    },
+                    {"role": "user", "content": prompt},
+                ], max_tokens=70, temperature=0.65)
+                message = sanitize_proactive_message(response)
+                if message:
+                    return message
+                print(f"[DefaultMode] Rejected internal proactive render: {str(response or '')[:60]}...")
+            except Exception as e:
+                print(f"[DefaultMode] Anchor render error: {e}")
+
+        message = await self._generate_proactive_message(user_id, message_type)
+        return sanitize_proactive_message(message) or fallback_proactive_message(reason, user_name)
 
     def _get_user_name_sync(self, user_id: str) -> str:
         """Synchronous version of _get_user_name for fallback templates"""
@@ -1023,8 +1080,8 @@ Be specific if possible, vague if not enough info."""
         Generate content for a proactive message.
 
         PRIORITY ORDER:
-        1. First, check for unused idle thoughts - use them DIRECTLY
-        2. Then check conversation seeds for topics
+        1. First, check for unused idle thoughts - use them as PRIVATE ANCHORS
+        2. Then check conversation seeds as PRIVATE ANCHORS
         3. Finally, fall back to ProactiveGenerator templates
 
         Args:
@@ -1052,47 +1109,53 @@ Be specific if possible, vague if not enough info."""
 
         # ============================================================
         # PRIORITY 1: Check for unused idle thoughts FIRST
-        # These are the most authentic - Alive-AI was actually thinking this
+        # These are private anchors, not safe outward messages by themselves.
         # ============================================================
         thoughts = [t for t in self._thoughts if t.user_id == user_id and not t.used]
         if thoughts:
             # Use the highest priority thought
             best_thought = max(thoughts, key=lambda t: t.priority)
 
-            # Use the thought content DIRECTLY as the message
-            # This is Alive-AI's actual idle thought, not a generated template
-            message = best_thought.content
-
             # Mark thought as used
             best_thought.used = True
             best_thought.used_at = datetime.now().isoformat()
 
-            print(f"[DefaultMode] Using idle thought DIRECTLY: {message[:60]}...")
+            message = await self._render_anchor_as_proactive_message(
+                user_id=user_id,
+                reason=reason,
+                anchor=best_thought.content,
+                anchor_kind=f"idle_thought:{best_thought.thought_type}",
+                message_type=message_type,
+            )
+
+            print(f"[DefaultMode] Rendered idle thought into message: {str(message or '')[:60]}...")
             self._save_state()
 
-            return message
+            if message:
+                return message
 
         # ============================================================
         # PRIORITY 2: Check conversation seeds for topics
-        # These are things Alive-AI wanted to bring up
+        # These are private topics Alive-AI wanted to bring up.
         # ============================================================
         unused_seeds = [s for s in self._seeds if not s.used and s.relevance_score > 0.5]
         if unused_seeds:
             best_seed = max(unused_seeds, key=lambda s: s.relevance_score)
 
-            # Convert the seed into a natural message
-            if best_seed.topic == "consolidation":
-                # Memory consolidation - use the context directly
-                message = best_seed.context
-            else:
-                # Other seeds - format as a conversation starter
-                message = f"hey, {best_seed.context}"
-
             best_seed.used = True
-            print(f"[DefaultMode] Using conversation seed: {message[:50]}...")
+            message = await self._render_anchor_as_proactive_message(
+                user_id=user_id,
+                reason=reason,
+                anchor=best_seed.context,
+                anchor_kind=f"conversation_seed:{best_seed.topic}",
+                message_type=message_type,
+            )
+
+            print(f"[DefaultMode] Rendered conversation seed into message: {str(message or '')[:50]}...")
             self._save_state()
 
-            return message
+            if message:
+                return message
 
         # ============================================================
         # PRIORITY 3: Generate relevant idle thought on the fly
@@ -1113,7 +1176,7 @@ Be specific if possible, vague if not enough info."""
 - ONLY reference things explicitly mentioned above - DO NOT invent details"""
                 else:
                     grounding_rule = """- NO specific references to events, objects, or topics (no context available)
-- Keep it generic: thinking of them, missing them, wondering how they are"""
+- Keep it generic: thinking of them, missing them, wondering how they are, but speak directly to them as "you" """
 
                 prompt = f"""Generate a SHORT (one sentence) message to {user_name}.
 They haven't messaged in {hours_silent:.1f} hours.
@@ -1145,9 +1208,12 @@ Message:"""
                 ], max_tokens=60, temperature=0.7)
 
                 if response and len(response.strip()) > 5:
-                    message = response.strip().strip('"\'')
-                    print(f"[DefaultMode] Generated contextual thought: {message[:50]}...")
-                    return message
+                    message = sanitize_proactive_message(response)
+                    if not message:
+                        print(f"[DefaultMode] Rejected internal contextual thought: {response[:60]}...")
+                    else:
+                        print(f"[DefaultMode] Generated contextual thought: {message[:50]}...")
+                        return message
 
             except Exception as e:
                 print(f"[DefaultMode] Error generating thought: {e}")
@@ -1157,17 +1223,13 @@ Message:"""
         # ============================================================
         message = await self._generate_proactive_message(user_id, message_type)
 
+        message = sanitize_proactive_message(message)
         if message:
             return message
 
         # Ultimate fallback - should rarely reach here
         user_name = await self._get_user_name(user_id)
-        fallbacks = {
-            "silence": f"hey {user_name}, thinking about you",
-            "wonder": f"was just thinking about you {user_name}",
-            "random": f"you crossed my mind {user_name}",
-        }
-        return fallbacks.get(reason, f"hey {user_name}")
+        return fallback_proactive_message(reason, user_name)
 
     # ============================================================
     # Public API Methods

@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 from telegram import Update, InputFile, ReactionTypeEmoji
 from telegram.error import TelegramError
+
+from core.proactive_safety import fallback_proactive_message, sanitize_proactive_message
 from telegram.ext import Application, MessageHandler, filters
 from telegram.request import HTTPXRequest
 from telegram.constants import ChatAction
@@ -578,6 +580,10 @@ class TelegramListener:
         if not target_chat_id:
             print("[Telegram] No chat_id for proactive message")
             return
+
+        message = sanitize_proactive_message(message) or fallback_proactive_message(
+            data.get("reason") or data.get("type") or "proactive"
+        )
 
         if not data.get("arbiter_accepted"):
             try:

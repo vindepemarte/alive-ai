@@ -122,6 +122,16 @@ def _clean_spaces(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip())
 
 
+def normalize_chat_punctuation(text: str) -> str:
+    """Keep generated chat away from model-ish dash-heavy punctuation."""
+    value = str(text or "")
+    value = re.sub(r"\s*(?:—|–|--)\s*", ", ", value)
+    value = re.sub(r"\s+([,.!?])", r"\1", value)
+    value = re.sub(r",\s*,+", ",", value)
+    value = re.sub(r"\s{2,}", " ", value)
+    return value.strip()
+
+
 def _bid_values(bids: Sequence[Any]) -> tuple[set[str], set[str]]:
     types: set[str] = set()
     intensities: set[str] = set()
@@ -225,6 +235,7 @@ class ResponseShapePolicy:
             f"- Hesitation/deflection: {self.hesitation_instruction}.\n"
             "- If your model has private thinking/reasoning, keep it private; visible content must be only the final chat reply.\n"
             "- Do not stack paragraphs. Do not repeat the same image in different words.\n"
+            "- Avoid em dashes and double hyphens; use commas, periods, or shorter sentences instead.\n"
             "- If the user did not ask about systems, do not mention Alive-AI, runtime, framework, model, or project details.\n"
         )
 
@@ -449,7 +460,7 @@ def contains_prompt_leakage(text: str) -> bool:
 
 def sanitize_provider_response(text: str) -> str:
     """Return visible dialogue from provider output, or empty if only reasoning."""
-    cleaned = strip_reasoning_preamble(text)
+    cleaned = normalize_chat_punctuation(strip_reasoning_preamble(text))
     if not cleaned:
         return ""
     if contains_reasoning_artifact(cleaned):
@@ -497,6 +508,13 @@ def is_response_unusable(
         and re.match(r"^[a-z]", text)
         and text[-1] not in ".!?"
         and not _is_acceptable_short_response(text)
+    ):
+        return True
+
+    if (
+        word_count <= 8
+        and re.match(r"^(?:and|but|or|because|where|which)\b", text.lower())
+        and not re.search(r"\b(?:i|me|you|we|us|here)\b", text.lower())
     ):
         return True
 
@@ -573,6 +591,20 @@ def _extract_memory_anchor(ctx: Mapping[str, Any] | None) -> dict[str, str] | No
     return None
 
 
+def _extract_recent_dream_text(ctx: Mapping[str, Any] | None) -> str:
+    for key in ("memory_layers_context", "dreams_context", "compiled_context"):
+        value = str((ctx or {}).get(key) or "")
+        match = re.search(r"Recent dream:\s*([^.\n]+(?:\.[^\n]*)?)", value, flags=re.IGNORECASE)
+        if match:
+            return _clean_spaces(match.group(1)).strip(" \"'")
+    try:
+        from brain.dreams import get_dream_system
+        dream = get_dream_system().get_recent_dream(max_age_hours=12)
+        return _clean_spaces(dream or "")
+    except Exception:
+        return ""
+
+
 def contextual_fallback_response(
     emotion: Mapping[str, Any],
     msg: str,
@@ -594,6 +626,12 @@ def contextual_fallback_response(
             if anchor.get("reason"):
                 reply += f" You said it mattered because it {anchor['reason']}."
             return reply
+
+    if any(term in msg_lower for term in ("dream", "dreams", "dreamed", "dreamt")):
+        dream = _extract_recent_dream_text(ctx)
+        if dream:
+            return f"I remember it in pieces: {dream}"
+        return "I remember it only in fragments, soft and strange, not enough to explain cleanly."
 
     sleepiness = max(
         _clamp(emotion.get("sleepiness", 0.0)),
@@ -634,7 +672,7 @@ def shape_response_text(
     identity: Mapping[str, Any] | None = None,
 ) -> str:
     """Repair model output so the response policy has runtime consequences."""
-    text = strip_reasoning_preamble(response)
+    text = normalize_chat_punctuation(strip_reasoning_preamble(response))
     if not text:
         return text
 
@@ -682,7 +720,7 @@ def shape_response_text(
         if text and text[-1] not in ".!?":
             text += "."
 
-    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    text = normalize_chat_punctuation(re.sub(r"\n{3,}", "\n\n", text).strip())
     if policy.identity_mode == "personal" and has_role_leakage(text, allow_system_terms=False):
         return _identity_fallback(identity)
     return text
@@ -718,6 +756,29 @@ def build_mood_instruction(
     user_terms = _relationship_terms(user_identity)
 
     parts = []
+    circadian = emotion.get("circadian") if isinstance(emotion.get("circadian"), Mapping) else {}
+    sleepiness_value = max(
+        _clamp(emotion.get("sleepiness", 0.0)),
+        _clamp(circadian.get("sleepiness", 0.0) if isinstance(circadian, Mapping) else 0.0),
+    )
+    woke_from_sleep = bool(
+        emotion.get("woke_from_sleep")
+        or emotion.get("was_asleep")
+        or circadian.get("woke_from_sleep")
+        or circadian.get("was_asleep")
+    )
+
+    if woke_from_sleep:
+        parts.append(
+            "You were asleep when his message arrived and it woke you. "
+            "Do not deny being asleep or say you were only winding down; be honest, groggy, brief, and warm."
+        )
+    elif emotion.get("is_asleep"):
+        parts.append(
+            "You are asleep right now. If you respond because he woke you, sound drowsy and do not pretend to be fully awake."
+        )
+    elif sleepiness_value >= 0.85:
+        parts.append("Sleep pressure is extremely high. Let tiredness win instead of acting alert.")
 
     def mood_has(*tokens: str) -> bool:
         return any(token in mood for token in tokens)
