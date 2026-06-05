@@ -35,7 +35,9 @@ class AliveBodySnapshotTests(unittest.TestCase):
         self.assertIn("mood", data)
         self.assertIn("affect", data)
         self.assertIn("memory_context", data)
+        self.assertIn("behavioral_pressure", data)
         self.assertEqual(data["memory_context"]["selected_count"], 1)
+        self.assertIn("pressure=", snapshot.to_prompt_section())
         self.assertNotIn("full memory", snapshot.to_prompt_section().lower())
         self.assertLessEqual(len(snapshot.to_prompt_section(max_chars=500)), 500)
 

@@ -155,6 +155,72 @@ function normalizeChoice(value, fallback = "") {
   return String(value || fallback).trim().toLowerCase();
 }
 
+function canonicalLlmProvider(value) {
+  const normalized = normalizeChoice(value, "local").replace(/_/g, "-");
+  const aliases = {
+    local: "ollama",
+    "openai-compatible": "openai-compatible",
+    "openai compatible": "openai-compatible",
+    "openai": "openai-compatible",
+    "oai-compatible": "openai-compatible",
+    "lm-studio": "lmstudio",
+    lmstudio: "lmstudio",
+    "llama.cpp": "llamacpp",
+    "llama-cpp": "llamacpp",
+    llamacpp: "llamacpp",
+    "mlx-lm": "mlx",
+    mlx: "mlx"
+  };
+  return aliases[normalized] || normalized;
+}
+
+function isOpenAiCompatibleProvider(provider) {
+  return ["openai-compatible", "lmstudio", "llamacpp", "vllm", "mlx"].includes(provider);
+}
+
+function openAiCompatibleDefaults(provider) {
+  const defaults = {
+    "openai-compatible": {
+      prefix: "OPENAI_COMPATIBLE",
+      url: "http://127.0.0.1:8000/v1",
+      model: "local-model",
+      local: "no"
+    },
+    lmstudio: {
+      prefix: "LMSTUDIO",
+      url: "http://127.0.0.1:1234/v1",
+      model: "local-model",
+      local: "yes"
+    },
+    llamacpp: {
+      prefix: "LLAMACPP",
+      url: "http://127.0.0.1:8080/v1",
+      model: "local-model",
+      local: "yes"
+    },
+    vllm: {
+      prefix: "VLLM",
+      url: "http://127.0.0.1:8000/v1",
+      model: "local-model",
+      local: "no"
+    },
+    mlx: {
+      prefix: "MLX",
+      url: "http://127.0.0.1:8080/v1",
+      model: "local-model",
+      local: "yes"
+    }
+  };
+  return defaults[provider];
+}
+
+function yesNo(value, fallback = false) {
+  const normalized = normalizeChoice(value);
+  if (["yes", "y", "true", "1", "on"].includes(normalized)) return true;
+  if (["no", "n", "false", "0", "off", "skip"].includes(normalized)) return false;
+  return fallback;
+}
+
 function isSkipped(value) {
   return normalizeChoice(value) === "skip";
 }
@@ -350,14 +416,47 @@ function mergeMissingConfig(target, defaults) {
   return changed;
 }
 
+function preserveLegacyModelChoices(settings, before, defaults) {
+  let changed = false;
+  const prefixes = [
+    "OLLAMA",
+    "ZAI",
+    "OPENROUTER",
+    "OPENAI_COMPATIBLE",
+    "LMSTUDIO",
+    "LLAMACPP",
+    "VLLM",
+    "MLX",
+  ];
+  for (const prefix of prefixes) {
+    const baseKey = `${prefix}_MODEL`;
+    const baseModel = before[baseKey];
+    if (!baseModel || typeof baseModel !== "string") continue;
+    for (const suffix of ["MAIN", "FAST", "THINKING"]) {
+      const taskKey = `${prefix}_MODEL_${suffix}`;
+      if (Object.prototype.hasOwnProperty.call(before, taskKey)) continue;
+      if (!Object.prototype.hasOwnProperty.call(settings, taskKey)) continue;
+      if (!Object.prototype.hasOwnProperty.call(defaults, taskKey)) continue;
+      if (settings[taskKey] === defaults[taskKey] && settings[taskKey] !== baseModel) {
+        settings[taskKey] = baseModel;
+        changed = true;
+      }
+    }
+  }
+  return changed;
+}
+
 function mergeProjectSettingsDefaults() {
   const settingsPath = path.join(process.cwd(), "config", "settings.json");
   const examplePath = path.join(process.cwd(), "config", "settings.example.json");
   if (!fs.existsSync(settingsPath) || !fs.existsSync(examplePath)) return false;
   try {
     const settings = readJson(settingsPath);
+    const before = JSON.parse(JSON.stringify(settings));
     const defaults = readJson(examplePath);
-    if (!mergeMissingConfig(settings, defaults)) return false;
+    const merged = mergeMissingConfig(settings, defaults);
+    const preservedModels = preserveLegacyModelChoices(settings, before, defaults);
+    if (!merged && !preservedModels) return false;
     writeJson(settingsPath, settings);
     return true;
   } catch (error) {
@@ -642,17 +741,28 @@ async function setupProject(args) {
   ));
   const ownerId = emptyIfSkipped(await ask("Telegram owner ID (optional, use skip to leave blank)", "", assumeYes));
   const telegramToken = emptyIfSkipped(await ask("Telegram bot token (optional, use skip to leave blank)", "", assumeYes));
-  const providerChoice = normalizeChoice(
-    await ask("LLM provider: local, openrouter, zai, or skip", "local", assumeYes),
-    "local"
+  const providerChoice = canonicalLlmProvider(
+    await ask("LLM provider: local, openrouter, zai, lmstudio, llamacpp, vllm, mlx, openai-compatible, or skip", "local", assumeYes)
   );
-  const provider = providerChoice === "local" ? "ollama" : providerChoice;
+  const provider = providerChoice;
   const openRouterKey = provider === "openrouter"
     ? emptyIfSkipped(await ask("OpenRouter API key (or skip)", "", assumeYes))
     : "";
   const zaiKey = provider === "zai"
     ? emptyIfSkipped(await ask("ZAI API key (or skip)", "", assumeYes))
     : "";
+  let compatibleProviderConfig = null;
+  if (isOpenAiCompatibleProvider(provider)) {
+    const defaults = openAiCompatibleDefaults(provider);
+    compatibleProviderConfig = {
+      prefix: defaults.prefix,
+      baseUrl: emptyIfSkipped(await ask(`${provider} base URL`, defaults.url, assumeYes)) || defaults.url,
+      model: emptyIfSkipped(await ask(`${provider} model`, defaults.model, assumeYes)) || defaults.model,
+      apiKey: emptyIfSkipped(await ask(`${provider} API key (optional, use skip for none)`, "", assumeYes)),
+      local: yesNo(await ask(`${provider} endpoint is local/private? yes or no`, defaults.local, assumeYes), defaults.local === "yes"),
+      requiresApiKey: yesNo(await ask(`${provider} requires API key? yes or no`, "no", assumeYes), false)
+    };
+  }
   const ttsChoice = normalizeChoice(
     await ask("Voice provider: gtts, google, vibe, or skip", "gtts", assumeYes),
     "gtts"
@@ -703,12 +813,21 @@ async function setupProject(args) {
   settings.LLM_PROVIDER = provider === "skip" ? "ollama" : provider;
   settings.OPENROUTER_API_KEY = openRouterKey;
   settings.ZAI_API_KEY = zaiKey;
+  if (compatibleProviderConfig) {
+    settings[`${compatibleProviderConfig.prefix}_BASE_URL`] = compatibleProviderConfig.baseUrl;
+    settings[`${compatibleProviderConfig.prefix}_MODEL`] = compatibleProviderConfig.model;
+    settings[`${compatibleProviderConfig.prefix}_API_KEY`] = compatibleProviderConfig.apiKey;
+    settings[`${compatibleProviderConfig.prefix}_LOCAL`] = compatibleProviderConfig.local;
+    settings[`${compatibleProviderConfig.prefix}_REQUIRES_API_KEY`] = compatibleProviderConfig.requiresApiKey;
+  }
   settings.LLM_FALLBACK.ENABLED = provider !== "skip";
   settings.LLM_FALLBACK.ORDER = provider === "skip"
     ? ["ollama"]
     : provider === "ollama"
       ? ["ollama"]
-      : [provider, "ollama"];
+      : isOpenAiCompatibleProvider(provider)
+        ? [provider]
+        : [provider, "ollama"];
   settings.TTS_PROVIDER = ttsChoice === "skip" ? "none" : ttsChoice;
   settings.GOOGLE_TTS_API_KEY = googleTtsKey;
   settings.vibe_tts_url = vibeTtsUrl;

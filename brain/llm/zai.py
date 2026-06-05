@@ -208,8 +208,7 @@ class ZAIClient(BaseLLM):
                 return None
             except Exception as e:
                 print(f"[ZAI] Exception: {e}")
-                if attempt == 1:
-                    return None
+                return None
 
         return None
 

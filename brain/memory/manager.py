@@ -11,6 +11,7 @@ from .summarizer import ConversationSummarizer
 from .index import MemoryIndex
 from .profile_curiosity import ProfileCuriosity
 from .context_compiler import ContextCompiler
+from .layers import MemoryLayerRegistry
 
 
 class Memory:
@@ -42,6 +43,15 @@ class Memory:
         self.profile_curiosity = ProfileCuriosity(self.data_path)
         self.summarizer = ConversationSummarizer(self.data_path, agent_name=self.agent_name)
         self.context_compiler = ContextCompiler(self.data_path, agent_name=self.agent_name)
+        self.layer_registry = MemoryLayerRegistry(
+            self.data_path,
+            user_id=user_id,
+            working=self.working,
+            episodic=self.episodic,
+            semantic=self.semantic,
+            context_compiler=self.context_compiler,
+            agent_name=self.agent_name,
+        )
         self.vector_store = None
         self.openmind = None
         self.bot_id = bot_id.lower()
@@ -137,6 +147,7 @@ class Memory:
 
     async def build_context(self, max_tokens: int = None, current_message: str = "") -> tuple:
         import os
+        from core.settings import get_bool, get_int
         if max_tokens is None:
             max_tokens = int(os.environ.get("LLM_CONTEXT_TOKENS", "500"))
         facts_parts = []
@@ -180,6 +191,24 @@ class Memory:
         else:
             print(f"[Memory] Using working memory directly ({len(history)} items)")
 
+        layer_snapshot = None
+        layer_context = ""
+        if get_bool("MEMORY_LAYERS_ENABLED", True):
+            max_layer_items = max(1, min(get_int("MEMORY_LAYERS_MAX_ITEMS", 2), 5))
+            try:
+                layer_snapshot = self.layer_registry.build_snapshot(
+                    current_message=current_message,
+                    max_items_per_layer=max_layer_items,
+                )
+                layer_context = layer_snapshot.compact_text(
+                    max_items_per_layer=max_layer_items,
+                    max_words=max(80, min(get_int("MEMORY_LAYERS_MAX_WORDS", 220), 500)),
+                )
+                if layer_context:
+                    facts_parts.append(layer_context)
+            except Exception as e:
+                print(f"[MemoryLayers] Snapshot error (non-fatal): {e}")
+
         facts_context = "\n".join(facts_parts)
         compiled = self.context_compiler.compile(
             current_message,
@@ -198,6 +227,8 @@ class Memory:
             "compiled_context": compiled.get("text", ""),
             "context_cards": compiled.get("cards", []),
             "context_trace": compiled.get("trace", {}),
+            "memory_layers": layer_snapshot.to_dict() if layer_snapshot else {},
+            "memory_layers_context": layer_context,
         }
         curiosity_prompt = self.profile_curiosity.next_prompt(current_message, history)
         if curiosity_prompt:

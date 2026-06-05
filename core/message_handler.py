@@ -23,6 +23,7 @@ from .boundary_governor import (
     govern_response,
 )
 from .body_snapshot import build_alive_body_snapshot
+from .behavioral_pressure import build_behavioral_pressure
 from core.settings import get_float
 
 # ============================================================
@@ -540,6 +541,7 @@ async def _process_single_message(self, data: dict):
             emotion["sleepiness"] = circadian_interaction.get("sleepiness", emotion.get("sleepiness", 0.0))
             emotion["is_asleep"] = circadian_interaction.get("sleeping", False)
             emotion["woke_from_sleep"] = circadian_interaction.get("woke_from_sleep", False)
+            emotion["behavioral_pressure"] = build_behavioral_pressure(emotion).to_dict()
 
         # No owner boost - let emotions develop authentically
         emotion["is_owner"] = is_owner  # Just flag for commands, no emotion changes
@@ -1696,6 +1698,7 @@ def get_aliveness_module_status() -> dict:
     """
     modules = {
         "interoception": INTEROCEPTION_AVAILABLE,
+        "skills_registry": SKILLS_REGISTRY_AVAILABLE,
         "default_mode": DEFAULT_MODE_AVAILABLE,
         "bid_detector": BID_DETECTOR_AVAILABLE,
         "emotional_memory": EMOTIONAL_MEMORY_AVAILABLE,
@@ -1706,10 +1709,26 @@ def get_aliveness_module_status() -> dict:
         "attachment": ATTACHMENT_AVAILABLE,
         "phantom_somatic": PHANTOM_SOMATIC_AVAILABLE,
         "narrative": NARRATIVE_AVAILABLE,
+        "global_activity": GLOBAL_ACTIVITY_AVAILABLE,
+        "conversation_flow": CONVERSATION_FLOW_AVAILABLE,
         "dreams": DREAMS_AVAILABLE,
         "linguistic": LINGUISTIC_AVAILABLE,
         "curiosity": CURIOSITY_AVAILABLE,
         "almost_said": ALMOST_SAID_AVAILABLE,
     }
     modules["modules_active"] = sum(v for v in modules.values() if isinstance(v, bool))
+    try:
+        from core.plugin_registry import register_builtin_plugins
+
+        registry = register_builtin_plugins(probe=False)
+        for module_name, available in modules.items():
+            if isinstance(available, bool):
+                registry.update_availability(module_name, available)
+        plugin_status = registry.snapshot()
+        modules["plugin_count"] = plugin_status["plugin_count"]
+        modules["plugins_available"] = plugin_status["available_count"]
+        modules["plugin_categories"] = plugin_status["categories"]
+        modules["plugins"] = plugin_status["plugins"]
+    except Exception as exc:
+        modules["plugin_registry_error"] = str(exc)
     return modules

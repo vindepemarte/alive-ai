@@ -41,10 +41,13 @@ The emotional layer now has real runtime consequences:
 | Moment appraisal | A canonical interpretation of what each turn means: context, vibe, intensity, safety, playfulness, vulnerability, memory importance, body effects, and response mode. | The heart no longer reacts only to isolated keywords. It appraises the current message with recent context before generation, then reconciles the assistant's own response afterward so visible replies, dashboard emotion, body state, hormones, memory, narrative, and prompts stay aligned. |
 | Agency boundary governor | Relational pressure state, especially intimacy requests that ask her to erase hurt, anger, or repair. | Replies are checked before sending. If a draft accepts closeness by pretending hurt did not happen, the governor replaces it with a slower boundary/repair response, blocks media escalation, and prevents desire/arousal state from drifting upward. |
 | Complex emotions | Guilt, pride, jealousy, embarrassment, and anticipation. | They do not just label the dashboard. They push fear, sadness, anger, dominance, trust, arousal, joy, and future-facing behavior in different directions. |
+| Behavioral pressure compiler | Action tendencies such as approach, pursue, protect boundary, repair, withdraw, seek reassurance, play, stabilize, rest, and curiosity. | Emotion, hormones, sleep, and boundary state become a ranked behavioral-pressure profile. The inner-state compiler uses it as a behavior contract so small models do not treat anger, fear, guilt, love, or sleepiness as decorative labels. |
 | Inner-state compiler | A compact response plan made from emotion, sleep pressure, body state, bids, dreams, memories, attachment, curiosity, conflicts, and narrative phase. | Every reply receives one prioritized inner-state briefing instead of a pile of disconnected prompt hints. The planner decides what to reveal, what to withhold, and whether the answer should comfort, answer directly, repair, ask, set a boundary, or drift back toward sleep. |
 | Alive body snapshot | A read-only compact body/state packet built from mood, affect, hormones, circadian phase, attachment, narrative, somatic/interoceptive state, and memory trace metadata. | Small local models receive one coherent state signal through the inner-state compiler instead of losing important context across scattered prompt sections. |
-| Model capability metadata | Provider/model traits for OpenRouter, Ollama, ZAI, and the unified fallback chain, including local/remote status and reasoning-control support. | Provider controls such as OpenRouter reasoning exclusion, Ollama `think:false`, and ZAI thinking disable are explicit and compatibility-retried instead of being hidden settings that can break visible replies. |
+| Layered memory compiler | Working, episodic, semantic, emotional, procedural, autobiographical, dream, and shadow memory layers assembled from existing stores. | Each reply gets a compact "memory layers" block that preserves concrete user facts, meaningful moments, relationship story, dreams, and unresolved tensions without dumping a full transcript into the prompt. |
+| Model adapter layer | Provider/model traits and adapters for OpenRouter, Ollama, ZAI, and OpenAI-compatible local/server runtimes such as LM Studio, llama.cpp server, vLLM, and MLX-LM server. | Provider controls such as OpenRouter reasoning exclusion, Ollama `think:false`, and ZAI thinking disable are explicit and compatibility-retried, while generic OpenAI-compatible endpoints receive a conservative payload with no provider-specific reasoning switches. |
 | Typed nervous events | Backward-compatible event envelopes, priorities, opt-in history, and redacted opt-in audit metadata. | Existing listeners still receive plain dict payloads, while new runtime features can trace source, correlation, and history without leaking private chat by default. |
+| Plugin registry | Typed declarations for optional organs, memory layers, skills, and connectors, including import path, events, prompt sections, state keys, permissions, and availability. | The runtime can now report what aliveness modules exist and which are active through one secret-safe catalog, instead of hiding capability state behind scattered optional imports. This is the foundation for a future plugin API without changing module behavior all at once. |
 | Hormones | Oxytocin, dopamine, serotonin, cortisol, melatonin, plus residual metabolites. | Hormones modulate perception, soul valence/arousal, emotional deltas, somatic body state, interoception, impulse probability, and prompt guidance. Stress makes her more vigilant; bonding increases trust; dopamine increases pursuit; serotonin stabilizes; melatonin slows her down. |
 | Internal body state | Energy, arousal, certainty, social satiety, cognitive load, connection craving, body sensations, and somatic memories. | The body state is persisted and feeds prompt tone, sleep/rest behavior, and whether she feels steady, overloaded, touchy, open, or withdrawn. |
 | Circadian rhythm | Phase, sleep pressure, sleep debt in hours, forced-awake windows, sleep cycle ID, wake time, and sleepiness. | She becomes sleepy, slows down, falls asleep, stops outward proactive behavior while asleep, can be woken by a message, recovers sleep debt, and wakes with lower or higher energy depending on rest. After 2am, high sleep pressure shortens user wake-up windows so she can drift back to sleep instead of staying pinned awake. |
@@ -54,7 +57,7 @@ The emotional layer now has real runtime consequences:
 | Internal conflicts | Five persistent desire-vs-fear tensions (closeness/independence, passion/comfort, stability/growth, etc.) with a swinging balance that is saved between sessions. | Every message triggers conflicts whose keywords match the topic. Balance swings over time. Conflicts with tension > 0 surface in the prompt and are visible on the dashboard with a tension bar. |
 | Proactive arbiter | A per-user audit log of accepted and rejected autonomous messages, with reason, anchor, score, cooldowns, and sleep state. | Idle thoughts cannot spam the user just because a random impulse fired. A proactive message needs a contextual anchor, enough silence, a high enough emotional score, no recent duplicate reason, and no active sleep block unless it is explicitly scheduled. |
 | Reflection and autobiography | Post-response reflection journal, global autobiography, and per-user relationship autobiography. | After each reply, Alive-AI checks whether it answered the user, matched its state, repeated itself, created or resolved an open loop, or discovered a repeated preference. Those records persist under `data/` and feed future continuity work. |
-| MCP scaffold | Disabled-by-default catalog, permission, and audit shapes for future tool connections. | v0.2.0 does not execute MCP tools. Any future tool use is designed to start from default-deny scopes, owner approval, redaction, and explicit audit trails. |
+| Sandboxed MCP runtime | Disabled-by-default MCP server catalog, SDK-backed stdio client, proposal store, permission engine, owner approval commands, and redacted audit log. | MCP tools are never executed directly from normal chat. A tool call must be proposed, pass default-deny scope checks, be approved by the configured owner, and then be explicitly executed through the owner control path. |
 | Persistence | Emotion, attachment, soul, somatic, unconscious, conflict, subconscious, circadian, and dream state under `data/`. | Restarting the runtime preserves the inner state instead of visually resetting it. |
 
 The public Pages site is an interactive static portal with a presentation, simulator, docs, and a preserved static WebUI demo. The local WebUI is the live version: it streams the actual state from the running Python backend.
@@ -188,11 +191,12 @@ config/settings.json
 
 | Setup item | Options |
 | --- | --- |
-| LLM | `local`/Ollama, OpenRouter, ZAI, or `skip` for demo/fallback-only mode. |
+| LLM | `local`/Ollama, OpenRouter, ZAI, LM Studio, llama.cpp server, vLLM, MLX-LM server, generic OpenAI-compatible API, or `skip` for demo/fallback-only mode. |
 | Telegram | Bot token and owner ID are optional. Use terminal chat if you do not want Telegram. |
 | Voice | `gtts` local/free default, Google TTS, VibeVoice, or `skip`. |
 | Images | Fal.ai API key or `skip`. Local media folders still work without image generation. |
 | Memory | Built-in local memory, OpenMind cloud, or OpenMind local. |
+| MCP tools | Default off. Advanced users can configure MCP servers in `config/settings.json`; tool calls require explicit owner approval and are audited locally. |
 | Redis vector cache | Optional. Leave it off when using OpenMind unless you specifically want a local Redis Stack vector index. |
 
 Minimum useful paths:
@@ -205,6 +209,11 @@ npx . chat
 # Local LLM
 ollama pull qwen3:4b
 npx . setup
+npx . chat
+
+# LM Studio, llama.cpp server, vLLM, MLX-LM server, or any OpenAI-compatible endpoint
+npx . setup
+# choose lmstudio, llamacpp, vllm, mlx, or openai-compatible
 npx . chat
 
 # Telegram
@@ -254,7 +263,7 @@ Terminal commands:
 
 ## OpenMind Memory
 
-Alive-AI has built-in local working, episodic, semantic, and emotional memory. OpenMind is optional and works as a hybrid long-term semantic memory layer.
+Alive-AI has built-in local working, episodic, semantic, emotional, autobiographical, dream, and shadow memory. The layered memory compiler compresses those stores into a compact per-reply context block so local models keep the important facts, emotional meaning, relationship story, and unresolved tensions without needing a huge raw transcript. OpenMind is optional and works as a hybrid long-term semantic memory layer.
 
 Modes:
 
@@ -266,7 +275,7 @@ Modes:
 
 OpenMind does not replace Alive-AI's emotional state. It adds durable semantic recall across tools and machines.
 
-Redis is not required when OpenMind is enabled. Alive-AI always keeps file-backed working, episodic, semantic, and emotional memory in the project `data/` folder. Redis Stack is an optional local vector cache for users who want it.
+Redis is not required when OpenMind is enabled. Alive-AI always keeps file-backed working, episodic, semantic, emotional, autobiographical, dream, and shadow memory in the project `data/` folder. Redis Stack is an optional local vector cache for users who want it.
 
 Cloud setup:
 
@@ -287,7 +296,7 @@ OPENMIND_BASE_URL=http://127.0.0.1:3333
 
 ## Requirements
 
-Minimum for cloud LLMs or remote Ollama:
+Minimum for cloud LLMs, remote model servers, or local Ollama:
 
 | Requirement | Minimum |
 | --- | --- |
@@ -295,7 +304,7 @@ Minimum for cloud LLMs or remote Ollama:
 | Python | 3.11+ |
 | RAM | 8 GB |
 | Disk | 2 GB free |
-| LLM | OpenRouter, ZAI, remote Ollama, or local Ollama already installed |
+| LLM | OpenRouter, ZAI, Ollama, or an OpenAI-compatible local/server endpoint |
 
 Comfortable local setup:
 
@@ -305,7 +314,7 @@ Comfortable local setup:
 | RAM | 16 GB for 3B-4B local models |
 | RAM for bigger models | 32 GB for 7B+ local models, Redis, voice, and long sessions |
 | Disk | 10 GB+, more if you keep local models/media |
-| Optional tools | `uv`, `ffmpeg`, Docker, Ollama, Redis Stack |
+| Optional tools | `uv`, `ffmpeg`, Docker, Ollama, LM Studio, llama.cpp, vLLM, MLX-LM, Redis Stack |
 
 `npx . start` creates `.alive-ai/venv` and installs Python dependencies. System-level packages such as Node, Python, Ollama, Docker, and ffmpeg can be checked with `npx . doctor`. Use `npx . doctor --fix` when you want guided installers.
 
@@ -334,7 +343,13 @@ The real WebUI streams local runtime state over Server-Sent Events and shows:
 - attachment, circadian rhythm, sleepiness, body memory, dreams, curiosity, and conflicts,
 - runtime health through local endpoints.
 
-The WebUI hydrates from durable runtime stores instead of only the current browser session. It resolves the active dashboard user from explicit WebUI input, live Telegram activity, configured owner ID, runtime state, and finally the most active user folder on disk. Chat rows are journaled per active user under `data/users/<user>/webui_chat.jsonl` and merged with episodic Telegram conversation history, including legacy flat `data/conversations` history after upgrades. `/state` and the SSE stream now use the same composed snapshot: visible chat, runtime state, soul state, aliveness state, current thoughts, memory counters, and the active dashboard user.
+The WebUI hydrates from durable runtime stores instead of only the current browser session. It resolves the active dashboard user from explicit WebUI input, live Telegram activity, configured owner ID, runtime state, and finally the most active user folder on disk. Chat rows are journaled per active user under `data/users/<user>/webui_chat.jsonl` and merged with episodic Telegram conversation history, including legacy flat `data/conversations` history after upgrades. `/state` and the SSE stream now use the same composed snapshot: visible chat, runtime state, soul state, aliveness state, current thoughts, memory counters, MCP status, plugin status, layered memory diagnostics, and the active dashboard user.
+
+The dashboard snapshot and `/api/mcp/status` expose MCP status without secrets: enabled state, mode, declared servers, env key names, allowed scopes, pending proposal count, and local audit/proposal paths. It does not expose tool arguments or environment values.
+
+The dashboard snapshot and `/api/plugins/status` expose the typed plugin registry without secrets: module name, category, import path, availability, declared events, prompt sections, state keys, permissions, and redacted import errors. It is a diagnostics surface first; it does not auto-enable tools or bypass module-level safety gates.
+
+The dashboard snapshot and `/api/memory/layers` expose the same compact biological memory layers used in prompt assembly. This is for diagnostics: it shows which concrete facts, emotional memories, autobiographical notes, dreams, and shadow tensions are currently available to the model.
 
 Sleep debt is stored and shown as hours on a 0-8h pressure scale. The UI no longer reports it as a misleading capped percentage, so a persisted `5.6h` debt displays as `5.6h` with the matching pressure bar.
 
@@ -380,7 +395,9 @@ Implemented:
 
 - [x] Local-first emotional runtime
 - [x] Persistent emotion model with PAD-style core affect, decay, and compound state
+- [x] Behavioral pressure compiler that turns emotion and hormones into response tendencies
 - [x] Working, episodic, semantic, and emotional memory modules
+- [x] Biological memory layer compiler for working, episodic, semantic, emotional, procedural, autobiographical, dream, and shadow context
 - [x] Default-mode loop for idle thoughts and proactive impulses
 - [x] Inner-state compiler and response planner for coherent prompt assembly
 - [x] Contextual proactive-message arbiter with audit logging, cooldowns, and sleep gating
@@ -389,6 +406,8 @@ Implemented:
 - [x] Hormonal runtime effects for emotion, body state, interoception, impulses, and prompt guidance
 - [x] Durable internal state persistence across emotion, soul, body, subconscious, dreams, and conflicts
 - [x] Per-user memory/state isolation
+- [x] Sandboxed MCP runtime foundation with default-deny scopes, owner approval, and redacted audit
+- [x] Typed plugin registry foundation for optional organs, skills, memory layers, and connectors
 - [x] Telegram input/output runtime
 - [x] Terminal chat runtime with owner-style slash commands
 - [x] Split-pane terminal chat with logs
@@ -404,6 +423,7 @@ Implemented:
 Next:
 
 - [ ] One-command local model bootstrap through Ollama profiles
+- [ ] MCP approval UI and curated safe tool profiles
 - [ ] Desktop app wrapper with tray controls and local service lifecycle
 - [ ] Browser-based onboarding wizard for personality, boundaries, LLM provider, and memory settings
 - [ ] Better guided system install commands per OS
@@ -415,7 +435,7 @@ Next:
 - [ ] Embodiment experiments through avatars, sensors, robotics bridges, or body-like feedback loops
 - [ ] Real-world action plugins for travel planning, calendar, web tasks, creator workflows, and tool use with operator controls
 - [ ] Import/export for memories and personality snapshots
-- [ ] Plugin API for new senses, skills, and output modalities
+- [ ] Public plugin API for new senses, skills, and output modalities
 - [x] Evaluation harness for humanlike affect, emotional continuity, identity coherence, sleep realism, and model-vs-runtime comparisons
 - [ ] Extended evaluation for memory drift and unhealthy attachment risk
 - [ ] Safety and boundary research for autonomous emotional agents that can feel persuasive, attached, or dependent

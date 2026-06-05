@@ -8,6 +8,7 @@ from .emotional_memory import EmotionalMemory
 from .emotional_variability import EmotionalVariability
 from .love import AttachmentSystem
 from .soul import SoulOrchestrator
+from core.behavioral_pressure import build_behavioral_pressure
 
 try:
     from .circadian import get_circadian_engine
@@ -436,6 +437,7 @@ class Heart:
             "response_tendency": soul_experience.get("response_tendency", "neutral"),
             "moment_appraisal": appraisal.to_dict() if hasattr(appraisal, "to_dict") else appraisal
         })
+        state["behavioral_pressure"] = build_behavioral_pressure(state).to_dict()
         return state
 
     def reconcile_response(self, user_text: str, response: str, appraisal: MomentAppraisal | dict | None = None,
@@ -586,6 +588,7 @@ class Heart:
             "sleepiness": circadian.get("sleepiness", 0.0),
             "is_asleep": circadian.get("sleeping", False),
         })
+        state["behavioral_pressure"] = build_behavioral_pressure(state).to_dict()
         return state
 
     def get_reaction(self, message: str) -> str | None:

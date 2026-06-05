@@ -41,6 +41,8 @@ class Self:
         self._photos = None
         self._videos = None
         self._hot_reload = None
+        self._mcp = None
+        self._plugins = None
 
         # User Experience Skills
         self._memory_callbacks = None
@@ -177,6 +179,7 @@ class Self:
             seen.add(id(client))
             with contextlib.suppress(Exception):
                 await client.close()
+        self._mcp = None
 
     async def _decay_timer(self):
         """Natural emotion decay every minute + memory check"""

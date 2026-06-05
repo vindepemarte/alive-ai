@@ -39,6 +39,8 @@ async def load_modules(self, input_channel: str = "telegram"):
 
     _init_photos(self, name)
     _init_videos(self, name)
+    _init_plugin_registry(self, name)
+    _init_mcp(self, name)
 
     input_channel = (input_channel or "telegram").lower()
     if input_channel == "terminal":
@@ -73,8 +75,8 @@ def _init_llms(self, name: str):
         print(f"[{name}] Fallback Order: {' -> '.join(order)}")
 
         # Use unified LLM
-        self._llm = get_unified_llm_client()
-        self._fast_llm = self._llm  # Use same unified client for both
+        self._llm = get_unified_llm_client("main")
+        self._fast_llm = get_unified_llm_client("fast") or self._llm
 
         if self._llm:
             print(f"[{name}] Unified LLM connected with fallback chain")
@@ -150,6 +152,39 @@ def _init_videos(self, name: str):
     self._videos = VideoScanner(self.base / "myvids")
     self._videos.scan()
     print(f"[{name}] Videos: {self._videos.stats()['total']}")
+
+
+def _init_mcp(self, name: str):
+    """Initialize sandboxed MCP service. Default-off and owner-approved."""
+    try:
+        from core.mcp import McpRuntime
+        from core.settings import get as settings_get
+
+        self._mcp = McpRuntime(self.base, settings_getter=settings_get)
+        status = self._mcp.status()
+        mode = status.get("mode", "off")
+        enabled = status.get("enabled", False)
+        server_count = len(status.get("servers", []))
+        print(f"[{name}] MCP runtime: {'enabled' if enabled else 'disabled'} mode={mode} servers={server_count}")
+    except Exception as e:
+        self._mcp = None
+        print(f"[{name}] MCP runtime unavailable: {e}")
+
+
+def _init_plugin_registry(self, name: str):
+    """Initialize declaration/status registry for optional runtime organs."""
+    try:
+        from core.plugin_registry import register_builtin_plugins
+
+        self._plugins = register_builtin_plugins(probe=True)
+        status = self._plugins.snapshot()
+        print(
+            f"[{name}] Plugin registry: "
+            f"{status.get('available_count', 0)}/{status.get('plugin_count', 0)} available"
+        )
+    except Exception as e:
+        self._plugins = None
+        print(f"[{name}] Plugin registry unavailable: {e}")
 
 
 # ============================================================

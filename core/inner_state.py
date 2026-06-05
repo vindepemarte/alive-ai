@@ -144,6 +144,24 @@ class InnerStateCompiler:
                 priority=0.88,
                 private=True,
             ))
+        pressure = emotion.get("behavioral_pressure") or {}
+        if isinstance(pressure, dict) and pressure.get("dominant"):
+            dominant = str(pressure.get("dominant", "stabilize")).replace("_", " ")
+            instruction = str(pressure.get("instruction") or f"behavioral pressure favors {dominant}")
+            urgency = _clamp(pressure.get("urgency", 0.45))
+            top_drives = []
+            for drive in (pressure.get("drives") or [])[:3]:
+                if isinstance(drive, dict) and drive.get("name"):
+                    top_drives.append(f"{drive.get('name')}={_clamp(drive.get('pressure', 0.0)):.2f}")
+            suffix = f"; drives: {', '.join(top_drives)}" if top_drives else ""
+            signals.append(StateSignal(
+                "behavioral_pressure",
+                str(pressure.get("dominant", "stabilize")),
+                f"{instruction}{suffix}",
+                intensity=max(0.55, urgency),
+                priority=0.90,
+                private=True,
+            ))
         return signals
 
     def _select_signals(self, signals: List[StateSignal]) -> List[StateSignal]:
@@ -171,6 +189,16 @@ class InnerStateCompiler:
     ) -> str:
         lower = msg.lower()
         if emotion.get("is_asleep") or any(s.kind == "sleep_pressure" and s.score > 0.72 for s in signals):
+            return "sleepy_return"
+        pressure = emotion.get("behavioral_pressure") or {}
+        dominant_pressure = pressure.get("dominant") if isinstance(pressure, dict) else ""
+        if dominant_pressure == "protect_boundary":
+            return "boundary"
+        if dominant_pressure == "repair":
+            return "repair"
+        if dominant_pressure == "withdraw" and _clamp(pressure.get("urgency", 0.0)) > 0.58:
+            return "withdraw"
+        if dominant_pressure == "rest":
             return "sleepy_return"
         if "?" in msg:
             return "answer"
@@ -228,7 +256,11 @@ class InnerStateCompiler:
             "playful_pivot": "Shift energy with a fresh, playful angle.",
             "sleepy_return": "Sound tired and warm; keep it short and do not act hyper-alert.",
         }.get(intent, "Respond naturally and stay emotionally continuous.")
-        return base + " Keep private state implicit unless the user asks for introspection."
+        pressure = emotion.get("behavioral_pressure") or {}
+        pressure_instruction = ""
+        if isinstance(pressure, dict) and pressure.get("instruction"):
+            pressure_instruction = f" {pressure['instruction']}"
+        return base + pressure_instruction + " Keep private state implicit unless the user asks for introspection."
 
 
 def signal_from_prompt(source: str, kind: str, content: str, priority: float = 0.55) -> Optional[StateSignal]:

@@ -7,9 +7,7 @@ Supports both legacy single-provider mode and new unified fallback mode.
 import os
 from typing import Optional, Tuple
 from .base import BaseLLM
-from .zai import ZAIClient
-from .openrouter import OpenRouterClient
-from .ollama import OllamaClient
+from .factory import canonical_provider_name, create_llm_client
 from .unified import UnifiedLLM, get_unified_llm
 from .fallback_router import FallbackRouter, get_fallback_router
 
@@ -39,7 +37,7 @@ def get_provider_config(task: str = "main") -> Tuple[str, str, str]:
             return provider, api_key, model
 
         # Legacy mode - use settings.json
-        provider = settings_get("LLM_PROVIDER", "zai").lower()
+        provider = canonical_provider_name(settings_get("LLM_PROVIDER", "zai"))
 
         if provider == "openrouter":
             api_key = settings_get("OPENROUTER_API_KEY", "") or os.environ.get("OPENROUTER_API_KEY", "")
@@ -49,7 +47,7 @@ def get_provider_config(task: str = "main") -> Tuple[str, str, str]:
                 model = settings_get("OPENROUTER_MODEL_THINKING", "anthropic/claude-3.5-sonnet")
             else:
                 model = settings_get("OPENROUTER_MODEL_MAIN", "anthropic/claude-3.5-sonnet")
-        else:
+        elif provider == "zai":
             # Default to ZAI
             api_key = settings_get("ZAI_API_KEY", "") or os.environ.get("ZAI_API_KEY", "")
             if task == "fast":
@@ -58,6 +56,12 @@ def get_provider_config(task: str = "main") -> Tuple[str, str, str]:
                 model = settings_get("ZAI_MODEL_THINKING", "glm-4.6v")
             else:
                 model = settings_get("ZAI_MODEL_MAIN", "glm-4.6v")
+        else:
+            api_key = ""
+            model = (
+                settings_get(f"{provider.upper().replace('-', '_')}_MODEL_MAIN", "")
+                or settings_get(f"{provider.upper().replace('-', '_')}_MODEL", "")
+            )
 
         return provider, api_key, model
 
@@ -66,7 +70,7 @@ def get_provider_config(task: str = "main") -> Tuple[str, str, str]:
         pass
 
     # Environment variable fallback
-    provider = os.environ.get("LLM_PROVIDER", "zai").lower()
+    provider = canonical_provider_name(os.environ.get("LLM_PROVIDER", "zai"))
 
     if provider == "openrouter":
         api_key = os.environ.get("OPENROUTER_API_KEY", "")
@@ -76,7 +80,7 @@ def get_provider_config(task: str = "main") -> Tuple[str, str, str]:
             model = os.environ.get("OPENROUTER_MODEL_THINKING", "anthropic/claude-3.5-sonnet")
         else:
             model = os.environ.get("OPENROUTER_MODEL_MAIN", "anthropic/claude-3.5-sonnet")
-    else:
+    elif provider == "zai":
         # Default to ZAI
         api_key = os.environ.get("ZAI_API_KEY", "")
         if task == "fast":
@@ -85,6 +89,10 @@ def get_provider_config(task: str = "main") -> Tuple[str, str, str]:
             model = os.environ.get("ZAI_MODEL_THINKING", "glm-4.6v")
         else:
             model = os.environ.get("ZAI_MODEL_MAIN", "glm-4.6v")
+    else:
+        prefix = provider.upper().replace("-", "_")
+        api_key = os.environ.get(f"{prefix}_API_KEY", "")
+        model = os.environ.get(f"{prefix}_MODEL_MAIN", os.environ.get(f"{prefix}_MODEL", ""))
 
     return provider, api_key, model
 
@@ -106,16 +114,17 @@ def get_llm_client(task: str = "main") -> Optional[BaseLLM]:
 
     # Handle unified mode
     if provider == "unified":
-        return get_unified_llm_client()
+        return get_unified_llm_client(task)
 
-    if not api_key:
+    client = create_llm_client(provider, task=task)
+    if client:
+        return client
+
+    if provider in ("zai", "openrouter") and not api_key:
         print(f"[LLM] No API key for provider: {provider}")
-        return None
-
-    if provider == "openrouter":
-        return OpenRouterClient(api_key, model)
     else:
-        return ZAIClient(api_key, model)
+        print(f"[LLM] Unsupported or incomplete provider config: {provider} {model or ''}".strip())
+    return None
 
 
 def get_fast_llm() -> Optional[BaseLLM]:
@@ -137,11 +146,11 @@ def get_main_llm() -> Optional[BaseLLM]:
 # Unified LLM Support
 # ============================================================
 
-# Cache for the unified client
-_unified_client: Optional[UnifiedLLM] = None
+# Cache for task-specific unified clients
+_unified_clients: dict[str, UnifiedLLM] = {}
 
 
-def get_unified_llm_client() -> Optional[UnifiedLLM]:
+def get_unified_llm_client(task: str = "main") -> Optional[UnifiedLLM]:
     """
     Get the unified LLM client with fallback chain.
 
@@ -154,10 +163,11 @@ def get_unified_llm_client() -> Optional[UnifiedLLM]:
     Returns:
         UnifiedLLM instance or None if not configured
     """
-    global _unified_client
+    global _unified_clients
 
-    if _unified_client is not None:
-        return _unified_client
+    task_key = task or "main"
+    if task_key in _unified_clients:
+        return _unified_clients[task_key]
 
     try:
         from core.settings import get as settings_get
@@ -168,9 +178,9 @@ def get_unified_llm_client() -> Optional[UnifiedLLM]:
             print("[LLM] Fallback not enabled, using single provider")
             return None
 
-        _unified_client = get_unified_llm(settings_getter=settings_get)
-        print(f"[LLM] Unified LLM initialized with fallback chain")
-        return _unified_client
+        _unified_clients[task_key] = get_unified_llm(settings_getter=settings_get, task=task_key)
+        print(f"[LLM] Unified LLM initialized with fallback chain for task={task_key}")
+        return _unified_clients[task_key]
 
     except ImportError:
         print("[LLM] Settings not available for unified LLM")
@@ -201,5 +211,5 @@ def get_fallback_llm_client() -> Optional[FallbackRouter]:
 
 def reset_unified_client():
     """Reset the unified client cache (for testing or reconfiguration)"""
-    global _unified_client
-    _unified_client = None
+    global _unified_clients
+    _unified_clients = {}

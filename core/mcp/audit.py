@@ -9,12 +9,22 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
-REDACT_KEYS = {"text", "content", "secret", "token", "password", "api_key", "arguments"}
+REDACT_KEYS = {"text", "content", "secret", "token", "password", "api_key", "arguments", "env"}
+REDACT_FRAGMENTS = ("secret", "token", "password", "api_key", "apikey", "authorization", "credential")
 
 
 def _redact(value: Any) -> Any:
+    if is_dataclass(value):
+        value = asdict(value)
     if isinstance(value, Mapping):
-        return {str(k): ("[redacted]" if str(k).lower() in REDACT_KEYS else _redact(v)) for k, v in value.items()}
+        return {
+            str(k): (
+                "[redacted]"
+                if str(k).lower() in REDACT_KEYS or any(fragment in str(k).lower() for fragment in REDACT_FRAGMENTS)
+                else _redact(v)
+            )
+            for k, v in value.items()
+        }
     if isinstance(value, list):
         return [_redact(item) for item in value]
     return value

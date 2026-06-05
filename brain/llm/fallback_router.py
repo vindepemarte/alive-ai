@@ -10,9 +10,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .base import BaseLLM
-from .zai import ZAIClient
-from .openrouter import OpenRouterClient
-from .ollama import OllamaClient
+from .factory import canonical_provider_name, create_llm_client
 
 
 class FallbackResult(Enum):
@@ -255,8 +253,6 @@ def create_fallback_router_from_settings(settings_getter: Callable = None) -> Fa
     Returns:
         Configured FallbackRouter
     """
-    import os
-
     # Get settings getter if not provided
     if settings_getter is None:
         try:
@@ -278,25 +274,8 @@ def create_fallback_router_from_settings(settings_getter: Callable = None) -> Fa
     providers = []
 
     for name in order:
-        name_lower = name.lower()
-        client = None
-
-        if name_lower == "zai":
-            api_key = settings_getter("ZAI_API_KEY") or os.environ.get("ZAI_API_KEY", "")
-            model = settings_getter("ZAI_MODEL_MAIN") or os.environ.get("ZAI_MODEL_MAIN", "glm-4.6v")
-            if api_key:
-                client = ZAIClient(api_key, model)
-
-        elif name_lower == "openrouter":
-            api_key = settings_getter("OPENROUTER_API_KEY") or os.environ.get("OPENROUTER_API_KEY", "")
-            model = settings_getter("OPENROUTER_MODEL_MAIN") or os.environ.get("OPENROUTER_MODEL_MAIN", "anthropic/claude-3.5-sonnet")
-            if api_key:
-                client = OpenRouterClient(api_key, model)
-
-        elif name_lower == "ollama":
-            url = llm_config.get("OLLAMA_URL", "http://172.17.0.1:11434")
-            model = llm_config.get("OLLAMA_MODEL", "phi4:latest")
-            client = OllamaClient("", model, url)
+        name_lower = canonical_provider_name(name)
+        client = create_llm_client(name_lower, task="main", settings_getter=settings_getter)
 
         if client:
             providers.append((name_lower, client))

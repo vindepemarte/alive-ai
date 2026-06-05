@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from brain.llm.openai_compatible import OpenAICompatibleClient
 from brain.llm.openrouter import OpenRouterClient, _extract_openrouter_answer, _has_reasoning_activity, _openrouter_thinking_enabled
 from brain.llm.reasoning import has_reasoning_payload, visible_answer_from_message
 from core.settings import ACTIVE_SETTINGS_PATH, get_bool
@@ -147,6 +148,51 @@ class LLMReasoningExtractionTests(unittest.TestCase):
         self.assertEqual(result, "I'm here.")
         self.assertEqual(len(payloads), 1)
         self.assertNotIn("reasoning", payloads[0])
+
+    def test_openai_compatible_client_sends_no_provider_reasoning_controls(self):
+        class FakeResponse:
+            status = 200
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def json(self):
+                return {"choices": [{"message": {"content": "Visible local answer."}}]}
+
+        class FakeSession:
+            def __init__(self):
+                self.payloads = []
+
+            def post(self, *_args, json=None, **_kwargs):
+                self.payloads.append(dict(json or {}))
+                return FakeResponse()
+
+        async def run_chat():
+            session = FakeSession()
+            client = OpenAICompatibleClient(
+                model="local-model",
+                base_url="http://127.0.0.1:1234/v1",
+                provider_name="lmstudio",
+                local=True,
+            )
+
+            async def fake_get_session():
+                return session
+
+            client._get_session = fake_get_session
+            result = await client.chat([{"role": "user", "content": "hey"}], max_tokens=60)
+            return result, session.payloads
+
+        result, payloads = asyncio.run(run_chat())
+
+        self.assertEqual(result, "Visible local answer.")
+        self.assertEqual(len(payloads), 1)
+        self.assertNotIn("reasoning", payloads[0])
+        self.assertNotIn("thinking", payloads[0])
+        self.assertNotIn("think", payloads[0])
 
 
 class _FakeMessage:

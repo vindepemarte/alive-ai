@@ -50,9 +50,10 @@ class McpPermissionEngine:
     @classmethod
     def from_settings(cls, settings: dict | None = None) -> "McpPermissionEngine":
         settings = settings or {}
-        enabled = str(settings.get("MCP_ENABLED", "false")).lower() in ("1", "true", "yes", "on")
-        mode = str(settings.get("MCP_MODE", "off") or "off")
-        scopes: Iterable[str] = settings.get("MCP_ALLOWED_SCOPES") or ()
+        nested = settings.get("MCP") if isinstance(settings.get("MCP"), dict) else {}
+        enabled = str(settings.get("MCP_ENABLED", nested.get("ENABLED", "false"))).lower() in ("1", "true", "yes", "on")
+        mode = str(settings.get("MCP_MODE", nested.get("MODE", "off")) or "off")
+        scopes: Iterable[str] = settings.get("MCP_ALLOWED_SCOPES") or nested.get("ALLOWED_SCOPES") or ()
         if isinstance(scopes, str):
             scopes = tuple(item.strip() for item in scopes.split(",") if item.strip())
         return cls(

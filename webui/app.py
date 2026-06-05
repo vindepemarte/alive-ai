@@ -292,6 +292,74 @@ def _runtime_chat_ready() -> bool:
     return len(listeners.get("message_received", [])) > 1
 
 
+def _mcp_status() -> dict:
+    runtime = getattr(_self_ref, "_mcp", None)
+    if runtime and hasattr(runtime, "status"):
+        try:
+            return runtime.status()
+        except Exception as exc:
+            return {"enabled": False, "mode": "error", "error": str(exc)}
+    return {"enabled": False, "mode": "unavailable", "servers": [], "pending_count": 0}
+
+
+def _plugin_status() -> dict:
+    runtime = getattr(_self_ref, "_plugins", None)
+    if runtime and hasattr(runtime, "snapshot"):
+        try:
+            return runtime.snapshot()
+        except Exception as exc:
+            return {"plugin_count": 0, "available_count": 0, "plugins": [], "error": str(exc)}
+    try:
+        from core.plugin_registry import get_plugin_status
+        return get_plugin_status(probe=True)
+    except Exception as exc:
+        return {"plugin_count": 0, "available_count": 0, "plugins": [], "error": str(exc)}
+
+
+def _memory_layers_snapshot(user_id: str = None) -> dict:
+    active_user = _active_user_id(user_id)
+    try:
+        agent_name = _agent_identity().get("name", "AI")
+        cache_key = f"{agent_name.lower()}:{active_user}"
+        from core import message_handler
+        memory = getattr(message_handler, "_user_memories", {}).get(cache_key)
+    except Exception:
+        memory = None
+
+    if not memory:
+        candidate = getattr(_self_ref, "_memory", None)
+        candidate_registry = getattr(candidate, "layer_registry", None)
+        if candidate_registry and str(getattr(candidate_registry, "user_id", "")) == str(active_user):
+            memory = candidate
+
+    registry = getattr(memory, "layer_registry", None)
+    if registry and hasattr(registry, "build_snapshot"):
+        try:
+            return registry.build_snapshot().to_dict()
+        except Exception as exc:
+            return {"error": str(exc)}
+
+    try:
+        user_path = data_dir() / "users" / str(active_user)
+        if not user_path.exists():
+            return {"user_id": str(active_user), "layer_count": 0, "layers": []}
+        from brain.memory import SemanticMemory
+        from brain.memory.context_compiler import ContextCompiler
+        from brain.memory.episodic import EpisodicMemory
+        from brain.memory.layers import MemoryLayerRegistry
+        registry = MemoryLayerRegistry(
+            user_path,
+            user_id=str(active_user),
+            episodic=EpisodicMemory(user_path, user_id=str(active_user)),
+            semantic=SemanticMemory(user_path, user_id=str(active_user)),
+            context_compiler=ContextCompiler(user_path, agent_name=_agent_identity().get("name", "AI")),
+            agent_name=_agent_identity().get("name", "AI"),
+        )
+        return registry.build_snapshot().to_dict()
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 def _agent_identity() -> dict:
     identity = {}
     try:
@@ -370,6 +438,9 @@ def build_snapshot(user_id: str = None) -> dict:
     snapshot["identity"] = _agent_identity()
     snapshot["soul"] = soul_state
     snapshot["aliveness"] = aliveness_state
+    snapshot["mcp"] = _mcp_status()
+    snapshot["plugins"] = _plugin_status()
+    snapshot["memory_layers"] = _memory_layers_snapshot(active_user)
     snapshot["conversation"] = load_chat_messages(active_user)
     snapshot["stats"] = {
         **snapshot.get("stats", {}),
@@ -605,6 +676,24 @@ async def get_memory_status():
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
+
+
+@app.get("/api/mcp/status")
+async def get_mcp_status():
+    """Get sandboxed MCP runtime status without exposing secrets."""
+    return _mcp_status()
+
+
+@app.get("/api/plugins/status")
+async def get_plugins_status():
+    """Get optional runtime plugin/module status without exposing secrets."""
+    return _plugin_status()
+
+
+@app.get("/api/memory/layers")
+async def get_memory_layers(user_id: Optional[str] = None):
+    """Get layered memory snapshot for prompt diagnostics."""
+    return _memory_layers_snapshot(user_id)
 
 
 @app.get("/thoughts")

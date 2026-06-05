@@ -11,9 +11,7 @@ from enum import Enum
 
 from .base import BaseLLM
 from .capabilities import ChatResult, ModelCapabilities
-from .zai import ZAIClient
-from .openrouter import OpenRouterClient
-from .ollama import OllamaClient
+from .factory import canonical_provider_name, create_llm_client
 
 
 class ProviderStatus(Enum):
@@ -62,7 +60,7 @@ class UnifiedLLM(BaseLLM):
     # Default configuration
     DEFAULT_CONFIG = {
         "enabled": True,
-        "order": ["zai", "openrouter"],
+        "order": ["zai", "openrouter", "ollama"],
         "timeout_seconds": 60,
         "retry_on_empty": True,
         "max_consecutive_failures": 3,
@@ -71,7 +69,7 @@ class UnifiedLLM(BaseLLM):
         "ollama_model": "phi4:latest",
     }
 
-    def __init__(self, config: dict = None, settings_getter=None):
+    def __init__(self, config: dict = None, settings_getter=None, task: str = "main"):
         """
         Initialize the unified LLM with fallback chain.
 
@@ -84,6 +82,7 @@ class UnifiedLLM(BaseLLM):
         self._explicit_config = config or {}
         self.config = {**self.DEFAULT_CONFIG, **self._explicit_config}
         self._settings_getter = settings_getter
+        self.task = task or "main"
         self._providers: Dict[str, ProviderInfo] = {}
         self._active_provider: Optional[str] = None
         self._initialized = False
@@ -126,39 +125,20 @@ class UnifiedLLM(BaseLLM):
         order = self._get_setting("order", self.config["order"])
 
         for provider_name in order:
+            provider_key = canonical_provider_name(provider_name)
             client = self._create_provider(provider_name)
             if client:
-                self._providers[provider_name] = ProviderInfo(
-                    name=provider_name,
+                self._providers[provider_key] = ProviderInfo(
+                    name=provider_key,
                     client=client
                 )
-                print(f"[UnifiedLLM] Initialized provider: {provider_name}")
+                print(f"[UnifiedLLM] Initialized provider: {provider_key}")
 
         self._initialized = True
 
     def _create_provider(self, name: str) -> Optional[BaseLLM]:
         """Create a provider client by name"""
-        name = name.lower()
-
-        if name == "zai":
-            api_key = self._get_setting("ZAI_API_KEY") or self._os.environ.get("ZAI_API_KEY", "")
-            model = self._get_setting("ZAI_MODEL_MAIN") or self._os.environ.get("ZAI_MODEL_MAIN", "glm-4.6v")
-            if api_key:
-                return ZAIClient(api_key, model)
-
-        elif name == "openrouter":
-            api_key = self._get_setting("OPENROUTER_API_KEY") or self._os.environ.get("OPENROUTER_API_KEY", "")
-            model = self._get_setting("OPENROUTER_MODEL_MAIN") or self._os.environ.get("OPENROUTER_MODEL_MAIN", "anthropic/claude-3.5-sonnet")
-            if api_key:
-                return OpenRouterClient(api_key, model)
-
-        elif name == "ollama":
-            url = self._get_setting("OLLAMA_URL") or self._get_setting("ollama_url", "http://172.17.0.1:11434")
-            model = self._get_setting("OLLAMA_MODEL") or self._get_setting("ollama_model", "phi4:latest")
-            # Ollama doesn't require an API key
-            return OllamaClient("", model, url)
-
-        return None
+        return create_llm_client(name, task=self.task, settings_getter=self._get_setting)
 
     async def _check_provider_available(self, name: str) -> bool:
         """Check if a provider is available for use"""
@@ -280,6 +260,7 @@ class UnifiedLLM(BaseLLM):
             order.insert(0, self._active_provider)
 
         # Apply provider hint
+        provider_hint = canonical_provider_name(provider_hint)
         if provider_hint and provider_hint in order:
             order.remove(provider_hint)
             order.insert(0, provider_hint)
@@ -440,14 +421,14 @@ class UnifiedLLM(BaseLLM):
     def __repr__(self):
         providers = list(self._providers.keys())
         active = self._active_provider or "none"
-        return f"<UnifiedLLM providers={providers} active={active}>"
+        return f"<UnifiedLLM task={self.task} providers={providers} active={active}>"
 
 
 # Singleton instance
-_unified_llm: Optional[UnifiedLLM] = None
+_unified_llms: Dict[str, UnifiedLLM] = {}
 
 
-def get_unified_llm(config: dict = None, settings_getter=None) -> UnifiedLLM:
+def get_unified_llm(config: dict = None, settings_getter=None, task: str = "main") -> UnifiedLLM:
     """
     Get the global UnifiedLLM instance.
 
@@ -458,9 +439,10 @@ def get_unified_llm(config: dict = None, settings_getter=None) -> UnifiedLLM:
     Returns:
         The UnifiedLLM singleton
     """
-    global _unified_llm
+    global _unified_llms
 
-    if _unified_llm is None:
+    task_key = task or "main"
+    if task_key not in _unified_llms:
         # Get settings getter if not provided
         if settings_getter is None:
             try:
@@ -469,13 +451,13 @@ def get_unified_llm(config: dict = None, settings_getter=None) -> UnifiedLLM:
             except ImportError:
                 pass
 
-        _unified_llm = UnifiedLLM(config, settings_getter)
-        _unified_llm._initialize_providers()
+        _unified_llms[task_key] = UnifiedLLM(config, settings_getter, task=task_key)
+        _unified_llms[task_key]._initialize_providers()
 
-    return _unified_llm
+    return _unified_llms[task_key]
 
 
 def reset_unified_llm():
     """Reset the singleton (for testing)"""
-    global _unified_llm
-    _unified_llm = None
+    global _unified_llms
+    _unified_llms = {}

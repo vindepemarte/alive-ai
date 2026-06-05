@@ -1,12 +1,17 @@
 import asyncio
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from brain.llm.base import BaseLLM
+from brain.llm.factory import canonical_provider_name, create_llm_client
 from brain.llm.ollama import OllamaClient
+from brain.llm.openai_compatible import OpenAICompatibleClient
 from brain.llm.openrouter import OpenRouterClient
 from brain.llm.unified import UnifiedLLM
 from brain.llm.zai import ZAIClient
+from core.settings import ACTIVE_SETTINGS_PATH
 
 
 class _FakeLLM(BaseLLM):
@@ -29,6 +34,12 @@ class LLMCapabilitiesTests(unittest.TestCase):
         openrouter = OpenRouterClient("key", "openai/gpt-4.1-mini").get_capabilities()
         ollama = OllamaClient("", "gemma4:e2b").get_capabilities()
         zai = ZAIClient("key", "glm-4.6v").get_capabilities()
+        lmstudio = OpenAICompatibleClient(
+            model="local-model",
+            base_url="http://127.0.0.1:1234/v1",
+            provider_name="lmstudio",
+            local=True,
+        ).get_capabilities()
 
         self.assertEqual(openrouter.provider, "openrouter")
         self.assertTrue(openrouter.requires_api_key)
@@ -42,6 +53,38 @@ class LLMCapabilitiesTests(unittest.TestCase):
         self.assertEqual(zai.provider, "zai")
         self.assertTrue(zai.reasoning.supports_disable_control)
 
+        self.assertEqual(lmstudio.provider, "lmstudio")
+        self.assertTrue(lmstudio.local)
+        self.assertFalse(lmstudio.requires_api_key)
+        self.assertEqual(lmstudio.reasoning.control_style, "none")
+
+    def test_provider_aliases_normalize_for_local_openai_compatible_servers(self):
+        self.assertEqual(canonical_provider_name("lm-studio"), "lmstudio")
+        self.assertEqual(canonical_provider_name("llama.cpp"), "llamacpp")
+        self.assertEqual(canonical_provider_name("openai_compatible"), "openai-compatible")
+
+    def test_factory_reads_openai_compatible_provider_from_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "settings.json"
+            settings_path.write_text(
+                """{
+                  "LMSTUDIO_BASE_URL": "http://127.0.0.1:1234/v1",
+                  "LMSTUDIO_MODEL": "gemma-3-local",
+                  "LMSTUDIO_LOCAL": true
+                }"""
+            )
+            token = ACTIVE_SETTINGS_PATH.set(settings_path)
+            try:
+                client = create_llm_client("lm-studio")
+            finally:
+                ACTIVE_SETTINGS_PATH.reset(token)
+
+        self.assertIsInstance(client, OpenAICompatibleClient)
+        self.assertEqual(client.provider_name, "lmstudio")
+        self.assertEqual(client.model, "gemma-3-local")
+        self.assertEqual(client.base_url, "http://127.0.0.1:1234/v1")
+        self.assertTrue(client.get_capabilities().local)
+
     def test_unified_disabled_mode_returns_tuple_contract(self):
         client = UnifiedLLM(config={"enabled": False, "order": []})
 
@@ -49,6 +92,44 @@ class LLMCapabilitiesTests(unittest.TestCase):
 
         self.assertIsNone(response)
         self.assertEqual(provider, "")
+
+    def test_unified_registers_openai_compatible_presets(self):
+        client = UnifiedLLM(
+            config={
+                "enabled": True,
+                "order": ["llama.cpp"],
+                "LLAMACPP_BASE_URL": "http://127.0.0.1:8080/v1",
+                "LLAMACPP_MODEL": "tiny-local",
+            }
+        )
+        client._initialize_providers()
+
+        self.assertIn("llamacpp", client._providers)
+        caps = client._providers["llamacpp"].capabilities
+        self.assertEqual(caps.provider, "llamacpp")
+        self.assertEqual(caps.model, "tiny-local")
+        self.assertTrue(caps.local)
+
+    def test_unified_uses_task_specific_model_settings(self):
+        def settings_getter(key, default=None):
+            return {
+                "OLLAMA_URL": "http://127.0.0.1:11434",
+                "OLLAMA_MODEL": "base-model",
+                "OLLAMA_MODEL_MAIN": "main-model",
+                "OLLAMA_MODEL_FAST": "fast-model",
+                "OLLAMA_MODEL_THINKING": "thinking-model",
+            }.get(key, default)
+
+        main = UnifiedLLM(config={"enabled": True, "order": ["ollama"]}, settings_getter=settings_getter, task="main")
+        fast = UnifiedLLM(config={"enabled": True, "order": ["ollama"]}, settings_getter=settings_getter, task="fast")
+        thinking = UnifiedLLM(config={"enabled": True, "order": ["ollama"]}, settings_getter=settings_getter, task="thinking")
+        main._initialize_providers()
+        fast._initialize_providers()
+        thinking._initialize_providers()
+
+        self.assertEqual(main._providers["ollama"].client.model, "main-model")
+        self.assertEqual(fast._providers["ollama"].client.model, "fast-model")
+        self.assertEqual(thinking._providers["ollama"].client.model, "thinking-model")
 
     def test_zai_empty_answer_retry_survives_thinking_control_rejection(self):
         class FakeResponse:
@@ -99,6 +180,22 @@ class LLMCapabilitiesTests(unittest.TestCase):
         self.assertNotIn("thinking", payloads[0])
         self.assertIn("thinking", payloads[1])
         self.assertNotIn("thinking", payloads[2])
+
+    def test_zai_exception_path_returns_none_without_name_error(self):
+        class FailingSession:
+            def post(self, *_args, **_kwargs):
+                raise RuntimeError("network down")
+
+        async def run_chat():
+            client = ZAIClient("key", "glm-test")
+
+            async def fake_get_session():
+                return FailingSession()
+
+            client._get_session = fake_get_session
+            return await client.chat([{"role": "user", "content": "hey"}], max_tokens=20)
+
+        self.assertIsNone(asyncio.run(run_chat()))
 
 
 if __name__ == "__main__":

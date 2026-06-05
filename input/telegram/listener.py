@@ -113,7 +113,9 @@ class TelegramListener:
             print(f"[Telegram] Could not register public commands: {exc}")
 
         # Set owner commands if owner ID is configured
-        owner_id = os.environ.get("TELEGRAM_OWNER_ID", "")
+        owner_id = os.environ.get("TELEGRAM_OWNER_ID", "") or str(
+            self.config.settings.get("TELEGRAM_OWNER_ID", "")
+        )
         if owner_id:
             try:
                 # Full owner command list for the owner's menu
@@ -131,6 +133,7 @@ class TelegramListener:
                     # Control
                     BotCommand("reset", "Reset emotions"),
                     BotCommand("settings", "Runtime settings"),
+                    BotCommand("mcp", "MCP tools"),
                     BotCommand("advanced", "Advanced mode"),
                     BotCommand("thinking", "Toggle model thinking"),
                     BotCommand("impulse", "Force proactive msg"),

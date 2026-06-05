@@ -1,4 +1,4 @@
-"""Typed MCP planning objects. No tool execution lives here."""
+"""Typed MCP planning objects."""
 
 from __future__ import annotations
 
@@ -9,6 +9,8 @@ import uuid
 
 
 PermissionStatus = Literal["allowed", "denied", "requires_approval"]
+ProposalStatus = Literal["pending", "approved", "denied", "executed", "failed"]
+McpTransport = Literal["stdio"]
 
 
 @dataclass(frozen=True)
@@ -18,6 +20,7 @@ class McpTool:
     description: str = ""
     scopes: tuple[str, ...] = ()
     read_only: bool = True
+    input_schema: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -26,6 +29,12 @@ class McpServer:
     name: str
     tools: tuple[McpTool, ...] = ()
     enabled: bool = False
+    transport: McpTransport = "stdio"
+    command: str = ""
+    args: tuple[str, ...] = ()
+    env: Mapping[str, str] = field(default_factory=dict)
+    cwd: str = ""
+    timeout_seconds: float = 30.0
 
 
 @dataclass(frozen=True)
@@ -46,6 +55,15 @@ class PermissionDecision:
     reason: str
     approved_scopes: tuple[str, ...] = ()
     owner_id: str = ""
+
+
+@dataclass(frozen=True)
+class ToolApproval:
+    proposal_id: str
+    status: ProposalStatus
+    owner_id: str = ""
+    reason: str = ""
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
 @dataclass(frozen=True)

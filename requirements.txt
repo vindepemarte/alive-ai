@@ -19,3 +19,6 @@ pydub>=0.25.0
 
 # Memory monitoring
 psutil>=5.9.0
+
+# Optional tool connector runtime. MCP stays disabled unless configured.
+mcp>=1.0.0

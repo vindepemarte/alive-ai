@@ -165,7 +165,7 @@ class OwnerCommands:
     """
 
     OWNER_COMMANDS = [
-        "owner", "owner_status", "skills", "settings",
+        "owner", "owner_status", "skills", "settings", "mcp",
         # Moved from public commands (admin only)
         "status", "10min", "impulse", "stats", "reset",
         # Advanced mode (advanced access)
@@ -194,7 +194,23 @@ class OwnerCommands:
 
     def _get_owner_id(self) -> str:
         """Get the configured owner Telegram ID"""
-        return os.environ.get("TELEGRAM_OWNER_ID", "")
+        owner_id = os.environ.get("TELEGRAM_OWNER_ID", "")
+        if owner_id:
+            return owner_id
+        try:
+            configured = getattr(getattr(self.ai, "config", None), "settings", {}).get("TELEGRAM_OWNER_ID", "")
+            if configured:
+                return str(configured)
+        except Exception:
+            pass
+        try:
+            from core.settings import get as settings_get
+            configured = settings_get("TELEGRAM_OWNER_ID", "")
+            if configured:
+                return str(configured)
+        except Exception:
+            pass
+        return ""
 
     def is_owner(self, update: Update) -> bool:
         """Check if the user is the owner"""
@@ -231,6 +247,7 @@ class OwnerCommands:
             "owner_status": self._cmd_owner_status,
             "skills": self._cmd_skills,
             "settings": self._cmd_settings,
+            "mcp": self._cmd_mcp,
             # Admin commands (moved from public)
             "status": self._cmd_status,
             "10min": self._cmd_10min,
@@ -300,6 +317,7 @@ class OwnerCommands:
             "  /stats - System statistics\n"
             "  /reset - Reset my emotions\n"
             "  /settings - Runtime settings (hot-reload)\n"
+            "  /mcp status|tools|pending|approve|deny|execute - MCP control\n"
             "  /10min - Generate long voice test\n"
             "  /impulse - Force proactive message\n"
             f"  /advanced - Toggle advanced mode ({advanced_status})\n"
@@ -377,6 +395,82 @@ class OwnerCommands:
             lines.append(f"  {description}\n")
 
         await update.message.reply_text("\n".join(lines))
+
+    async def _cmd_mcp(self, update: Update, args: list):
+        """Inspect and control sandboxed MCP proposals."""
+        runtime = getattr(self.ai, "_mcp", None)
+        if not runtime:
+            await update.message.reply_text("MCP runtime is not initialized.")
+            return
+
+        action = (args[0].lower() if args else "status")
+
+        if action == "status":
+            status = runtime.status()
+            lines = [
+                "MCP STATUS",
+                f"Enabled: {status.get('enabled')}",
+                f"Mode: {status.get('mode')}",
+                f"Servers: {len(status.get('servers', []))}",
+                f"Pending proposals: {status.get('pending_count', 0)}",
+            ]
+            if status.get("allowed_scopes"):
+                lines.append(f"Allowed scopes: {', '.join(status['allowed_scopes'])}")
+            await update.message.reply_text("\n".join(lines))
+            return
+
+        if action == "tools":
+            status = runtime.status()
+            lines = ["MCP TOOLS"]
+            for server in status.get("servers", []):
+                lines.append(f"\n{server.get('id')} ({'enabled' if server.get('enabled') else 'disabled'})")
+                tools = server.get("tools") or []
+                if not tools:
+                    lines.append("  No declared tools")
+                for tool in tools:
+                    scopes = ", ".join(tool.get("scopes") or [])
+                    lines.append(f"  {tool.get('name')} [{scopes or 'no scopes'}]")
+            await update.message.reply_text("\n".join(lines)[:4000])
+            return
+
+        if action == "pending":
+            rows = runtime.pending(limit=10)
+            if not rows:
+                await update.message.reply_text("No pending MCP proposals.")
+                return
+            lines = ["PENDING MCP PROPOSALS"]
+            for row in rows:
+                proposal = row.get("proposal", {})
+                lines.append(
+                    f"{proposal.get('id')}: {proposal.get('server_id')}.{proposal.get('tool_name')}"
+                )
+            await update.message.reply_text("\n".join(lines)[:4000])
+            return
+
+        if action in ("approve", "deny", "execute"):
+            if len(args) < 2:
+                await update.message.reply_text(f"Usage: /mcp {action} <proposal_id>")
+                return
+            proposal_id = args[1]
+            owner_id = str(update.effective_user.id) if update.effective_user else ""
+            if action == "approve":
+                approval = runtime.approve(proposal_id, owner_id=owner_id)
+                await update.message.reply_text(f"MCP approval: {approval.status} - {approval.reason or proposal_id}")
+                return
+            if action == "deny":
+                approval = runtime.deny(proposal_id, owner_id=owner_id, reason="Denied from Telegram owner command.")
+                await update.message.reply_text(f"MCP proposal denied: {approval.proposal_id}")
+                return
+            result = await runtime.execute(proposal_id, requester_id=owner_id)
+            if result.ok:
+                await update.message.reply_text(f"MCP executed:\n{result.summary[:3500] or '(no text result)'}")
+            else:
+                await update.message.reply_text(f"MCP execution failed: {result.error}")
+            return
+
+        await update.message.reply_text(
+            "Usage: /mcp status | tools | pending | approve <id> | deny <id> | execute <id>"
+        )
 
     # -------------------------------------------------------------------------
     # Admin Commands (moved from public)

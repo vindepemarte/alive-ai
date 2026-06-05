@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Mapping
 
+from .behavioral_pressure import build_behavioral_pressure
 from .inner_state import StateSignal
 
 
@@ -86,6 +87,7 @@ class AliveBodySnapshot:
     somatic: dict[str, Any] = field(default_factory=dict)
     interoception: dict[str, Any] = field(default_factory=dict)
     memory_context: dict[str, Any] = field(default_factory=dict)
+    behavioral_pressure: dict[str, Any] = field(default_factory=dict)
     prompt_guidance: list[str] = field(default_factory=list)
     response_bias: dict[str, Any] = field(default_factory=dict)
 
@@ -103,6 +105,7 @@ class AliveBodySnapshot:
             "somatic": dict(self.somatic),
             "interoception": dict(self.interoception),
             "memory_context": dict(self.memory_context),
+            "behavioral_pressure": dict(self.behavioral_pressure),
             "prompt_guidance": list(self.prompt_guidance),
             "response_bias": dict(self.response_bias),
         }
@@ -120,6 +123,7 @@ class AliveBodySnapshot:
             f"attachment={self.attachment.get('style', 'unknown')}; security={self.attachment.get('security_score', 0.5):.2f}; relationship={self.attachment.get('relationship_status', 'unknown')}",
             f"narrative={self.narrative.get('phase_name', self.narrative.get('phase', 'unknown'))}; messages={self.narrative.get('message_count', 0)}",
             f"body={self.somatic.get('summary', 'quiet')}; interoception={self.interoception.get('primary_feeling', 'steady')}",
+            f"pressure={self.behavioral_pressure.get('dominant', 'stabilize')}; approach_withdraw={_clamp(self.behavioral_pressure.get('approach_withdraw', 0.0), -1.0, 1.0):.2f}; urgency={_clamp(self.behavioral_pressure.get('urgency', 0.0)):.2f}",
             f"memory_cards={self.memory_context.get('selected_count', 0)}; guidance={guidance}",
         ]
         text = "ALIVE BODY SNAPSHOT\n" + "\n".join(f"- {line}" for line in lines)
@@ -222,11 +226,21 @@ def build_alive_body_snapshot(
     if context.get("boundary_decision"):
         guidance.append("respect active boundary and repair obligations")
 
+    pressure = emotion.get("behavioral_pressure")
+    if not isinstance(pressure, Mapping):
+        pressure = build_behavioral_pressure(
+            emotion,
+            boundary_decision=context.get("boundary_decision"),
+        ).to_dict()
+    if pressure.get("instruction"):
+        guidance.append(str(pressure["instruction"]))
+
     response_bias = {
         "intent_hint": "sleepy_return" if sleepiness >= 0.7 or emotion.get("is_asleep") else "present",
         "style_hint": "brief, warm, slower" if sleepiness >= 0.65 else "natural, emotionally continuous",
         "length_bias": "short" if sleepiness >= 0.65 else "normal",
-        "approach_withdraw": "withdraw_slightly" if _clamp(emotion.get("fear", 0.0)) > 0.55 else "approach",
+        "approach_withdraw": pressure.get("approach_withdraw", 0.0),
+        "dominant_pressure": pressure.get("dominant", "stabilize"),
         "private_reveal": "low" if sleepiness >= 0.7 else "moderate",
     }
 
@@ -261,6 +275,7 @@ def build_alive_body_snapshot(
         somatic=somatic,
         interoception=interoception,
         memory_context=_context_trace_summary(context),
+        behavioral_pressure=dict(pressure),
         prompt_guidance=guidance,
         response_bias=response_bias,
     )

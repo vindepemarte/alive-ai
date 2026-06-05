@@ -239,6 +239,14 @@ def apply_boundary_emotion(emotion: Mapping[str, Any] | None, decision: Boundary
         else:
             adjusted[key] = value
     adjusted["boundary_decision"] = decision.to_dict()
+    try:
+        from core.behavioral_pressure import build_behavioral_pressure
+        adjusted["behavioral_pressure"] = build_behavioral_pressure(
+            adjusted,
+            boundary_decision=decision,
+        ).to_dict()
+    except Exception:
+        pass
     return adjusted
 
 

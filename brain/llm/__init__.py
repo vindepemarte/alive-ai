@@ -7,6 +7,8 @@ from .base import BaseLLM
 from .zai import ZAIClient
 from .openrouter import OpenRouterClient
 from .ollama import OllamaClient
+from .openai_compatible import OpenAICompatibleClient
+from .factory import create_llm_client, canonical_provider_name
 from .unified import (
     UnifiedLLM,
     ProviderStatus,
@@ -37,6 +39,9 @@ __all__ = [
     'ZAIClient',
     'OpenRouterClient',
     'OllamaClient',
+    'OpenAICompatibleClient',
+    'create_llm_client',
+    'canonical_provider_name',
 
     # Unified interface
     'UnifiedLLM',
