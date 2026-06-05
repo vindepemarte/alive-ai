@@ -10,7 +10,7 @@ Multi-provider LLM, memory systems, and subconscious processing.
   - `layers.py` - Biological memory layer compiler for prompt context
 - `llm/` - Multi-provider LLM support (see llm/manifest.md)
 - `subconscious/` - 24/7 living brain (see subconscious/manifest.md)
-- `embeddings/` - Sentence transformers for semantic search
+- `embeddings/` - Local sentence-transformers embeddings for semantic search
 - `stt/` - Speech-to-text (Google, Whisper)
 
 ## Key Files
@@ -19,7 +19,7 @@ Multi-provider LLM, memory systems, and subconscious processing.
 
 ## Features
 - Multi-provider: ZAI or OpenRouter
-- Semantic search via embeddings (all-MiniLM-L6-v2)
-- Redis vector storage with archiving
+- Semantic search via local embeddings (all-MiniLM-L6-v2)
+- Redis vector storage with archiving; the CLI can start/stop the local Docker Redis service without deleting its persistent volume
 - Layered context assembly across working, episodic, semantic, emotional, autobiographical, dream, and shadow memory
 - Subconscious impulse generation

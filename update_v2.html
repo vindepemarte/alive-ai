@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Alive-AI v0.2.2 Update</title>
+  <title>Alive-AI v0.2.3 Update</title>
   <style>
     :root {
       color-scheme: dark;
@@ -446,13 +446,13 @@
   <main>
     <header>
       <div>
-        <div class="tag version">Alive-AI v0.2.2</div>
+        <div class="tag version">Alive-AI v0.2.3</div>
         <h1>Framework upgrade summary</h1>
-        <p class="lead">This release turns the v0.2 architecture into a safer, more model-agnostic runtime with stronger context, cleaner extension points, and fewer ways for local installs to drift from their intended model setup.</p>
+        <p class="lead">This release turns the v0.2 architecture into a safer, more model-agnostic runtime with stronger context, cleaner extension points, local Redis memory lifecycle support, and clearer startup visibility.</p>
       </div>
       <div class="meta">
         <span class="tag">Published to npm</span>
-        <span class="tag">Commit e961464</span>
+        <span class="tag">Git committed</span>
         <span class="tag">157 tests passed</span>
       </div>
     </header>
@@ -460,8 +460,8 @@
     <section class="grid cols-4" aria-label="Release facts">
       <article class="metric">
         <h3>Release</h3>
-        <strong class="good">0.2.2</strong>
-        <span>Used because 0.2.0 already existed on npm and cannot be overwritten.</span>
+        <strong class="good">0.2.3</strong>
+        <span>Includes the v0.2 systems plus Redis lifecycle and color-coded runtime logs.</span>
       </article>
       <article class="metric">
         <h3>Coverage</h3>
@@ -470,13 +470,13 @@
       </article>
       <article class="metric">
         <h3>Package</h3>
-        <strong class="good">210</strong>
+        <strong class="good">211</strong>
         <span>Files included in the npm tarball, including all new v0.2 systems.</span>
       </article>
       <article class="metric">
         <h3>Status</h3>
         <strong class="good">Live</strong>
-        <span><code>latest</code> now resolves to <code>alive-ai@0.2.2</code>.</span>
+        <span><code>latest</code> now resolves to <code>alive-ai@0.2.3</code>.</span>
       </article>
     </section>
 
@@ -513,6 +513,11 @@
           <h2>Plugin registry</h2>
           <p>Core systems now advertise events, state keys, prompt sections, and permissions so the runtime can grow without hidden wiring collisions.</p>
         </article>
+        <article class="module">
+          <span class="num">7</span>
+          <h2>Runtime lifecycle</h2>
+          <p><code>npx . start</code> now color-codes foreground logs and manages local Docker Redis memory when the vector cache is enabled.</p>
+        </article>
       </div>
     </section>
 
@@ -543,15 +548,15 @@
           </div>
           <div class="bar-row">
             <b>Debug visibility</b>
-            <div class="bar-shell"><div class="bar-fill" style="width: 78%"></div></div>
-            <span class="score">78%</span>
+            <div class="bar-shell"><div class="bar-fill" style="width: 86%"></div></div>
+            <span class="score">86%</span>
           </div>
         </div>
       </article>
 
       <article class="panel">
-        <h2>Before To v0.2.2</h2>
-        <p>The green portion shows the expected v0.2.2 position. Yellow shows the previous practical baseline.</p>
+        <h2>Before To v0.2.3</h2>
+        <p>The green portion shows the expected v0.2.3 position. Yellow shows the previous practical baseline.</p>
         <div class="expectation-chart">
           <div class="delta">
             <div class="delta-top"><b>Provider routing</b><span>54 to 88</span></div>
@@ -564,6 +569,10 @@
           <div class="delta">
             <div class="delta-top"><b>Memory routing</b><span>62 to 84</span></div>
             <div class="track" style="--before: 62%; --after: 84%"></div>
+          </div>
+          <div class="delta">
+            <div class="delta-top"><b>Runtime visibility</b><span>48 to 86</span></div>
+            <div class="track" style="--before: 48%; --after: 86%"></div>
           </div>
           <div class="delta">
             <div class="delta-top"><b>MCP safety</b><span>40 to 86</span></div>
@@ -616,6 +625,11 @@
         <h2>Real-world behavior</h2>
         <p>The architecture is stronger, but the real proof is long conversation testing with local Gemma and OpenRouter under the same benchmark path.</p>
       </article>
+      <article class="risk low">
+        <span class="level">Fixed</span>
+        <h2>Redis lifecycle</h2>
+        <p>When Redis vector memory is enabled locally, start brings the Docker service up and stop shuts it down without deleting the persistent volume.</p>
+      </article>
     </section>
 
     <section class="panel">
@@ -624,14 +638,15 @@
         <div class="check">Full unit suite passed: <code>python3 -m unittest discover -s tests -v</code>.</div>
         <div class="check">CLI smoke passed for the npm package.</div>
         <div class="check">Python compile checks passed for changed runtime files.</div>
-        <div class="check">Packaged tarball install smoke passed from a fresh temporary project.</div>
-        <div class="check">npm registry verified: <code>alive-ai@0.2.2</code> and <code>latest: 0.2.2</code>.</div>
+        <div class="check">Color-coded <code>npx . start</code> log path verified with a temporary runtime.</div>
+        <div class="check">Package dry-run passed for <code>alive-ai@0.2.3</code>.</div>
+        <div class="check">npm registry verified: <code>alive-ai@0.2.3</code> and <code>latest: 0.2.3</code>.</div>
       </div>
     </section>
 
     <footer class="footer">
-      <span>Install update: <code>npx -y alive-ai@0.2.2 update --yes</code></span>
-      <span>Generated for Alive-AI v0.2.2 release review</span>
+      <span>Install update: <code>npx -y alive-ai@0.2.3 update --yes</code></span>
+      <span>Generated for Alive-AI v0.2.3 release review</span>
     </footer>
   </main>
 </body>

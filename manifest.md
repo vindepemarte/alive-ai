@@ -13,14 +13,14 @@ A local-first emotional AI runtime with memory, impulses, terminal chat, Telegra
 ## Key Features
 - **Multi-provider LLM** - local Ollama, OpenRouter, or ZAI
 - **Subconscious loop** - 24/7 background process, generates impulses
-- **Vector memory** - Redis-based semantic search with embeddings
+- **Vector memory** - Redis-based semantic search with local embeddings and optional Docker lifecycle management
 - **OpenMind memory** - Optional hybrid cloud/local semantic memory bridge
 - **Emotional system** - Continuous state with natural decay
 - **Proactive messaging** - Sends messages based on impulses/feelings
 - **Voice synthesis** - gTTS, Google TTS, or VibeVoice
 - **Media management** - Photos/videos with categories and no-repeat
 - **Input channels** - Terminal chat or Telegram bot
-- **CLI lifecycle** - npm update checks, project update, and uninstall helpers
+- **CLI lifecycle** - npm update checks, color-coded foreground logs, Redis container start/stop, project update, and uninstall helpers
 - **Commands** - /status, /dashboard, /self, /impulse, /stats, /reset
 
 ## Entry Point

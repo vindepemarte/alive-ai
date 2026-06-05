@@ -141,9 +141,9 @@ alive-ai init my-ai
 | `npx . chat` | Start the real runtime with split-pane terminal chat and logs. |
 | `npx . chat --plain` | Start raw terminal chat without the TUI. |
 | `npx . demo` | Run a keyless animated dashboard demo. |
-| `npx . start` | Start the runtime using the configured input channel, usually Telegram. |
+| `npx . start` | Start the runtime using the configured input channel, usually Telegram. Runtime logs are color-coded when attached to a terminal. |
 | `npx . start --skip-install` | Start again without reinstalling Python dependencies. |
-| `npx . stop` | Stop the running Alive-AI process for this project. |
+| `npx . stop` | Stop the running Alive-AI process for this project. If local Docker Redis memory is enabled, stop that container too while keeping the persistent volume. |
 | `npx . update` | Refresh runtime files from the latest npm package while preserving config/data/media. |
 | `npx . uninstall` | Remove Alive-AI runtime files, config, venv, cache, data, and media from the project. |
 
@@ -151,13 +151,19 @@ alive-ai init my-ai
 
 `doctor --fix` is conservative: it prints the exact install command before running anything and asks separately for each missing tool. On macOS it uses Homebrew, on Windows it uses winget, and on Linux it supports apt, dnf, and pacman where possible. Redis is optional; doctor only checks or fixes it when `REDIS_VECTOR_MEMORY_ENABLED` is true.
 
-If you use Docker:
+If you use Docker for Redis memory, normal stop keeps memory:
 
 ```bash
-docker compose down
+npx . stop
 ```
 
-If you only started Redis:
+To delete Redis vector memory intentionally:
+
+```bash
+docker compose down -v
+```
+
+To stop only Redis without deleting the volume:
 
 ```bash
 docker compose stop redis
@@ -275,7 +281,7 @@ Modes:
 
 OpenMind does not replace Alive-AI's emotional state. It adds durable semantic recall across tools and machines.
 
-Redis is not required when OpenMind is enabled. Alive-AI always keeps file-backed working, episodic, semantic, emotional, autobiographical, dream, and shadow memory in the project `data/` folder. Redis Stack is an optional local vector cache for users who want it.
+Redis is not required when OpenMind is enabled. Alive-AI always keeps file-backed working, episodic, semantic, emotional, autobiographical, dream, and shadow memory in the project `data/` folder. Redis Stack is an optional local vector cache for users who want it. Embeddings are generated locally with the bundled sentence-transformers embedding service; Redis stores/searches those vectors but does not call a cloud embedding API.
 
 Cloud setup:
 
@@ -382,6 +388,8 @@ Docker is optional. It is useful when you want Redis Stack for vector search:
 npx . doctor --fix
 npx . start
 ```
+
+When Redis vector memory is enabled with the default local Docker settings, `npx . start` runs `docker compose up -d redis` if Redis is not reachable yet, and `npx . stop` runs `docker compose stop redis`. The named Docker volume keeps vector memory across restarts. Use `docker compose down -v` only when you deliberately want to wipe that Redis memory.
 
 Or run everything in containers:
 

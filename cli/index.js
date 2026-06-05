@@ -39,6 +39,25 @@ const COPY_ENTRIES = [
   "requirements.txt"
 ];
 
+const ANSI = {
+  reset: "\x1b[0m",
+  dim: "\x1b[2m",
+  red: "\x1b[31m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  blue: "\x1b[34m",
+  magenta: "\x1b[35m",
+  cyan: "\x1b[36m",
+  white: "\x1b[37m",
+  gray: "\x1b[90m",
+  brightRed: "\x1b[91m",
+  brightGreen: "\x1b[92m",
+  brightYellow: "\x1b[93m",
+  brightBlue: "\x1b[94m",
+  brightMagenta: "\x1b[95m",
+  brightCyan: "\x1b[96m",
+};
+
 function usage() {
   console.log(`Alive-AI
 
@@ -78,6 +97,50 @@ function hasFlag(args, name) {
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
+}
+
+function colorLogsEnabled(stream = process.stdout) {
+  if (process.env.ALIVE_AI_COLOR_LOGS === "1") return true;
+  if (process.env.NO_COLOR || process.env.ALIVE_AI_COLOR_LOGS === "0") return false;
+  return Boolean(stream && stream.isTTY);
+}
+
+function colorize(text, color, stream = process.stdout) {
+  if (!colorLogsEnabled(stream) || !ANSI[color]) return text;
+  return `${ANSI[color]}${text}${ANSI.reset}`;
+}
+
+function runtimeLogColor(line, streamName = "stdout") {
+  if (streamName === "stderr") return "brightRed";
+  if (/\b(error|exception|traceback|failed|invalid|unavailable)\b/i.test(line)) return "brightRed";
+  if (/\b(warn|warning|retrying|fallback|missing|stale)\b/i.test(line)) return "brightYellow";
+  if (/^\[(Telegram|WebUI|Terminal|Outgoing)\]/i.test(line)) return "brightBlue";
+  if (/^\[(OpenRouter|Ollama|ZAI|LLM|UnifiedLLM|FallbackRouter)\]/i.test(line)) return "brightCyan";
+  if (/^\[(Memory|VectorStore|OpenMind|Episodic|Semantic|WorkingMemory|EmotionalMemory)\]/i.test(line)) return "brightMagenta";
+  if (/^\[(Embeddings|Redis)\]/i.test(line)) return "cyan";
+  if (/^\[(Heart|Hormonal|Appraisal|Attachment|Circadian|Dream|Somatic|Narrative)\]/i.test(line)) return "brightGreen";
+  if (/^\[(Subconscious|DefaultMode|Think|Reflection|Proactive|Bids|Skills|MCP)\]/i.test(line)) return "yellow";
+  if (/^\[.+?\]/.test(line)) return "white";
+  return "gray";
+}
+
+function createRuntimeLogWriter(stream, streamName = "stdout") {
+  let buffer = "";
+  return {
+    write(chunk) {
+      buffer += chunk.toString("utf8");
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        stream.write(`${colorize(line, runtimeLogColor(line, streamName), stream)}\n`);
+      }
+    },
+    flush() {
+      if (!buffer) return;
+      stream.write(`${colorize(buffer, runtimeLogColor(buffer, streamName), stream)}\n`);
+      buffer = "";
+    },
+  };
 }
 
 function copyRecursive(src, dest) {
@@ -918,8 +981,9 @@ function packageManager() {
 
 function installPlan(tool) {
   if (tool === "redis") {
-    if (hasCommand("docker") && fs.existsSync(path.join(process.cwd(), "docker-compose.yml"))) {
-      return ["docker", "compose", "up", "-d", "redis"];
+    const compose = dockerComposeBaseCommand();
+    if (compose && composeFileExists()) {
+      return [...compose, "up", "-d", "redis"];
     }
     return null;
   }
@@ -984,7 +1048,7 @@ function installPlan(tool) {
 
 function manualInstallHint(tool) {
   if (tool === "redis") {
-    return "Redis Stack is optional. Either disable REDIS_VECTOR_MEMORY_ENABLED in config/settings.json, or install Docker and run `docker compose up -d redis`.";
+    return "Redis Stack is optional. Either disable REDIS_VECTOR_MEMORY_ENABLED in config/settings.json, or install Docker Desktop with Compose and run `docker compose up -d redis`.";
   }
   if (process.platform === "darwin" && !hasCommand("brew")) {
     return "Install Homebrew from https://brew.sh, then rerun `npx . doctor --fix`.";
@@ -1059,6 +1123,108 @@ function redisEndpoint(settings) {
   return { host, port };
 }
 
+function redisDockerManaged(settings) {
+  const configured = settings.REDIS_DOCKER_MANAGED ?? process.env.REDIS_DOCKER_MANAGED ?? true;
+  return truthy(configured) || configured === true;
+}
+
+function redisServiceName(settings) {
+  return String(settings.REDIS_DOCKER_SERVICE || process.env.REDIS_DOCKER_SERVICE || "redis").trim() || "redis";
+}
+
+function redisUsesLocalEndpoint(settings) {
+  const { host } = redisEndpoint(settings);
+  return ["127.0.0.1", "localhost", "::1", "0.0.0.0"].includes(host.toLowerCase());
+}
+
+function composeFileExists() {
+  return fs.existsSync(path.join(process.cwd(), "docker-compose.yml")) || fs.existsSync(path.join(process.cwd(), "compose.yml"));
+}
+
+function dockerComposeBaseCommand() {
+  if (spawnSync("docker", ["compose", "version"], { stdio: "ignore" }).status === 0) {
+    return ["docker", "compose"];
+  }
+  if (spawnSync("docker-compose", ["version"], { stdio: "ignore" }).status === 0) {
+    return ["docker-compose"];
+  }
+  return null;
+}
+
+function shouldManageRedisContainer(settings) {
+  return wantsRedis(settings) &&
+    redisDockerManaged(settings) &&
+    redisUsesLocalEndpoint(settings) &&
+    composeFileExists() &&
+    Boolean(dockerComposeBaseCommand());
+}
+
+function runDockerCompose(args, options = {}) {
+  const command = dockerComposeBaseCommand();
+  if (!command) return { status: 127, error: new Error("Docker Compose is not available") };
+  const [bin, ...baseArgs] = command;
+  return spawnSync(bin, [...baseArgs, ...args], {
+    cwd: process.cwd(),
+    stdio: options.stdio || "inherit",
+    encoding: options.encoding,
+  });
+}
+
+async function waitForRedis(settings, timeoutMs = 15000) {
+  const { host, port } = redisEndpoint(settings);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await checkTcp(host, port, 700)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 350));
+  }
+  return false;
+}
+
+async function ensureRedisContainer(settings) {
+  if (!wantsRedis(settings)) return false;
+
+  const { host, port } = redisEndpoint(settings);
+  if (await checkTcp(host, port, 900)) {
+    console.log(colorize(`[Redis] Vector cache reachable at ${host}:${port}`, "cyan"));
+    return shouldManageRedisContainer(settings);
+  }
+
+  if (!shouldManageRedisContainer(settings)) {
+    console.error(`[Redis] Vector cache is enabled but ${host}:${port} is not reachable.`);
+    console.error("Either start Redis manually, disable REDIS_VECTOR_MEMORY_ENABLED, or use the local Docker compose Redis service.");
+    process.exit(1);
+  }
+
+  const service = redisServiceName(settings);
+  console.log(colorize(`[Redis] Starting Docker service '${service}' for local vector memory...`, "cyan"));
+  const result = runDockerCompose(["up", "-d", service]);
+  if (result.status !== 0) {
+    console.error(`[Redis] Could not start Docker service '${service}'.`);
+    process.exit(result.status || 1);
+  }
+
+  if (!(await waitForRedis(settings))) {
+    console.error(`[Redis] Docker service '${service}' started, but ${host}:${port} did not become reachable.`);
+    process.exit(1);
+  }
+
+  console.log(colorize(`[Redis] Vector cache ready at ${host}:${port}`, "cyan"));
+  return true;
+}
+
+async function stopRedisContainer(settings) {
+  if (!shouldManageRedisContainer(settings)) return false;
+  const service = redisServiceName(settings);
+  console.log(colorize(`[Redis] Stopping Docker service '${service}'...`, "cyan"));
+  const result = runDockerCompose(["stop", service]);
+  if (result.status !== 0) {
+    console.error(`[Redis] Could not stop Docker service '${service}'.`);
+    return false;
+  }
+  console.log(colorize("[Redis] Redis container stopped. Persistent Docker volume was kept.", "cyan"));
+  return true;
+}
+
 function checkTcp(host, port, timeoutMs = 1000) {
   return new Promise((resolve) => {
     const socket = new net.Socket();
@@ -1084,6 +1250,7 @@ async function doctor(args = []) {
   const uv = findCommand(["uv"]);
   const ffmpeg = findCommand(["ffmpeg"]);
   const docker = findCommand(["docker"]);
+  const dockerCompose = dockerComposeBaseCommand();
   const ollama = findCommand(["ollama"]);
   const node = process.version;
   const nodeMajor = majorVersion(process.versions.node);
@@ -1105,6 +1272,7 @@ async function doctor(args = []) {
   console.log(`  uv:     ${uv || "missing, will use venv + pip"}`);
   console.log(`  ffmpeg: ${ffmpeg || "missing, voice conversion may be limited"}`);
   console.log(`  docker: ${docker || (redisEnabled ? "missing, needed for local Redis Stack helper" : "missing, optional")}`);
+  if (redisEnabled) console.log(`  compose:${dockerCompose ? ` ${dockerCompose.join(" ")}` : " missing, needed for local Redis Stack helper"}`);
   console.log(`  redis:  ${redisEnabled ? `${redisReachable ? "reachable" : "unreachable"} (${redis.host}:${redis.port})` : "disabled"}`);
   if (wantsOllama(settings)) {
     console.log(`  ollama: ${ollama || "missing, local LLM unavailable until installed"}`);
@@ -1280,15 +1448,18 @@ function waitForProcessExit(pid, timeoutMs) {
 }
 
 async function stopProjectRuntime() {
+  const settings = readProjectSettings();
   const info = readRuntimeInfo();
   if (!info || !info.pid) {
     console.log("No Alive-AI runtime pid found for this project.");
+    await stopRedisContainer(settings);
     return;
   }
 
   if (!processIsAlive(info.pid)) {
     clearRuntimeInfo(info.pid);
     console.log("Removed stale Alive-AI runtime pid file.");
+    await stopRedisContainer(settings);
     return;
   }
 
@@ -1310,6 +1481,7 @@ async function stopProjectRuntime() {
 
   clearRuntimeInfo(info.pid);
   console.log("Alive-AI stopped.");
+  await stopRedisContainer(settings);
 }
 
 async function startRuntime(args, options = {}) {
@@ -1320,6 +1492,7 @@ async function startRuntime(args, options = {}) {
   }
   await maybeCheckForUpdate(args);
   const settings = readProjectSettings();
+  const redisManaged = await ensureRedisContainer(settings);
   const secrets = readSimpleEnv(path.join(process.cwd(), "config", "secrets.env"));
   const requestedInputChannel = argValue(args, "--input", null);
   const effectiveInputChannel = (requestedInputChannel || settings.INPUT_CHANNEL || "telegram").toLowerCase();
@@ -1356,17 +1529,18 @@ async function startRuntime(args, options = {}) {
   if (existingRuntime) clearRuntimeInfo(existingRuntime.pid);
 
   const child = spawn(pythonBin, ["main.py", ...extraArgs], {
-    stdio: options.tui ? ["pipe", "pipe", "pipe"] : "inherit",
+    stdio: options.tui ? ["pipe", "pipe", "pipe"] : ["inherit", "pipe", "pipe"],
     cwd: process.cwd(),
     env,
   });
-  writeRuntimeInfo(child.pid, { inputChannel: effectiveInputChannel });
+  writeRuntimeInfo(child.pid, { inputChannel: effectiveInputChannel, redisManaged });
 
   if (options.tui) {
     const code = await runRuntimeTui(child, {
       dashboard: `http://127.0.0.1:${readProjectSettings().WEBUI_PORT || DEFAULT_PORT}`,
     });
     clearRuntimeInfo(child.pid);
+    if (redisManaged) await stopRedisContainer(settings);
     process.exitCode = code;
     return;
   }
@@ -1421,17 +1595,26 @@ async function startRuntime(args, options = {}) {
       requestStop(signal);
     }
 
+    const stdoutWriter = createRuntimeLogWriter(process.stdout, "stdout");
+    const stderrWriter = createRuntimeLogWriter(process.stderr, "stderr");
+    child.stdout?.on("data", (chunk) => stdoutWriter.write(chunk));
+    child.stderr?.on("data", (chunk) => stderrWriter.write(chunk));
+
     child.on("error", (error) => {
       if (finished) return;
       finished = true;
+      stdoutWriter.flush();
+      stderrWriter.flush();
       cleanup();
       console.error(`Alive-AI failed to start: ${error.message}`);
       process.exitCode = 1;
-      resolve();
+      Promise.resolve(redisManaged ? stopRedisContainer(settings) : false).finally(resolve);
     });
     child.on("close", (code, signal) => {
       if (finished) return;
       finished = true;
+      stdoutWriter.flush();
+      stderrWriter.flush();
       cleanup();
       if (stopRequested) {
         process.exitCode = code && code !== 0 ? code : signalExitCode(signal || stopSignal);
@@ -1440,7 +1623,7 @@ async function startRuntime(args, options = {}) {
       } else {
         process.exitCode = signalExitCode(signal || stopSignal);
       }
-      resolve();
+      Promise.resolve(redisManaged ? stopRedisContainer(settings) : false).finally(resolve);
     });
 
     process.on("SIGINT", onSignal);
