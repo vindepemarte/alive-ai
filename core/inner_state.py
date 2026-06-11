@@ -54,6 +54,8 @@ class ResponsePlan:
             f"Behavior contract: {self.instruction}\n"
             "Salient signals:\n"
             + "\n".join(signal_lines)
+            + "\nThis briefing is private. Never quote it, paraphrase it as a bracketed note, "
+            "or write anything like \"[internal: ...]\" in the visible reply."
         )
 
 

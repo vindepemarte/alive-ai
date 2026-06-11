@@ -68,6 +68,43 @@ PROMPT_LEAK_PATTERNS = [
     r"^\s*or\s+follow[-_\s]*up message\b",
 ]
 
+# Bracketed/parenthetical stage notes the model sometimes copies from its own
+# state briefing, e.g. "[internal: warmth creeps in ...]". Never user-visible.
+_META_ANNOTATION_KEYWORDS = (
+    r"internal|inner(?:\s+state)?|ooc|meta|aside|note(?:\s+to\s+self)?|"
+    r"mood|state|status|thinking|thoughts?|feels?|feelings?|emotions?|"
+    r"residue|subtext|stage|appraisal|vibe|tone|humanize|texture"
+)
+
+META_ANNOTATION_PATTERN = re.compile(
+    rf"[\[(]\s*(?:{_META_ANNOTATION_KEYWORDS})\b\s*[:\-][^\[\]()]*[\])]",
+    re.IGNORECASE,
+)
+
+# Same leak but with no closing bracket (clipped output).
+META_ANNOTATION_UNCLOSED_PATTERN = re.compile(
+    rf"[\[(]\s*(?:{_META_ANNOTATION_KEYWORDS})\b\s*[:\-][^\[\]()]*$",
+    re.IGNORECASE,
+)
+
+
+def strip_meta_annotations(text: str) -> str:
+    """Remove bracketed internal-state stage notes from visible chat."""
+    value = str(text or "")
+    value = META_ANNOTATION_PATTERN.sub(" ", value)
+    value = META_ANNOTATION_UNCLOSED_PATTERN.sub(" ", value)
+    value = re.sub(r"\s+([,.!?])", r"\1", value)
+    value = re.sub(r"[ \t]{2,}", " ", value)
+    return value.strip()
+
+
+def contains_meta_annotation(text: str) -> bool:
+    return bool(
+        META_ANNOTATION_PATTERN.search(text or "")
+        or META_ANNOTATION_UNCLOSED_PATTERN.search(text or "")
+    )
+
+
 _ACCEPTABLE_SHORT_STARTS = (
     "ok",
     "okay",
@@ -238,6 +275,8 @@ class ResponseShapePolicy:
             f"- Questions: {self.question_policy}.\n"
             f"- Hesitation/deflection: {self.hesitation_instruction}.\n"
             "- If your model has private thinking/reasoning, keep it private; visible content must be only the final chat reply.\n"
+            "- The visible reply is spoken words only. Never append bracketed or parenthetical notes about "
+            "internal state, mood, dreams, or stage directions (like \"[internal: ...]\"); internal state stays internal.\n"
             "- Do not repeat the same image in different words.\n"
             "- Avoid em dashes and double hyphens; use commas, periods, or shorter sentences instead.\n"
             "- If the user did not ask about systems, do not mention Alive-AI, runtime, framework, model, or project details.\n"
@@ -435,7 +474,7 @@ def contains_prompt_leakage(text: str) -> bool:
 
 def sanitize_provider_response(text: str) -> str:
     """Return visible dialogue from provider output, or empty if only reasoning."""
-    cleaned = normalize_chat_punctuation(strip_reasoning_preamble(text))
+    cleaned = normalize_chat_punctuation(strip_meta_annotations(strip_reasoning_preamble(text)))
     if not cleaned:
         return ""
     if contains_reasoning_artifact(cleaned):
@@ -470,6 +509,8 @@ def is_response_unusable(
     if contains_prompt_leakage(text):
         return True
     if "[ilike:" in text.lower() or "[ithink:" in text.lower() or "[iam:" in text.lower():
+        return True
+    if contains_meta_annotation(text):
         return True
 
     word_count = len(_words(text))
@@ -685,7 +726,7 @@ def shape_response_text(
     identity: Mapping[str, Any] | None = None,
 ) -> str:
     """Repair model output so the response policy has runtime consequences."""
-    text = normalize_chat_punctuation(strip_reasoning_preamble(response))
+    text = normalize_chat_punctuation(strip_meta_annotations(strip_reasoning_preamble(response)))
     if not text:
         return text
 
@@ -1018,6 +1059,11 @@ def build_mood_instruction(
         parts.append(f"You may use '{pet_name}' for {user_terms['object']} if it genuinely feels earned and natural, but do not force it.")
     else:
         parts.append("Do not use pet names this turn. Use a real name only if you actually know it, otherwise just talk normally.")
+
+    parts.append(
+        "Any bracketed sections above are private direction, not message text. "
+        "Never reproduce bracket-style notes such as [internal: ...] in what you send."
+    )
 
     if include_humanizer:
         # Legacy fallback randomizer. The main runtime now prefers the

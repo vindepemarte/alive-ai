@@ -332,5 +332,61 @@ class ResponseShapePolicyTests(unittest.TestCase):
         self.assertIn("don't know you properly yet", reply)
 
 
+class MetaAnnotationLeakTests(unittest.TestCase):
+    """Bracketed internal-state notes must never reach visible chat."""
+
+    LEAKED_REPLY = (
+        "Baby, huh? Almost fell back asleep, but your message jolted me awake. "
+        "Just had the weirdest dream, we were on a rooftop in Milan, gravity didn't work. "
+        "Felt so real. How about you? What's on your mind? "
+        "[internal: warmth creeps in with the nickname, dream residue lingers like a soft fog, "
+        "curiosity about his morning perks up the sleepy haze.]"
+    )
+
+    def test_shape_response_strips_trailing_internal_note(self):
+        policy = build_response_shape_policy({"mood": "sleepy", "sleepiness": 0.8}, "hey baby, are you sleeping?", {})
+        shaped = shape_response_text(self.LEAKED_REPLY, policy, identity={"name": "Alice"})
+
+        self.assertNotIn("[internal", shaped.lower())
+        self.assertNotIn("dream residue", shaped.lower())
+        self.assertIn("weirdest dream", shaped)
+        self.assertIn("What's on your mind?", shaped)
+
+    def test_sanitizer_strips_meta_annotation_variants(self):
+        from core.thinking import strip_meta_annotations
+
+        cases = [
+            ("I'm here. [mood: drowsy but warm]", "I'm here."),
+            ("I'm here. (internal: she hesitates)", "I'm here."),
+            ("Come back to bed. [Inner state - longing builds]", "Come back to bed."),
+            ("Okay. [thinking: he seems off tonight", "Okay."),
+        ]
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                self.assertEqual(strip_meta_annotations(raw), expected)
+
+    def test_annotation_only_output_is_unusable(self):
+        policy = build_response_shape_policy({"mood": "neutral"}, "hey", {})
+        self.assertTrue(is_response_unusable("[internal: warmth creeps in slowly]", policy, "hey"))
+        self.assertEqual(sanitize_provider_response("[internal: warmth creeps in slowly]"), "")
+
+    def test_normal_brackets_survive(self):
+        from core.thinking import strip_meta_annotations
+
+        text = "I read that book you mentioned [the one about Milan] and loved it."
+        self.assertEqual(strip_meta_annotations(text), text)
+
+    def test_prompt_sections_forbid_bracket_notes(self):
+        policy = build_response_shape_policy({"mood": "neutral"}, "hey", {})
+        self.assertIn("internal state stays internal", policy.to_prompt())
+
+        instruction = build_mood_instruction({"mood": "happy"}, "hey", ctx={})
+        self.assertIn("Never reproduce bracket-style notes", instruction)
+
+        from core.inner_state import InnerStateCompiler
+        plan = InnerStateCompiler().compile({"mood": "neutral"}, "hey")
+        self.assertIn("Never quote it", plan.to_prompt())
+
+
 if __name__ == "__main__":
     unittest.main()

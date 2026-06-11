@@ -47,7 +47,7 @@ Status: decided from `brain/llm/` and tests.
 
 ## Response Shaping
 
-Visible provider content is sanitized to strip reasoning artifacts, prompt-template leaks, role leakage, and unusable fragments. Known bad leak patterns such as `structure:`, `Recent_turns`, `assistant_response:`, and `current_user_message:` are rejected.
+Visible provider content is sanitized to strip reasoning artifacts, prompt-template leaks, role leakage, and unusable fragments. Known bad leak patterns such as `structure:`, `Recent_turns`, `assistant_response:`, and `current_user_message:` are rejected. Bracketed/parenthetical internal-state stage notes (for example `[internal: ...]`, `[mood: ...]`, `(thinking: ...)`, including unclosed variants) are scrubbed from visible replies in both the sanitizer and the shape-repair path, output that is only such a note is rejected as unusable, and the style/inner-state prompts explicitly forbid reproducing bracket-style notes.
 
 Reply delivery is state-led and intentionally non-uniform. `core/response_texture.py` rolls a per-turn reply shape (clipped/compact/flowing/rambling/fragmented/trailing) weighted by live emotion, sleepiness, and energy, never repeats the previous shape at full weight, and forces a length contrast after several same-length replies. Long replies can be delivered as 2-3 separate message bubbles split only at natural boundaries, with probability shaped by arousal/energy and suppressed by sleepiness. Typing delay before a reply scales with sleepiness and sadness (slower) and high arousal (faster). Texture nudges are skipped for identity answers, system-transparency answers, and active boundary turns.
 
