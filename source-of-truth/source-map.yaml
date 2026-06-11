@@ -1,0 +1,208 @@
+project:
+  name:
+    value: "Alive-AI"
+    status: decided
+  package_name:
+    value: "alive-ai"
+    status: decided
+  python_project:
+    value: "alive-ai-runtime"
+    status: decided
+  current_version:
+    value: "0.2.5"
+    status: decided
+  mission:
+    value: "Local-first emotional companion runtime with persistent state, memory, impulses, terminal chat, Telegram, OpenMind, and a live WebUI."
+    status: decided
+authority:
+  repo_source_of_truth:
+    value: "source-of-truth/"
+    status: decided
+  agent_entrypoint:
+    value: "AGENTS.md"
+    status: decided
+  missing_truth_route:
+    value: "onboard-source"
+    status: decided
+  decided_truth_change_route:
+    value: "remake-source"
+    status: decided
+product:
+  positioning:
+    value: "Emotional companion runtime."
+    status: decided
+  primary_users:
+    value: "Local operators and builders creating emotionally continuous AI companions, with developers and researchers as secondary technical users."
+    status: decided
+  roles:
+    owner_operator:
+      value: "The person who runs the runtime and owns the local project, config, data, media, secrets, and privileged controls."
+      status: decided
+    conversation_user:
+      value: "Any person talking to the companion; this can be the owner/operator or another non-owner user."
+      status: decided
+    additional_roles:
+      value: "No other product roles are canonical at this time."
+      status: decided
+  consciousness_claim:
+    value: "Alive-AI is a simulation framework and does not claim biological consciousness."
+    status: decided
+  billing:
+    value: "No billing or money workflow is present in this repo."
+    status: skipped
+brand:
+  direction:
+    value: "Keep the existing dark technical/cyber companion style for now."
+    status: decided
+  color_source:
+    value: "Match UI colors to the actual logo design and colors."
+    status: decided
+  palette:
+    negative_space:
+      value: "#000000"
+      status: decided
+    chrome_silver:
+      value: "#D4D4DA, #9BA0AC"
+      status: decided
+    steel_blue_gray:
+      value: "#5B6B9A, #57616E"
+      status: decided
+    deep_blue_teal:
+      value: "#296590, #23576E, #306E8E, #197586"
+      status: decided
+    cyan_teal_highlights:
+      value: "#4395B5, #3795A4, #64E0F4, #91D9F2"
+      status: decided
+    electric_indigo_violet:
+      value: "#4F53AB, #615BD6, #8775C6, #8B74D7"
+      status: decided
+  open_details:
+    value: "Exact typography, spacing, and component rules beyond existing app conventions are not fully specified."
+    status: unknown
+surfaces:
+  cli:
+    value: "alive-ai init/setup/demo/update/start/stop/chat/doctor/uninstall"
+    status: decided
+  runtime_entrypoint:
+    value: "main.py"
+    status: decided
+  local_dashboard:
+    value: "http://127.0.0.1:8080"
+    status: decided
+  webui_binding:
+    local:
+      value: "127.0.0.1 by default for normal local runs."
+      status: decided
+    docker:
+      value: "0.0.0.0 inside Docker/container runs so Docker port mapping can expose the dashboard to the host."
+      status: decided
+    implementation_gap:
+      value: "main.py currently binds 127.0.0.1 unconditionally; container-aware binding is not implemented yet."
+      status: unknown
+  public_site:
+    value: "https://vindepemarte.github.io/alive-ai/"
+    status: decided
+  static_dashboard_demo:
+    value: "https://vindepemarte.github.io/alive-ai/dashboard.html"
+    status: decided
+architecture:
+  node_requirement:
+    value: ">=18"
+    status: decided
+  python_requirement:
+    value: ">=3.11"
+    status: decided
+  web_backend:
+    value: "FastAPI served by the local runtime."
+    status: decided
+  public_site_runtime:
+    value: "Static GitHub Pages only; no Python backend."
+    status: decided
+  provider_layer:
+    value: "brain/llm factory and UnifiedLLM route Ollama, OpenRouter, ZAI, and OpenAI-compatible providers."
+    status: decided
+data:
+  settings_authority:
+    value: "config/settings.json"
+    status: decided
+  identity_authority:
+    value: "config/self.json"
+    status: decided
+  directives_authority:
+    value: "config/directives.json"
+    status: decided
+  runtime_data:
+    value: "data/"
+    status: decided
+  webui_journal:
+    value: "data/users/<user>/webui_chat.jsonl"
+    status: decided
+  mcp_store:
+    value: "data/mcp/proposals.json and data/mcp/audit.jsonl"
+    status: decided
+  retention:
+    value: "Local data, media, memories, Redis vectors, and OpenMind-linked memory are retained indefinitely until explicit owner/operator export or deletion."
+    status: decided
+  destructive_actions:
+    value: "Deletion, wipe, reset, uninstall, destructive sync, or replacement requires explicit owner/operator action."
+    status: decided
+  backup_restore:
+    value: "Manual project-folder backup and restore by the owner/operator for now; first-class export/restore commands are not canonical requirements yet."
+    status: decided
+integrations:
+  openmind:
+    value: "Optional cloud/local semantic memory bridge."
+    status: decided
+  redis:
+    value: "Optional Redis Stack vector cache."
+    status: decided
+  telegram:
+    value: "Optional input/output channel with owner-only command gates."
+    status: decided
+  mcp:
+    value: "Disabled by default; proposal and owner approval required before execution."
+    status: decided
+  plugin_api:
+    internal_registry:
+      value: "Internal plugin registry and /api/plugins/status diagnostics are live runtime internals."
+      status: decided
+    public_contract:
+      value: "Roadmap only for now; no stable external plugin API or third-party plugin compatibility contract exists yet."
+      status: decided
+rules:
+  no_private_release_data:
+    value: "Public repo/package excludes secrets, private personas, runtime data, benchmark transcripts, and private media."
+    status: decided
+  response_shaping:
+    value: "Strip reasoning artifacts and prompt-template leaks before sending provider output."
+    status: decided
+  openrouter_reasoning:
+    value: "OPENROUTER_THINKING_ENABLED is provider-specific and opt-in."
+    status: decided
+  mcp_default:
+    value: "Default-deny, approval-gated, secret-redacted."
+    status: decided
+  safety_boundaries:
+    existing:
+      value: "Existing boundaries remain: no consciousness claim, no private data/secrets in public release, no hidden reasoning/system/secret leakage, normal chat cannot execute MCP tools, and operator control stays central."
+      status: decided
+    additional_partner_style_boundaries:
+      value: "Deferred by operator on 2026-06-10; no additional product-level safety policy is canonical yet."
+      status: unknown
+verification:
+  smoke:
+    value: "npm run smoke"
+    status: decided
+  release_rule:
+    value: "If the touched release surface works under relevant verification, it can publish; use source, package, installed-project, and Pages checks only as applicable."
+    status: decided
+  broad_tests:
+    value: "python3 -m unittest when runtime behavior changes."
+    status: assumed
+  package_check:
+    value: "npm pack --dry-run for packaging changes."
+    status: decided
+open_questions:
+  safety_boundaries:
+    value: "Additional non-negotiable safety and dependency boundaries for partner-style or emotionally attached agents are deferred until the owner/operator defines them."
+    status: unknown

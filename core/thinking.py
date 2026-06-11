@@ -809,6 +809,18 @@ def build_mood_instruction(
         or circadian.get("was_asleep")
     )
 
+    dream_residue = emotion.get("dream_residue") if isinstance(emotion.get("dream_residue"), Mapping) else {}
+    if dream_residue.get("feeling"):
+        tone = str(dream_residue.get("tone") or "strange")
+        dream_text = str(dream_residue.get("text") or "").strip()
+        residue_line = (
+            f"You just surfaced from a {tone} dream and it is still on your skin: it left you feeling "
+            f"{dream_residue['feeling']}. Let that color your first words without explaining dream mechanics."
+        )
+        if dream_text:
+            residue_line += f" The dream, in fragments: {dream_text}"
+        parts.append(residue_line)
+
     if woke_from_sleep:
         parts.append(
             "You were asleep when his message arrived and it woke you. "

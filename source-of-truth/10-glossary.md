@@ -1,0 +1,27 @@
+# Glossary
+
+- Alive-AI: The emotional companion runtime/framework/product.
+- alive-ai: The npm package and CLI command name.
+- alive-ai-runtime: The Python project/package metadata name.
+- Agent identity: The configured AI person in `config/self.json`.
+- Owner/operator: The person who runs the runtime and owns the local project, config, data, media, secrets, and privileged controls.
+- Owner: The privileged Telegram/MCP controller identified by `TELEGRAM_OWNER_ID` or owner settings; this is the runtime expression of the owner/operator role.
+- Conversation user: Any person talking to the companion. This can be the owner/operator or another user without owner privileges.
+- Terminal chat: Local stdin/stdout input adapter started by `npx . chat`.
+- Telegram mode: Runtime input/output adapter started by `npx . start` when Telegram is configured.
+- WebUI: Local FastAPI-served live dashboard at `127.0.0.1:8080` by default.
+- Public Pages site: Static GitHub Pages portal built from `pages/` into `docs/`.
+- OpenMind: Optional cloud/local semantic memory bridge.
+- Redis vector cache: Optional local Redis Stack vector search/cache, not the primary memory authority.
+- MCP: Sandboxed Model Context Protocol runtime with catalog, proposal, approval, execution, and audit layers.
+- Proposal: A pending MCP tool call request that has not been executed.
+- Approval: Explicit owner authorization for a proposal.
+- Nervous system: Runtime event bus and connected state/action modules.
+- Heart: Affect/body-like modules for emotion, hormones, circadian, somatic, and attachment state.
+- Brain: LLM, memory, subconscious, dreams, curiosity, narrative, and language modules.
+- Subconscious/default mode: Background loops that process idle thoughts, goals, impulses, and memory.
+- Memory layers: Compact prompt context assembled from working, episodic, semantic, emotional, procedural, autobiographical, dream, and shadow memory.
+- Self-authorship: Runtime/user commands that update the agent's identity traits, likes, dislikes, and discovered facts.
+- Response shaping: Sanitization and final-form policy applied to provider output before sending.
+- Human-feel benchmark: Local evaluation harness comparing Alive-AI runtime behavior to baselines.
+- Local-first: Config, memory, runtime state, and media are owned by the local project unless explicitly integrated with optional external services.

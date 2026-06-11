@@ -508,6 +508,11 @@ async def _process_single_message(self, data: dict):
             except Exception as e:
                 print(f"[Circadian] Interaction handling error: {e}")
 
+        # Dream consequences: a fresh dream's residue lands on the live heart
+        # exactly once after waking, before appraisal, so a nightmare genuinely
+        # changes the state the whole response pipeline runs on.
+        dream_residue = _apply_dream_residue(self, circadian_interaction)
+
         # User replied - reset follow-up state
         _follow_up.record_user_message()
 
@@ -567,6 +572,8 @@ async def _process_single_message(self, data: dict):
             emotion["was_asleep"] = circadian_interaction.get("was_asleep", False)
             emotion["woke_from_sleep"] = circadian_interaction.get("woke_from_sleep", False)
             emotion["behavioral_pressure"] = build_behavioral_pressure(emotion).to_dict()
+        if dream_residue:
+            emotion["dream_residue"] = dream_residue
 
         # No owner boost - let emotions develop authentically
         emotion["is_owner"] = is_owner  # Just flag for commands, no emotion changes
@@ -746,7 +753,7 @@ async def _process_single_message(self, data: dict):
             await asyncio.sleep(random.uniform(0.5, 2.0))  # Natural delay
             await self.nervous.emit("send_reaction", {"emoji": reaction})
         await self.nervous.emit("chat_action_typing", {})
-        await _typing_delay(text)
+        await _typing_delay(text, emotion)
 
         # ============================================================
         # PRE-LLM SKILL CALLS: Memory Callbacks + Exclusive Moments
@@ -948,10 +955,67 @@ async def _process_single_message(self, data: dict):
             self._hot_reload.mark_idle()
 
 
-async def _typing_delay(text: str):
+def _apply_dream_residue(self, circadian_interaction: dict) -> dict:
+    """Apply the latest dream's emotional residue to the live heart, once.
+
+    Fires when the user's message just woke her, or when she woke naturally
+    within the last hour and this is the first message since. Returns the
+    residue dict so the prompt can name the lingering feeling.
+    """
+    if not DREAMS_AVAILABLE or not circadian_interaction:
+        return {}
+
+    recently_awake = bool(circadian_interaction.get("woke_from_sleep"))
+    if not recently_awake and circadian_interaction.get("wake_time"):
+        try:
+            since_wake = (datetime.now() - datetime.fromisoformat(circadian_interaction["wake_time"])).total_seconds() / 60
+            recently_awake = 0 <= since_wake <= 60
+        except Exception:
+            recently_awake = False
+    if not recently_awake:
+        return {}
+
+    try:
+        residue = get_dream_system().consume_wake_residue()
+    except Exception as e:
+        print(f"[Dreams] Residue lookup error: {e}")
+        return {}
+    if not residue:
+        return {}
+
+    heart_emotion = getattr(getattr(self, "_heart", None), "emotion", None)
+    if heart_emotion is not None:
+        try:
+            for key, delta in (residue.get("deltas") or {}).items():
+                heart_emotion.nudge(key, float(delta))
+            heart_emotion.recompute_core_affect()
+            heart_emotion.save()
+            print(
+                f"[Dreams] Wake residue applied: tone={residue.get('tone')} "
+                f"deltas={residue.get('deltas')}"
+            )
+        except Exception as e:
+            print(f"[Dreams] Residue application error: {e}")
+    return residue
+
+
+async def _typing_delay(text: str, emotion: dict = None):
     n = len(text)
     lo, hi = (1.0, 2.0) if n < 20 else (2.0, 4.0) if n < 80 else (3.0, 6.0)
-    await asyncio.sleep(random.uniform(lo, hi))
+    delay = random.uniform(lo, hi)
+    if emotion:
+        # State shapes pacing: tiredness and sadness slow her down,
+        # excitement speeds her up. Pacing is a consequence, not decoration.
+        circadian = emotion.get("circadian") if isinstance(emotion.get("circadian"), dict) else {}
+        sleepiness = max(
+            float(emotion.get("sleepiness", 0.0) or 0.0),
+            float(circadian.get("sleepiness", 0.0) or 0.0),
+        )
+        sadness = float(emotion.get("sadness", 0.0) or 0.0)
+        arousal = float(emotion.get("arousal", 0.3) or 0.3)
+        scale = 1.0 + sleepiness * 0.9 + sadness * 0.4 - max(0.0, arousal - 0.5) * 0.8
+        delay *= max(0.45, min(2.2, scale))
+    await asyncio.sleep(min(delay, 9.0))
 
 
 async def think(self, msg, emotion, ctx, pet_name="", is_owner=False, advanced_mode=False, user_id="") -> str:
@@ -1247,6 +1311,27 @@ async def think(self, msg, emotion, ctx, pet_name="", is_owner=False, advanced_m
         system_parts.append(profile_curiosity["prompt"])
     system_parts.append(response_policy.to_prompt())
 
+    # Per-turn texture roll: state-weighted randomness in reply shape so
+    # cadence varies the way human texting does. Skipped when identity,
+    # system transparency, or an active boundary should own the shape.
+    if (
+        response_policy.identity_mode == "none"
+        and not response_policy.system_transparency
+        and not boundary_decision.active
+    ):
+        try:
+            from core.response_texture import roll_texture
+            recent_counts = [
+                len(str(turn.get("content", "")).split())
+                for turn in ctx.get("conversation_history", [])[-10:]
+                if turn.get("role") == "assistant"
+            ]
+            texture = roll_texture(user_id, emotion, recent_counts)
+            system_parts.append(texture.to_prompt())
+            print(f"[Texture] shape={texture.shape} forced_contrast={texture.forced_contrast}")
+        except Exception as e:
+            print(f"[Think] Texture roll error: {e}")
+
     # Opening variety hint (positive framing)
     recent_openings = _get_recent_openings(user_id)
     if recent_openings:
@@ -1395,15 +1480,28 @@ async def _send_response(self, response, emotion, chat_id, text, user_id="defaul
                 "source": "runtime",
             })
             return
-    await self.nervous.emit("send_text", {
-        "text": response,
-        "mood": mood,
-        "chat_id": chat_id,
-        "user_id": user_id,
-        "message_id": assistant_message_id,
-        "reply_to_message_id": message_id,
-        "source": "runtime",
-    })
+    # Sometimes a reply arrives as 2-3 bubbles like real texting; splitting
+    # only happens on natural boundaries and is shaped by the live state.
+    bubbles = [response]
+    try:
+        from core.response_texture import split_into_bubbles
+        bubbles = split_into_bubbles(response, emotion) or [response]
+    except Exception as e:
+        print(f"[Response] Bubble split error (non-fatal): {e}")
+
+    for index, bubble in enumerate(bubbles):
+        if index > 0:
+            await self.nervous.emit("chat_action_typing", {})
+            await asyncio.sleep(min(4.5, 0.8 + len(bubble) * 0.02 + random.uniform(0.2, 1.0)))
+        await self.nervous.emit("send_text", {
+            "text": bubble,
+            "mood": mood,
+            "chat_id": chat_id,
+            "user_id": user_id,
+            "message_id": f"{assistant_message_id}_{index}" if (assistant_message_id and index) else assistant_message_id,
+            "reply_to_message_id": message_id if index == 0 else None,
+            "source": "runtime",
+        })
 
 
 def _process_self_authorship_actions(response: str, user_id: str = "default", self_path: Path = None) -> tuple:
